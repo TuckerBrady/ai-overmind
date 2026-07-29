@@ -8,9 +8,9 @@ in terms of `~~category` rather than specific products or tools.
 
 ## Categories used in this plugin
 
-| Category           | Placeholder      | Included options                                       |
+| Category | Placeholder | Included options |
 | ------------------- | ----------------- | ------------------------------------------------------- |
-| Directory service   | `~~directory`     | Microsoft Teams, Outlook, Google Workspace, LDAP, Okta  |
+| Directory service | `~~directory` | Microsoft Teams, Outlook, Google Workspace, LDAP, Okta |
 
 ## What the directory connector does
 

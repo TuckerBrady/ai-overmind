@@ -1,4 +1,4 @@
-# ai-overmind v2.0
+# ai-overmind v3.7.2
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -88,4 +88,6 @@ Everything runs on passphrases. The Overmind writes a brief, invents a passphras
 | `hooks/hooks.json` | SessionStart hook — injects firmware automatically |
 | `skills/dispatch/` | Convenience trigger for the dispatch workflow |
 | `skills/overmind/` | Explicit skill for team-building actions |
+| `skills/roster/` | Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync |
+| `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
 | `CONNECTORS.md` | Directory service connector documentation |
