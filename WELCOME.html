@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ai-overmind — Field Manual</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --bg-panel: #111722;
+    --bg-card: #161e2d;
+    --border: #223047;
+    --accent: #4fd1c5;
+    --accent-dim: #2c7a73;
+    --amber: #f6ad55;
+    --text: #d7e0ee;
+    --text-dim: #8494ab;
+    --mono: 'Cascadia Code', 'SF Mono', Consolas, 'Courier New', monospace;
+    --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.65;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,209,197,.10), transparent),
+      repeating-linear-gradient(0deg, transparent 0 2px, rgba(255,255,255,.006) 2px 4px);
+    pointer-events: none;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 28px 100px; position: relative; }
+
+  /* HERO */
+  .hero { padding: 90px 0 60px; text-align: center; }
+  .hero .badge {
+    display: inline-block; font-family: var(--mono); font-size: 12px;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--accent);
+    border: 1px solid var(--accent-dim); border-radius: 3px;
+    padding: 5px 14px; margin-bottom: 28px;
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { box-shadow: 0 0 18px rgba(79,209,197,.25); } }
+  .hero h1 {
+    font-family: var(--mono); font-size: clamp(34px, 6vw, 56px);
+    font-weight: 700; letter-spacing: -1px; color: #fff;
+  }
+  .hero h1 .cursor { color: var(--accent); animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .hero .ver { font-family: var(--mono); color: var(--text-dim); font-size: 14px; margin-top: 8px; }
+  .hero .tag { font-size: 19px; color: var(--text); margin-top: 22px; }
+  .hero .tag strong { color: var(--accent); }
+  .hero .sub { color: var(--text-dim); max-width: 620px; margin: 14px auto 0; font-size: 15px; }
+
+  /* ACTIVATE CALLOUT */
+  .activate {
+    margin: 46px auto 0; max-width: 560px;
+    background: var(--bg-panel); border: 1px solid var(--accent-dim);
+    border-radius: 8px; padding: 22px 26px;
+    font-family: var(--mono);
+    box-shadow: 0 0 40px rgba(79,209,197,.07);
+    text-align: left;
+  }
+  .activate .lbl { font-size: 11px; letter-spacing: 2.5px; color: var(--text-dim); text-transform: uppercase; }
+  .activate .phrase { font-size: 21px; color: var(--accent); margin-top: 6px; }
+  .activate .hint { font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(10,14,20,.92); backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    margin: 60px -28px 0; padding: 0 28px;
+  }
+  nav ul { display: flex; gap: 4px; list-style: none; overflow-x: auto; }
+  nav a {
+    display: block; padding: 13px 14px; font-family: var(--mono); font-size: 12.5px;
+    letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim);
+    text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent;
+  }
+  nav a:hover { color: var(--accent); border-bottom-color: var(--accent-dim); }
+
+  /* SECTIONS */
+  section { padding-top: 70px; }
+  h2 {
+    font-family: var(--mono); font-size: 24px; color: #fff; margin-bottom: 6px;
+  }
+  h2 .idx { color: var(--accent); margin-right: 10px; }
+  .rule { height: 1px; background: linear-gradient(90deg, var(--accent-dim), transparent); margin: 14px 0 26px; }
+  p.lead { color: var(--text-dim); font-size: 15.5px; max-width: 700px; }
+
+  /* WHATS NEW */
+  .new-list { margin-top: 22px; display: grid; gap: 12px; }
+  .new-item {
+    background: var(--bg-card); border: 1px solid var(--border); border-left: 3px solid var(--amber);
+    border-radius: 6px; padding: 14px 18px; font-size: 14.5px;
+  }
+  .new-item b { color: var(--amber); font-family: var(--mono); font-size: 13.5px; }
+
+  /* STEPS */
+  .steps { margin-top: 26px; display: grid; gap: 0; }
+  .step { display: flex; gap: 18px; padding: 16px 0; border-bottom: 1px dashed var(--border); }
+  .step:last-child { border-bottom: none; }
+  .step .num {
+    flex: 0 0 34px; height: 34px; border-radius: 50%;
+    border: 1px solid var(--accent-dim); color: var(--accent);
+    font-family: var(--mono); font-size: 14px; display: grid; place-items: center;
+  }
+  .step .body { font-size: 15px; padding-top: 4px; }
+  .step .body code, td code, .new-item code {
+    font-family: var(--mono); font-size: 13px; background: #0d1420;
+    border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px; color: var(--accent);
+  }
+  .note {
+    margin-top: 24px; background: var(--bg-panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px 20px; font-size: 13.5px; color: var(--text-dim);
+  }
+  .note b { color: var(--text); }
+
+  /* FEATURE CARDS */
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 26px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 24px 22px; transition: border-color .2s, transform .2s;
+  }
+  .card:hover { border-color: var(--accent-dim); transform: translateY(-3px); }
+  .card .icon { font-size: 26px; }
+  .card h3 { font-family: var(--mono); color: var(--accent); font-size: 16px; margin: 12px 0 8px; }
+  .card p { font-size: 13.8px; color: var(--text-dim); }
+
+  /* TABLES */
+  table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 14px; }
+  th {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text-dim); text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--accent-dim);
+  }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: rgba(79,209,197,.03); }
+
+  /* FOOTER */
+  footer {
+    margin-top: 90px; padding-top: 26px; border-top: 1px solid var(--border);
+    font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+  footer .status { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
+    <h1>ai-overmind<span class="cursor">_</span></h1>
+    <div class="ver">v3.8.0</div>
+    <p class="tag">Build and run a personal AI team. <strong>One phrase and your Overmind wakes up.</strong></p>
+    <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
+    <div class="activate">
+      <div class="lbl">Activation Passphrase</div>
+      <div class="phrase">"[YourFirstName] is online"</div>
+      <div class="hint">Say it in your project chat. Example: "Sarah is online."</div>
+    </div>
+  </div>
+
+  <nav><ul>
+    <li><a href="#new">What's New</a></li>
+    <li><a href="#quickstart">Quickstart</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#reference">Reference</a></li>
+    <li><a href="#passphrases">Passphrases</a></li>
+    <li><a href="#components">Components</a></li>
+  </ul></nav>
+
+  <section id="new">
+    <h2><span class="idx">01</span>What's New in v3.8.0</h2>
+    <div class="rule"></div>
+    <div class="new-list">
+      <div class="new-item"><b>WELCOME.html field manual</b> — this page. Presented automatically on first activation; open it any time for the full docs.</div>
+      <div class="new-item"><b>New <code>roster</code> skill</b> — add, remove, resurrect, or audit team members; keeps the roster, dispatch targets, and memory in sync.</div>
+      <div class="new-item"><b>Direct .zip install</b> — upload the zip straight into a Cowork project. No rename step.</div>
+      <div class="new-item"><b>Merged v3.7.1 fixes</b> — consolidated the orphaned v3.7.1 changes into mainline.</div>
+    </div>
+  </section>
+
+  <section id="quickstart">
+    <h2><span class="idx">02</span>Quickstart</h2>
+    <div class="rule"></div>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div class="body"><b>Install</b> the plugin into a dedicated Cowork project (e.g., "My AI Team") by uploading <code>ai-overmind-v3.8.0.zip</code> directly.</div></div>
+      <div class="step"><div class="num">2</div><div class="body"><b>Open</b> the project. The Overmind waits silently.</div></div>
+      <div class="step"><div class="num">3</div><div class="body"><b>Say</b> <code>[YourFirstName] is online</code></div></div>
+      <div class="step"><div class="num">4</div><div class="body">The Overmind learns your role, proposes your team, and builds everything.</div></div>
+      <div class="step"><div class="num">5</div><div class="body"><b>Paste the Sleeper Activation block</b> into this project's Project Instructions — the Overmind will give it to you. Do this for your own project AND each specialist's.</div></div>
+    </div>
+    <div class="note"><b>Optional:</b> connect a directory service (Teams, Outlook, Google Workspace) for automatic role lookup. Without it, the Overmind asks you directly. See <code>CONNECTORS.md</code>.</div>
+    <div class="note"><b>Why Project Instructions?</b> Cowork SessionStart hooks are not guaranteed to inject into context before the first message. The passphrase/handoff system must live in Project Instructions to be reliable at boot. The plugin firmware handles on-demand features (handoffs, dispatch). Both work together — Project Instructions for startup, firmware for everything else.</div>
+  </section>
+
+  <section id="features">
+    <h2><span class="idx">03</span>The Three Features</h2>
+    <div class="rule"></div>
+    <div class="features">
+      <div class="card">
+        <div class="icon">🧠</div>
+        <h3>Team Building</h3>
+        <p>The Overmind interviews you about your role and proposes 5–8 AI specialists tailored to your actual work. Each gets a human name, a defined domain, a bootstrap file, and a persona file. Approve the team and it builds the full folder structure — one folder per specialist, ready to become a Cowork project.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📡</div>
+        <h3>Handoffs</h3>
+        <p>Sessions have limited memory. At the end of any session, ask for a handoff — the Overmind writes a structured brief of what was done, what's in progress, and what's next, then gives you a passphrase. Say it at the start of your next session and the Overmind activates fully briefed. It proactively offers handoffs at natural stopping points.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🎯</div>
+        <h3>Dispatch</h3>
+        <p>Send work to a specialist without explaining everything from scratch. The Overmind writes a mission brief to the specialist's folder, snapshots your open browser tabs, and gives you a passphrase. Open the specialist's session, say the phrase — they activate ready to work. Any session can dispatch, not just the Overmind.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="reference">
+    <h2><span class="idx">04</span>Usage Reference</h2>
+    <div class="rule"></div>
+    <table>
+      <tr><th>Say this</th><th>What happens</th></tr>
+      <tr><td><code>[FirstName] is online</code></td><td>First-run activation — role lookup and team proposal</td></tr>
+      <tr><td><code>Build my team</code></td><td>Begins team composition</td></tr>
+      <tr><td><code>Add a [role] to the team</code></td><td>Proposes and builds a new specialist</td></tr>
+      <tr><td><code>Give me the Sleeper Activation block</code></td><td>Generates the passphrase block for Project Instructions</td></tr>
+      <tr><td><code>Write a handoff</code></td><td>Saves session state and generates activation passphrase</td></tr>
+      <tr><td><code>Brief [Name] on [task]</code></td><td>Dispatches a mission to a specialist</td></tr>
+      <tr><td><code>Send this to [Name]</code></td><td>Same — writes mission brief + generates passphrase</td></tr>
+      <tr><td><code>[passphrase]</code></td><td>Activates the waiting brief or mission in that session</td></tr>
+    </table>
+  </section>
+
+  <section id="passphrases">
+    <h2><span class="idx">05</span>How the Passphrase System Works</h2>
+    <div class="rule"></div>
+    <p class="lead">Everything runs on passphrases. The Overmind writes a brief, invents a passphrase, and tells you what it is. You say the phrase to the right session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.</p>
+  </section>
+
+  <section id="components">
+    <h2><span class="idx">06</span>Components</h2>
+    <div class="rule"></div>
+    <table>
+      <tr><th>Component</th><th>Purpose</th></tr>
+      <tr><td><code>hooks/firmware.md</code></td><td>Core Overmind intelligence — team building, handoffs, and dispatch built in</td></tr>
+      <tr><td><code>hooks/hooks.json</code></td><td>SessionStart hook — injects firmware automatically</td></tr>
+      <tr><td><code>skills/dispatch/</code></td><td>Convenience trigger for the dispatch workflow</td></tr>
+      <tr><td><code>skills/overmind/</code></td><td>Explicit skill for team-building actions</td></tr>
+      <tr><td><code>skills/roster/</code></td><td>Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync</td></tr>
+      <tr><td><code>skills/caveman/</code></td><td>Ultra-compressed communication mode (~65–75% fewer tokens)</td></tr>
+      <tr><td><code>WELCOME.html</code></td><td>This field manual — presented on first activation</td></tr>
+      <tr><td><code>CONNECTORS.md</code></td><td>Directory service connector documentation</td></tr>
+    </table>
+  </section>
+
+  <footer>
+    <span>ai-overmind v3.8.0 — Tucker Brady</span>
+    <span class="status">● OVERMIND STANDING BY</span>
+  </footer>
+
+</div>
+</body>
+</html>

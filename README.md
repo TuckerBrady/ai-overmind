@@ -1,4 +1,4 @@
-# ai-overmind v3.7.2
+# ai-overmind v3.8.1
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -8,14 +8,38 @@ Three capabilities work out of the box: **team building**, **handoffs**, and **d
 
 ---
 
-## Quickstart
+## What's New in v3.8.1
 
-1. **Rename** `ai-overmind.plugin` → `ai-overmind.zip`
-2. **Install** the plugin into a dedicated Cowork project (e.g., "My AI Team") by uploading the .zip file
-3. **Open** the project. The Overmind waits silently.
-4. **Say** `[YourFirstName] is online`
-5. The Overmind learns your role, proposes your team, and builds everything
-6. **Paste the Sleeper Activation block** into this project's Project Instructions (the Overmind will give it to you — do this for your own project AND each specialist's)
+- **Marketplace distribution** — this repo is now a Claude plugin marketplace. Install once, get every future update automatically. Zip installs still work but are now the legacy path.
+
+### v3.8.0
+
+- **WELCOME.html field manual** — a styled HTML docs page bundled in the plugin; the Overmind presents it automatically on first activation so new users get the full manual in their browser
+- **New `roster` skill** — add, remove, resurrect, or audit team members; keeps the roster, dispatch targets, and memory in sync
+- **Merged v3.7.1 fixes** — consolidated the orphaned v3.7.1 changes into mainline
+- **Distributed as a plain .zip** — upload directly into a Cowork project, no rename step
+
+---
+
+## Install (recommended: marketplace)
+
+**Cowork:** Customize → Plugins → Add Marketplace → paste `TuckerBrady/ai-overmind`, then install **ai-overmind**.
+
+**Claude Code:**
+```bash
+claude plugin marketplace add TuckerBrady/ai-overmind
+claude plugin install ai-overmind
+```
+
+Updates ship automatically when a new version is released — run `claude plugin update` or let auto-update pick it up.
+
+## Quickstart (legacy zip install)
+
+1. **Install** the plugin into a dedicated Cowork project (e.g., "My AI Team") by uploading `ai-overmind.zip` directly — no renaming needed
+2. **Open** the project. The Overmind waits silently.
+3. **Say** `[YourFirstName] is online`
+4. The Overmind learns your role, proposes your team, and builds everything
+5. **Paste the Sleeper Activation block** into this project's Project Instructions (the Overmind will give it to you — do this for your own project AND each specialist's)
 
 **Optional:** connect a directory service (Teams, Outlook, Google Workspace) for automatic role lookup. Without it, the Overmind asks you directly. See `CONNECTORS.md`.
 
@@ -90,4 +114,5 @@ Everything runs on passphrases. The Overmind writes a brief, invents a passphras
 | `skills/overmind/` | Explicit skill for team-building actions |
 | `skills/roster/` | Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync |
 | `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
+| `WELCOME.html` | Styled field manual — presented on first activation |
 | `CONNECTORS.md` | Directory service connector documentation |
