@@ -1,0 +1,18 @@
+{
+  "name": "ai-overmind",
+  "owner": {
+    "name": "Tucker Brady"
+  },
+  "metadata": {
+    "description": "Marketplace for the ai-overmind plugin \u2014 build and run a personal AI team.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ai-overmind",
+      "source": "./",
+      "description": "Build and run a personal AI team. One activation phrase and your Overmind wakes up, learns your role, proposes a custom team of AI specialists, and builds their project structure \u2014 ready to deploy.",
+      "version": "3.8.1"
+    }
+  ]
+}

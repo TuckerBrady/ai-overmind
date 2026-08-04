@@ -1,0 +1,16 @@
+{
+  "name": "ai-overmind",
+  "version": "3.8.1",
+  "description": "Build and run a personal AI team. One activation phrase and your Overmind wakes up, learns your role, proposes a custom team of AI specialists, and builds their project structure \u2014 ready to deploy.",
+  "author": {
+    "name": "Tucker Brady"
+  },
+  "keywords": [
+    "ai-team",
+    "overmind",
+    "team-builder",
+    "automation",
+    "productivity"
+  ],
+  "hooks": "./hooks/hooks.json"
+}
