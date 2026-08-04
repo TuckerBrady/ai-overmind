@@ -1,4 +1,4 @@
-# ai-overmind v3.8.1
+# ai-overmind v3.8.2
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -8,7 +8,11 @@ Three capabilities work out of the box: **team building**, **handoffs**, and **d
 
 ---
 
-## What's New in v3.8.1
+## What's New in v3.8.2
+
+- **Marketplace install fix** — removed the bundled zip from the plugin tree (installers reject nested zips) and deduplicated the SessionStart hook registration
+
+### v3.8.1
 
 - **Marketplace distribution** — this repo is now a Claude plugin marketplace. Install once, get every future update automatically. Zip installs still work but are now the legacy path.
 
@@ -35,7 +39,7 @@ Updates ship automatically when a new version is released — run `claude plugin
 
 ## Quickstart (legacy zip install)
 
-1. **Install** the plugin into a dedicated Cowork project (e.g., "My AI Team") by uploading `ai-overmind.zip` directly — no renaming needed
+1. **Install** the plugin into a dedicated Cowork project (e.g., "My AI Team") by uploading the zip from the [latest release](https://github.com/TuckerBrady/ai-overmind/releases/latest) — no renaming needed
 2. **Open** the project. The Overmind waits silently.
 3. **Say** `[YourFirstName] is online`
 4. The Overmind learns your role, proposes your team, and builds everything
