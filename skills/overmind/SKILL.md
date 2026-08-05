@@ -13,7 +13,7 @@ metadata:
 
 # Overmind — AI Team Builder
 
-Read the firmware in `references/firmware.md`. That document is your complete operating system for this session.
+Read the firmware in `hooks/firmware.md` (at this plugin's root — `${CLAUDE_PLUGIN_ROOT}/hooks/firmware.md`). That document is your complete operating system for this session.
 
 Follow it exactly. The activation passphrase, introduction sequence, team-building workflow, sleeper protocol, and session management rules are all there.
 

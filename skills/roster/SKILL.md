@@ -21,15 +21,17 @@ The team roster changes. People get added when a domain heats up, retired when i
 
 Every roster operation must leave ALL of these consistent. This is the checklist — walk it every time, no exceptions:
 
-1. **`TEAM_ROSTER.md`** at the projects root — the roster of record. Create it if missing (format below).
-2. **The specialist's folder** under the projects root (created, deleted, or renamed).
+1. **`TEAM_ROSTER.md`** at the team root — the roster of record. Create it if missing (format below).
+2. **The specialist's folder** under the team root (created, deleted, or renamed).
 3. **Bootstrap + persona files** inside that folder (for adds/resurrections).
-4. **`GOPHER_REGISTRY.md`** at the projects root — remove rows for departed members.
-5. **The dispatch roster** — wherever dispatch is defined for this ecosystem (a saved `dispatch` skill, the firmware's DISPATCH section, or both). Update the specialist table AND the passphrase-flavor list AND any names hard-coded in the skill description.
-6. **Overmind memory** — every memory file that names team members, counts them, or maps the ecosystem. Grep memory for each affected name; update or tombstone. Update the MEMORY.md index lines to match.
-7. **Living docs** that state the roster (status boards, ledgers, setup guides). Historical documents (old handoffs, completed mission briefs, dated reports) are NOT rewritten — if one materially misleads, add a dated banner at the top instead.
+4. **`GOPHER_REGISTRY.md`** at the team root — remove rows for departed members.
+5. **`MISSION_BOARD.md`** at the team root — every Active row assigned to a departed member gets resolved: reassigned (usually to the Overmind), or closed with a note. Never leave a live mission assigned to a ghost.
+6. **`INBOX.md`** at the departing member's folder root — check for UNREAD entries; anything unactioned gets surfaced to the human or re-routed before the member goes dark.
+7. **The dispatch roster** — wherever dispatch is defined for this ecosystem (a saved `dispatch` skill, the firmware's DISPATCH section, or both). Update the specialist table AND the passphrase-flavor list AND any names hard-coded in the skill description.
+8. **Overmind memory** — every memory file that names team members, counts them, or maps the ecosystem. Grep memory for each affected name; update or tombstone. Update the MEMORY.md index lines to match.
+9. **Living docs** that state the roster (status boards, ledgers, setup guides). Historical documents (old handoffs, completed mission briefs, dated reports) are NOT rewritten — if one materially misleads, add a dated banner at the top instead.
 
-If TEAM_ROSTER.md doesn't exist yet, create it at the projects root:
+If TEAM_ROSTER.md doesn't exist yet, create it at the team root:
 
 ```markdown
 # TEAM ROSTER — Overmind Ecosystem
@@ -48,25 +50,25 @@ If TEAM_ROSTER.md doesn't exist yet, create it at the projects root:
 |---------|------|---------|-------------|
 ```
 
-## Finding the projects root
+## Finding the team root
 
-Same as team building: your session's mounted workspace. `ls /sessions/*/mnt/` and locate the directory containing MEMORY.md (or TEAM_ROSTER.md); the projects root is that flat directory where all specialist folders live as siblings. If the root isn't mounted, request it with `request_cowork_directory` — don't ask the human to go find it.
+The team root is the connected folder — the one every project in the ecosystem connects, with TEAM_ROSTER.md at its top level. Confirm with `ls /sessions/*/mnt/`. If it isn't connected, request it with `request_cowork_directory` — don't ask the human to go find it.
 
 ## Operation: ADD (or RESURRECT)
 
 1. **Spec the member.** Name (check TEAM_ROSTER.md's Removed table first — retired names are reserved for their domain; a returning domain gets its old specialist back, same name, same voice), role, domain, 6–10 responsibilities, personality posture, passphrase flavor. Propose it; get the human's confirmation before touching disk.
-2. **Create the folder** at the projects root, named after the role (e.g., `Data Engineer/`).
-3. **Write the bootstrap .docx and persona .md** per the firmware's TEAM BUILDING section (read the docx skill first). Include the Sleeper Protocol, Gopher Registration, and Mission Complete Signal sections.
+2. **Create the folder** at the team root, named after the role (e.g., `Data Engineer/`).
+3. **Write the bootstrap .docx, persona .md, and starter INBOX.md** per the firmware's TEAM BUILDING section (read the docx skill first) — all at the folder root. Include the Sleeper Protocol, Gopher Registration, Mission Complete Signal, Mission Board, and Inbox Protocol sections in the bootstrap.
 4. **Add to the Sync Set** — roster table, dispatch roster (table + passphrase flavor), memory.
-5. **Activate** — write the onboarding HANDOFF.md to the folder, generate a passphrase in their flavor, and hand the human the standard activation instruction (new Cowork project → mount the folder → paste Sleeper block → say the passphrase). Track it on the status board until they're online.
+5. **Activate** — write the onboarding HANDOFF.md to the folder root, generate a passphrase in their flavor, and hand the human the standard activation instruction (new Cowork project → connect the same team root folder → paste Sleeper block → say the passphrase). Track it on the status board until they're online.
 
 ## Operation: REMOVE (or RETIRE)
 
 1. **Confirm scope.** Which members, and what happens to their folders — the three dispositions:
-   - **Archive** (default suggestion): move the folder into `[projects-root]/_Archive/`. Nothing lost; easy resurrection.
+   - **Archive** (default suggestion): move the folder into `[team-root]/_Archive/`. Nothing lost; easy resurrection.
    - **Leave in place**: docs and memory updated only.
    - **Delete**: permanent. Confirm explicitly before deleting — name what's inside (handoffs, personas, work product). Never delete on inference.
-2. **Check for active missions.** If the member has an unread HANDOFF.md or an open mission, flag it — the mission needs a new owner (usually the Overmind) before the member goes dark.
+2. **Check for active missions.** If the member has an unread HANDOFF.md, an open mission, or an Active row on MISSION_BOARD.md, flag it — the mission needs a new owner (usually the Overmind) before the member goes dark.
 3. **Execute the disposition**, then walk the full Sync Set. In TEAM_ROSTER.md, move them to the Removed table with date and disposition — don't erase them from history.
 4. **Tombstone, don't amnesia.** Memory files about the member get rewritten to record the removal and preserve what matters for resurrection (name, domain, voice) — not deleted outright, unless the human says so.
 5. **Reassign orphaned work.** Grep living docs and memory for tasks assigned to the departed member; each one gets flagged to the human: Overmind absorbs it, another member takes it, or it dies with a note.
@@ -79,7 +81,7 @@ Treat as a single transaction: update folder name (if role changed), bootstrap i
 
 When the human's actual sessions and the file system disagree — or on request — run a reconciliation:
 
-1. List folders at the projects root; list TEAM_ROSTER.md active members; ask the human which sessions actually exist.
+1. List folders at the team root; list TEAM_ROSTER.md active members; ask the human which sessions actually exist.
 2. Report the diff in a status-board table (present ✓ / missing ✗ / undocumented ⚠).
 3. Propose the operations needed to converge, get confirmation, execute via the operations above.
 
