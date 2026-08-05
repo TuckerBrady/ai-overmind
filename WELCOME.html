@@ -170,6 +170,7 @@
   <nav><ul>
     <li><a href="#new">What's New</a></li>
     <li><a href="#quickstart">Quickstart</a></li>
+    <li><a href="#upgrade">Upgrading</a></li>
     <li><a href="#structure">Structure</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#reference">Reference</a></li>
@@ -203,13 +204,27 @@
       <div class="step"><div class="num">4</div><div class="body"><b>That's it.</b> The Overmind learns your role, proposes your team, builds the entire structure, and walks you through bringing each specialist online — one clear step at a time, with ready-to-paste blocks it already wrote for you.</div></div>
       <div class="step"><div class="num">5</div><div class="body"><b>Setup runs once.</b> When your team is online, the ceremony is over for good — every future session boots straight into work. From here, you're just building the relationship.</div></div>
     </div>
-    <div class="note"><b>Upgrading from a zip install?</b> Delete your current instance of the plugin first (Settings → Plugins → remove the uploaded version), <em>then</em> add the marketplace and install. Running both copies double-injects the firmware and duplicates every skill.</div>
+    <div class="note"><b>Upgrading from a zip install?</b> The zip channel is sunset — see the <a href="#upgrade">Upgrading</a> section below for the full migration, including the structure cleanup that Gopher Protocol needs.</div>
     <div class="note"><b>Optional:</b> connect a directory service (Teams, Outlook, Google Workspace) for automatic role lookup. Without it, the Overmind asks you directly. See <code>CONNECTORS.md</code>.</div>
     <div class="note"><b>Why Project Instructions?</b> Cowork SessionStart hooks are not guaranteed to inject into context before the first message. The passphrase/handoff system must live in Project Instructions to be reliable at boot. The plugin firmware handles on-demand features (handoffs, dispatch). Both work together — Project Instructions for startup, firmware for everything else.</div>
   </section>
 
+  <section id="upgrade">
+    <h2><span class="idx">03</span>Upgrading from a Legacy Zip Install</h2>
+    <div class="rule"></div>
+    <p class="lead">The zip channel is sunset as of v3.9.0 — zip installs still run, but they will never receive another update. Migration takes five minutes, and the last step matters most: v3.9.0's Gopher Protocol, mission board, and inboxes only work when your team folder matches the canonical structure. Teams built by an older version almost certainly don't match it yet.</p>
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div class="body"><b>Remove the old plugin first.</b> Settings → Plugins → remove the uploaded (zip) version. Do this <em>before</em> installing from the marketplace — running both copies double-injects the firmware and duplicates every skill.</div></div>
+      <div class="step"><div class="num">2</div><div class="body"><b>Add the marketplace and install.</b> Customize → Plugins → Add Marketplace → <code>TuckerBrady/ai-overmind</code>, then install <b>ai-overmind</b>. If the install fails against an error that mentions zips, your app cached a stale copy of the marketplace: remove the marketplace entirely, restart the Claude app, re-add it, and install again.</div></div>
+      <div class="step"><div class="num">3</div><div class="body"><b>Restart the Claude app</b> so every session boots on the new firmware.</div></div>
+      <div class="step"><div class="num">4</div><div class="body"><b>Run the structure cleanup.</b> Open your Overmind session and say:<br><br><code>Run the v3.9 structure cleanup: audit our team folder against the canonical layout — TEAM_ROSTER.md, GOPHER_REGISTRY.md, and MISSION_BOARD.md at the team root, one subfolder per member, and every HANDOFF, INBOX, mission-complete, and persona file at each member's folder root. Create anything missing, move anything misplaced, and retire any old .auto-memory mailbox paths.</code><br><br>The Overmind audits, reports what it found, and fixes it. Nothing is deleted — files are created or moved into place.</div></div>
+      <div class="step"><div class="num">5</div><div class="body"><b>Reconnect every project to the team root.</b> Your Overmind project AND each specialist's project must connect the <em>same</em> team-root folder — not their own subfolder. Then ask the Overmind for a fresh Sleeper Activation block per member (<code>Give me the Sleeper Activation block for [Name]</code>) and paste it into that project's Project Instructions.</div></div>
+    </div>
+    <div class="note"><b>Why the cleanup matters:</b> Gopher Protocol, the mission board, and inboxes are how your sessions verify and talk to each other — and they all live at the team root. A session connected only to its own subfolder can't reach them: it can't register, can't flip mission statuses, can't receive pings. The cleanup plus root reconnection is what turns those features on.</div>
+  </section>
+
   <section id="structure">
-    <h2><span class="idx">03</span>The Structure</h2>
+    <h2><span class="idx">04</span>The Structure</h2>
     <div class="rule"></div>
     <p class="lead">One team-root folder. Every project — the Overmind's and each specialist's — connects this <em>same</em> folder; each session's identity comes from its Project Instructions, not the folder choice. The Overmind builds all of this — you never create or edit a file.</p>
     <pre style="background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.25);border-radius:8px;padding:16px 18px;font-size:12.5px;line-height:1.8;overflow-x:auto">My AI Team/                       &larr; team root — every project connects this folder
@@ -233,7 +248,7 @@
   </section>
 
   <section id="features">
-    <h2><span class="idx">04</span>The Six Features</h2>
+    <h2><span class="idx">05</span>The Six Features</h2>
     <div class="rule"></div>
     <div class="features">
       <div class="card">
@@ -353,7 +368,7 @@
   </section>
 
   <section id="reference">
-    <h2><span class="idx">05</span>Usage Reference</h2>
+    <h2><span class="idx">06</span>Usage Reference</h2>
     <div class="rule"></div>
     <table>
       <tr><th>Say this</th><th>What happens</th></tr>
@@ -372,14 +387,14 @@
   </section>
 
   <section id="passphrases">
-    <h2><span class="idx">06</span>How the Passphrase System Works</h2>
+    <h2><span class="idx">07</span>How the Passphrase System Works</h2>
     <div class="rule"></div>
     <p class="lead">Everything runs on passphrases. The Overmind writes a brief, invents a passphrase, and tells you what it is. You say the phrase to the right session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.</p>
     <p class="lead">Phrases are scoped to the <b>mission</b>: a solo dispatch gets a phrase in that specialist's voice, and a mission spanning several specialists gets one shared operation codeword — you say the same phrase to each session.</p>
   </section>
 
   <section id="components">
-    <h2><span class="idx">07</span>Components</h2>
+    <h2><span class="idx">08</span>Components</h2>
     <div class="rule"></div>
     <table>
       <tr><th>Component</th><th>Purpose</th></tr>
