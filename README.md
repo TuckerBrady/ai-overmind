@@ -17,6 +17,7 @@ Six capabilities work out of the box: **team building**, **handoffs**, **dispatc
 - **Mission priorities & deadlines** — every dispatch carries a tier that drives its polling cadence and escalation windows: CRITICAL (poll every minute, escalate at 30 min), STANDARD (every 5 min, 6 h/24 h), LOW (hourly, day-scale). Any mission can carry a deadline: halfway there and still PENDING → you hear about it; deadline passes → immediate escalation regardless of tier.
 - **Gopher Protocol v2** — the registry's challenge/response pairs finally do something. **Gopher Ping** uses inboxes as a transport for a real async challenge/response loop that verifies a session's whole channel end-to-end. The **Gopher Sweep** cross-checks registry against mission board every boot and names the failure states (phantom flip, silent boot, dormant). Registry timestamps now carry time-of-day, twins are read-only Gopher participants with a pre-flight overlap check, and polling tasks verify against a strict order of authority: mission-complete > board > registry > silence.
 - **Operation codewords** — passphrases are now scoped to the mission, not the specialist. When one task fans out to several team members, the Overmind generates a single shared codeword: open each session, say the same phrase, done. Solo dispatches keep their specialist-voiced phrases.
+- **Legacy zip channel sunset** — the marketplace is now the only distribution path. Existing zip installs keep working but won't receive updates; migrate via the upgrade note below.
 - **Fixed** — the overmind skill pointed at `references/firmware.md`, which hasn't existed since the firmware moved to `hooks/`. Now points at the right place.
 
 ### v3.8.2
@@ -50,9 +51,9 @@ claude plugin install ai-overmind
 
 Updates ship automatically when a new version is released — run `claude plugin update` or let auto-update pick it up.
 
-## Quickstart (legacy zip install)
+## Quickstart
 
-1. **Install** the plugin into a dedicated Cowork project (e.g., "My AI Team") by uploading the zip from the [latest release](https://github.com/TuckerBrady/ai-overmind/releases/latest) — no renaming needed
+1. **Install** from the marketplace (above) and create a dedicated Cowork project (e.g., "My AI Team")
 2. **Open** the project. The Overmind waits silently.
 3. **Say** `[YourFirstName] is online`
 4. The Overmind learns your role, proposes your team, and builds everything
