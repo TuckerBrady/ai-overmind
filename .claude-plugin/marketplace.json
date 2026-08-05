@@ -12,7 +12,7 @@
       "name": "ai-overmind",
       "source": "./",
       "description": "Build and run a personal AI team. One activation phrase and your Overmind wakes up, learns your role, proposes a custom team of AI specialists, and builds their project structure \u2014 ready to deploy.",
-      "version": "3.8.2"
+      "version": "3.9.0"
     }
   ]
 }
