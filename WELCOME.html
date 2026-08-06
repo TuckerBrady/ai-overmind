@@ -157,7 +157,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v3.9.1</div>
+    <div class="ver">v3.9.2</div>
     <p class="tag">Build and run a personal AI team. <strong>One phrase and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -182,6 +182,8 @@
     <h2><span class="idx">01</span>What's New in v3.9.x</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>MOTHER (v3.9.2)</b> — every dispatch launches a headless watcher (named for the ship computer in <i>Alien</i>) who repaints a live mission board while your team works, at a cadence set by priority. She detects completion herself and stands down. You never manage her.</div>
+      <div class="new-item"><b>/status (v3.9.2)</b> — one command, any session: the whole board in the Overmind's, your own mission in a specialist's. It also flags where the board disagrees with what's actually on disk.</div>
       <div class="new-item"><b>/go (v3.9.1)</b> — one-command mission activation. After a group dispatch, open each specialist's session and type <code>/go</code> — each reads its own staged brief and activates. No phrase to remember or relay. Checks the mission board so a stale brief never re-executes; passphrases still work as the fallback.</div>
       <div class="new-item"><b>Splinter twins</b> — need something quick from a specialist's domain? The Overmind spawns a temporary in-session twin that reads their files, works in their voice, and dissolves. No new session, no passphrase.</div>
       <div class="new-item"><b>Mission board</b> — <code>MISSION_BOARD.md</code> tracks every dispatched mission: assignee, status, dependencies. Ask "what's in flight?" and get a real answer.</div>
@@ -403,6 +405,7 @@
       <tr><td><code>hooks/firmware.md</code></td><td>Core Overmind intelligence — team building, handoffs, dispatch, twins, mission board, and inboxes built in</td></tr>
       <tr><td><code>hooks/hooks.json</code></td><td>SessionStart hook — injects firmware automatically</td></tr>
       <tr><td><code>agents/splinter-twin.md</code></td><td>Subagent that hydrates from a specialist's files for quick in-session work</td></tr>
+      <tr><td><code>skills/status/</code></td><td><code>/status</code> &mdash; live mission status and board reconciliation</td></tr>
       <tr><td><code>skills/go/</code></td><td><code>/go</code> — one-command mission activation from this session's staged HANDOFF</td></tr>
       <tr><td><code>skills/dispatch/</code></td><td>Convenience trigger for the dispatch workflow</td></tr>
       <tr><td><code>skills/overmind/</code></td><td>Explicit skill for team-building actions</td></tr>

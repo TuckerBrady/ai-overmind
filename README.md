@@ -1,12 +1,21 @@
-# ai-overmind v3.9.1
+# ai-overmind v3.9.2
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Six capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, and **inboxes**.
+Seven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, and **MOTHER** — a headless watcher that keeps a live board painted while your team works.
 
 ---
+
+## What's New in v3.9.2
+
+- **MOTHER — the mission watcher.** Every dispatch now launches a headless scheduled watcher named for the ship computer in *Alien*. She repaints a live mission-board artifact on a cadence set by mission priority (CRITICAL 1 min · STANDARD 15 · LOW 30), detects completion from the deliverables themselves, then pings the Overmind's inbox to be stood down. She never speaks to you and never asks you to manage her.
+- **`/status`.** One command, any session, answered inline. In the Overmind's session it's the whole board plus a repainted artifact; in a specialist's it's that asset's own mission and progress. It also reconciles the board against the disk and tells you where they disagree — a row marked PENDING whose deliverable already exists is the most useful thing a status report can surface.
+- **`/go` banners.** Activation now opens with `[ASSET] · [MISSION ID] · ASSET ACTIVATED`, so you can tell at a glance which session you're looking at.
+- **Boot duties moved to the guaranteed channel.** Gopher registration lived only in the firmware, which loads via a SessionStart hook that isn't guaranteed to arrive before the first message — so whether an asset registered was a coin flip. It's now part of the Sleeper Activation block that gets pasted into Project Instructions, alongside the handoff and inbox checks.
+- **Approvals are front-loaded.** Watchers are created already running, and every permission they need is collected at dispatch time while you're still looking at the screen. A dialog that finds you twenty minutes later reads as a bug.
+- **Setup requires the team root.** Every project's connected folder must be the team root, not the member's subfolder — otherwise sessions can't reach the board, the registry, or inboxes, and they'll ask you for access on every activation.
 
 ## What's New in v3.9.1
 
@@ -105,6 +114,7 @@ Any session can dispatch, not just the Overmind. Specialists can brief each othe
 | `Dispatch to [Name]` | Same as above |
 | `[passphrase]` | Specialist session: activates the mission |
 | `/go` | Same — activates that session's staged mission, no phrase needed |
+| `/status` | Live mission status in this session — board + artifact for the Overmind, own mission for a specialist |
 
 ### 4 — Splinter Twins
 
@@ -167,6 +177,7 @@ Phrases are scoped to the mission: a solo dispatch gets a phrase in that special
 | `hooks/hooks.json` | SessionStart hook — injects firmware automatically |
 | `agents/splinter-twin.md` | Subagent that hydrates from a specialist's files for quick in-session work |
 | `skills/go/` | `/go` — one-command mission activation from this session's staged HANDOFF |
+| `skills/status/` | `/status` — live mission status, board reconciliation, artifact repaint |
 | `skills/dispatch/` | Convenience trigger for the dispatch workflow |
 | `skills/overmind/` | Explicit skill for team-building actions |
 | `skills/roster/` | Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync |
