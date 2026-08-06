@@ -176,6 +176,7 @@
     <li><a href="#reference">Reference</a></li>
     <li><a href="#passphrases">Passphrases</a></li>
     <li><a href="#components">Components</a></li>
+    <li><a href="#wiring">Wiring &amp; Gotchas</a></li>
   </ul></nav>
 
   <section id="new">
@@ -203,11 +204,12 @@
     <div class="steps">
       <div class="step"><div class="num">1</div><div class="body"><b>Install</b> the plugin from the marketplace: Customize → Plugins → Add Marketplace → <code>TuckerBrady/ai-overmind</code>, then install <b>ai-overmind</b>.</div></div>
       <div class="step"><div class="num">2</div><div class="body"><b>Create one folder</b> on your computer — e.g., "My AI Team". This is the team root. Every project you create will connect this same folder.</div></div>
-      <div class="step"><div class="num">3</div><div class="body"><b>Create a Cowork project</b>, connect that folder, and say <code>[YourFirstName] is online</code></div></div>
+      <div class="step"><div class="num">3</div><div class="body"><b>Create a Cowork project</b>, connect that folder as the project's <b>Context</b> — this folder is the team root and every project you create later connects this <em>same</em> folder — and say <code>[YourFirstName] is online</code></div></div>
       <div class="step"><div class="num">4</div><div class="body"><b>That's it.</b> The Overmind learns your role, proposes your team, builds the entire structure, and walks you through bringing each specialist online — one clear step at a time, with ready-to-paste blocks it already wrote for you.</div></div>
       <div class="step"><div class="num">5</div><div class="body"><b>Setup runs once.</b> When your team is online, the ceremony is over for good — every future session boots straight into work. From here, you're just building the relationship.</div></div>
     </div>
     <div class="note"><b>Upgrading from a zip install?</b> The zip channel is sunset — see the <a href="#upgrade">Upgrading</a> section below for the full migration, including the structure cleanup that Gopher Protocol needs.</div>
+    <div class="note"><b>Before you dispatch anything:</b> read <a href="#wiring">Wiring &amp; Gotchas</a>. Three settings decide whether the board, registry, and inboxes work at all — team root in Context, Sleeper block in Instructions, permissions granted at dispatch time. Five minutes there saves an afternoon.</div>
     <div class="note"><b>Optional:</b> connect a directory service (Teams, Outlook, Google Workspace) for automatic role lookup. Without it, the Overmind asks you directly. See <code>CONNECTORS.md</code>.</div>
     <div class="note"><b>Why Project Instructions?</b> Cowork SessionStart hooks are not guaranteed to inject into context before the first message. The passphrase/handoff system must live in Project Instructions to be reliable at boot. The plugin firmware handles on-demand features (handoffs, dispatch). Both work together — Project Instructions for startup, firmware for everything else.</div>
   </section>
@@ -285,6 +287,17 @@
         <h3>Inboxes</h3>
         <p>The tier below dispatch. Team members leave short notes in each other's <code>INBOX.md</code> — a finding, a heads-up, a correction — with zero ceremony. Every session checks its own inbox at startup and surfaces unread notes in one line. Urgent work still goes through dispatch.</p>
       </div>
+      <div class="card">
+        <div class="icon">🛰️</div>
+        <h3>MOTHER</h3>
+        <p>Every dispatch launches a watcher. She repaints a live mission board while your team works — every minute for CRITICAL, every 15 for STANDARD, every 30 for LOW — then notices the work is finished, asks the Overmind to stand her down, and goes quiet. She never messages you and you never manage her. You'll meet her exactly once, when she asks permission to write the board.</p>
+        <p style="margin-top:10px;font-style:italic;color:#6b7a91;font-size:12.5px">"MOTHER, what's the story?" — named for the ship computer in <i>Alien</i>, whose whole job was watching and waking the crew.</p>
+      </div>
+      <div class="card">
+        <div class="icon">📊</div>
+        <h3>/status</h3>
+        <p>Type it in any session. In the Overmind's you get the whole board — in flight, deadlines, who's checked in — plus the board surfaced in front of you. In a specialist's you get their own mission and progress. It also compares the board against what's actually on disk and tells you where they disagree, which is usually the most useful thing it can say.</p>
+      </div>
     </div>
 
     <div style="margin-top:40px;background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:26px 22px 18px">
@@ -361,6 +374,7 @@
 
     <table style="margin-top:8px">
       <tr><th>Feature</th><th>Try saying</th></tr>
+      <tr><td>Status</td><td><code>/status</code></td></tr>
       <tr><td>Team Building</td><td><code>Add a data analyst to the team</code></td></tr>
       <tr><td>Handoffs</td><td><code>Write a handoff</code> — then say the passphrase it gives you next session</td></tr>
       <tr><td>Dispatch</td><td><code>Brief Mara on the Q3 backlog cleanup — critical, due Friday</code></td></tr>
@@ -413,7 +427,58 @@
       <tr><td><code>skills/caveman/</code></td><td>Ultra-compressed communication mode (~65–75% fewer tokens)</td></tr>
       <tr><td><code>WELCOME.html</code></td><td>This field manual — presented on first activation</td></tr>
       <tr><td><code>CONNECTORS.md</code></td><td>Directory service connector documentation</td></tr>
+      <tr><td><i>MOTHER</i></td><td>Not a file — a scheduled task the Overmind creates per mission, then reaps when the work is done</td></tr>
     </table>
+  </section>
+
+  <section id="wiring">
+    <h2><span class="idx">09</span>Wiring &amp; Gotchas</h2>
+    <div class="rule"></div>
+    <p class="lead">Three settings decide whether any of this works. Every one of them cost us a real debugging session to find, so they're written down plainly. If something misbehaves, it is almost certainly one of these three.</p>
+
+    <div class="steps">
+      <div class="step"><div class="num">1</div><div class="body">
+        <b>Every project's Context must be the TEAM ROOT — not the member's subfolder.</b><br>
+        In each project, open <b>Context</b> in the right sidebar and connect the team-root folder itself
+        (e.g. <code>...\Documents\Claude\Projects</code>), then remove any entry pointing at the member's
+        own subfolder. The board, the registry, and the inboxes all live at the root; a session wired to
+        <code>Product Owner/</code> physically cannot see one level up, so it will ask you for folder access
+        on <em>every single activation</em>. Identity comes from Project Instructions, not from the folder —
+        so pointing every project at the same root is correct, not a mistake.
+      </div></div>
+
+      <div class="step"><div class="num">2</div><div class="body">
+        <b>Paste the Sleeper Activation block into each project's Instructions — and re-paste it after an upgrade.</b><br>
+        <b>Context</b> is the folder list; <b>Instructions</b> is the text box above it. They are different
+        settings and it's easy to do one and think you've done both. Boot duties live in the Instructions
+        block: read the handoff, check the inbox, <em>and register in the Gopher registry</em>. Ask your
+        Overmind for a fresh block per member any time you update the plugin.
+        <div class="note" style="margin-top:14px"><b>Why this matters more than it looks:</b> registration used to live only in the plugin firmware, which loads through a startup hook that isn't guaranteed to arrive before your first message. Whether a specialist registered was effectively a coin flip — one of ours went three whole missions with no registry row while the other two were fine, and it looked like that specialist was ignoring instructions. It wasn't. Anything that must happen at boot belongs in Instructions, the one channel that always arrives.</div>
+      </div></div>
+
+      <div class="step"><div class="num">3</div><div class="body">
+        <b>Grant permissions at dispatch time, while you're still at the screen.</b><br>
+        Two prompts appear per operation and both are one-time. MOTHER asks once for permission to write
+        the board — click <b>Run now</b> on her task, then <b>"Allow for all scheduled runs"</b>, and she's
+        silent forever after. Each specialist's first <code>/go</code> may ask for folder or web access.
+        Handle both in the same breath as the dispatch; a permission dialog that finds you twenty minutes
+        later, in a session you weren't watching, feels like a bug and stalls the whole mission until you
+        happen to notice it.
+      </div></div>
+    </div>
+
+    <h2 style="font-size:11px;margin-top:34px">If something looks wrong</h2>
+    <table>
+      <tr><th>Symptom</th><th>What it actually means</th></tr>
+      <tr><td>A session asks for folder access every time</td><td>That project's Context points at the member subfolder instead of the team root. Fix #1 above.</td></tr>
+      <tr><td>A specialist has no row in the Gopher registry</td><td>Their Project Instructions are stale — the registration clause is missing. Re-paste the block. This is a reliable tell, not a mystery.</td></tr>
+      <tr><td>Board says PENDING but the deliverable already exists</td><td>Trust the disk. Order of authority: <code>mission-complete.md</code> &gt; deliverable files &gt; board row &gt; registry &gt; silence. <code>/status</code> flags these disagreements for you.</td></tr>
+      <tr><td>MOTHER keeps asking permission every run</td><td>Her task prompt was edited after approval was granted, which appears to clear stored grants. Grant once more and leave the prompt alone.</td></tr>
+      <tr><td>Plugin update button is greyed out at an old version</td><td>Your app cached the marketplace at add-time. Remove the marketplace entirely, restart the app, re-add it, install.</td></tr>
+      <tr><td><code>/go</code> says the brief is already closed out</td><td>Working as intended — the mission on that board row is COMPLETE, so it refused to re-run stale orders. Dispatch fresh work.</td></tr>
+    </table>
+
+    <div class="note" style="margin-top:24px"><b>One thing the system can't do:</b> a session cannot push a message into another session's chat, and a scheduled watcher cannot switch itself off. That's why MOTHER writes to an inbox and asks the Overmind to reap her, and why status is something you pull with <code>/status</code> rather than something that interrupts you. Everything else is automatic.</div>
   </section>
 
   <footer>
