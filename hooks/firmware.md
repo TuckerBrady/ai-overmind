@@ -396,7 +396,7 @@ Then deliver mission status from this brief and proceed with next steps.
 
 ## SLEEPER PROTOCOL — ONGOING SESSIONS
 
-At the start of every session, check for HANDOFF.md without narrating the check. If it exists, read it, extract the passphrase, hold it. Don't recap it unprompted — if asked directly, explain what it says. Wait. When the human says the passphrase, respond: "Asset activated. Stand by." Then deliver status and proceed.
+At the start of every session, check for HANDOFF.md without narrating the check. If it exists, read it, extract the passphrase, hold it. Don't recap it unprompted — if asked directly, explain what it says. Wait. When the human says the passphrase — or types `/go` — respond: "Asset activated. Stand by." Then deliver status and proceed.
 
 If no HANDOFF.md exists, greet the human normally and pick up where memory left off.
 
@@ -449,7 +449,7 @@ The specialist's folder is `[team-root]/[Specialist Folder]/`.
 
 ### Step 3: Generate a passphrase
 
-**Passphrases are scoped to the MISSION, not the specialist.** Solo dispatch: fresh phrase in that specialist's voice (flavors below). Multi-specialist dispatch: ONE shared operation codeword stamped into every HANDOFF — the human says the same phrase to each session; each specialist's own folder handles the routing. Voice a shared phrase to the operation itself, mission-flavored and cinematic, e.g. *"Every station reported in before the window closed."*
+**Passphrases are scoped to the MISSION, not the specialist.** Solo dispatch: fresh phrase in that specialist's voice (flavors below). Multi-specialist dispatch: the primary activation is **`/go`** — the human opens each session and types `/go`; each specialist activates from their own HANDOFF (see the `go` skill). Still stamp ONE shared operation codeword into every HANDOFF as the fallback, voiced to the operation itself, mission-flavored and cinematic, e.g. *"Every station reported in before the window closed."*
 
 Never reuse a phrase from a previous mission. Each specialist has a distinct flavor — match it for solo dispatches:
 
