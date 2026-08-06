@@ -34,13 +34,19 @@ If the brief names a mission ID and `MISSION_BOARD.md` at the team root is reach
 
 ### 4. Activate
 
-Respond: **"Asset activated. Stand by."**
+Your first line must be this banner, exactly — it is what the human scans to know which session they're looking at, and it biases the session's auto-generated title:
+
+```
+[ASSET NAME] · [MISSION ID] · ASSET ACTIVATED
+```
+
+Then: **"Asset activated. Stand by."**
 
 Then, in order:
 1. Deliver mission status from the brief — mission, deliverables, deadline, dependencies. Tight.
 2. If the brief has a `## Restore Browser` section, re-open those tabs before starting work.
 3. Flip your mission row to ACTIVE on the board (if reachable).
-4. Gopher-register per the firmware (registry row refresh).
+4. Confirm your Gopher registry row was written at boot per your Project Instructions; if it's missing, write it now and note the gap — a missing row means your Project Instructions are stale.
 5. Begin the work.
 
 ## Relationship to passphrases

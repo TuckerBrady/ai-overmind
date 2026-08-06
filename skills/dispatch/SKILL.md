@@ -194,7 +194,29 @@ Then deliver mission status and proceed with the work above.
 
 Add a row to `[team-root]/MISSION_BOARD.md` (create it from the firmware's MISSION BOARD format if missing): next sequential ID, one-line mission summary, assignee, Status PENDING, priority tier, due date (or —), any Depends On mission IDs, today's date. If this mission depends on one that isn't COMPLETE, set Status to BLOCKED and mirror the dependency in the brief's DEPENDENCIES section.
 
-### Step 5: Create the polling task
+### Step 4c: Launch MOTHER (the mission watcher)
+
+MOTHER is a headless scheduled task that repaints the live mission-board artifact while work is in flight. She never speaks to the human. Create her **already enabled** — never stage a task and ask the human to switch it on.
+
+- `taskId`: `mother-watch-[mission-id-lowercase]` (e.g. `mother-watch-m006`)
+- `cronExpression` by tier: **CRITICAL `* * * * *`** (1 min) · **STANDARD `*/15 * * * *`** · **LOW `*/30 * * * *`**
+- `description`: `MOTHER — watching [mission ID] ([tier])`
+
+Her prompt must instruct her to: read the board, registry, and named deliverables in one shell call; rewrite ONLY the `const DATA = {...};` line of the `mission-board` artifact with fresh JSON and call `update_artifact`; detect completion from the deliverables; and when complete, append a stand-down request to `[team-root]/Overmind/INBOX.md` marked UNREAD. She must also check that inbox marker at the top of every run and exit immediately if it's already there, so she idles cheaply.
+
+**She cannot disable herself** — that call requires a human click and offers no "allow for all" option. She pings; the Overmind reaps. Never write a self-disable step into her prompt.
+
+### Step 4d: Prime her approvals in the same breath
+
+MOTHER's first artifact write triggers one approval dialog. Collect it now, while the human is present:
+
+> Click **Run now** on MOTHER's task, then **"Allow for all scheduled runs"** on the dialog. She goes silent after that.
+
+Never let this dialog find the human later — a permission prompt that arrives after they've context-switched reads as a bug, not a feature. Same for the specialists: warn that the first `/go` in each session may ask for folder or web access.
+
+**Do not edit MOTHER's prompt after her approvals are granted** — editing a task's prompt appears to invalidate its stored grants, and she'll start prompting again. Finalize the prompt, then prime.
+
+### Step 5: Create the deadline escalation task (optional)
 
 After writing HANDOFF.md, create a scheduled task to monitor mission completion. This runs in the background — silent unless something needs attention.
 
@@ -249,7 +271,13 @@ Report to whoever initiated the dispatch — the human directly, or a specialist
 >
 > I'm monitoring the mission. I'll let you know when they're done — you don't need to check back.
 
-If multiple specialists were dispatched in one shot, the instruction is one line: "Open Mara's, Sloane's, and Tess's sessions and type `/go` in each." (Mention the shared codeword only as the fallback.) If dispatching laterally (specialist to specialist), also note which session should be opened and in what order if sequencing matters. Keep it tight — the human knows what to do from here.
+Close every dispatch report with these three beats, in this order — they are the human's entire job:
+
+> **MOTHER is watching [mission ID].** Click **Run now** on her task, then **"Allow for all scheduled runs"**.
+> Then open [session names] and type **`/go`** in each. First activation may ask for folder access — grant it while you're there.
+> I'll report back with `/status` when she signals completion.
+
+If multiple specialists were dispatched in one shot, that middle line names them all: "Open Mara's, Sloane's, and Tess's sessions and type `/go` in each." (Mention the shared codeword only as the fallback.) If dispatching laterally (specialist to specialist), also note which session should be opened and in what order if sequencing matters. Keep it tight — the human knows what to do from here.
 
 ---
 
