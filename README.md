@@ -1,4 +1,4 @@
-# ai-overmind v3.9.0
+# ai-overmind v3.9.1
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,10 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Six capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, and **inboxes**.
 
 ---
+
+## What's New in v3.9.1
+
+- **`/go` — one-command mission activation.** After a group dispatch, open each specialist's session and type `/go`. Each one reads its own staged brief and activates — no phrase to remember or relay. Works for solo missions too, checks the mission board so a stale brief never re-executes, and passphrases still work everywhere as the fallback.
 
 ## What's New in v3.9.0
 
@@ -100,6 +104,7 @@ Any session can dispatch, not just the Overmind. Specialists can brief each othe
 | `Brief [Name] on [task]` | Same as above |
 | `Dispatch to [Name]` | Same as above |
 | `[passphrase]` | Specialist session: activates the mission |
+| `/go` | Same — activates that session's staged mission, no phrase needed |
 
 ### 4 — Splinter Twins
 
@@ -150,7 +155,7 @@ The tier below dispatch. Any team member can leave a short note in a peer's `INB
 
 Everything runs on passphrases. The Overmind writes a brief, invents a passphrase, and tells you what it is. You say the phrase to the right session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.
 
-Phrases are scoped to the mission: a solo dispatch gets a phrase in that specialist's voice, and a mission spanning several specialists gets one shared operation codeword — you say the same phrase to each session.
+Phrases are scoped to the mission: a solo dispatch gets a phrase in that specialist's voice, and a mission spanning several specialists gets one shared operation codeword. For group ops you don't even need the codeword — open each session and type `/go`; the phrase remains as the fallback.
 
 ---
 
@@ -161,6 +166,7 @@ Phrases are scoped to the mission: a solo dispatch gets a phrase in that special
 | `hooks/firmware.md` | Core Overmind intelligence — team building, handoffs, dispatch, twins, mission board, and inboxes built in |
 | `hooks/hooks.json` | SessionStart hook — injects firmware automatically |
 | `agents/splinter-twin.md` | Subagent that hydrates from a specialist's files for quick in-session work |
+| `skills/go/` | `/go` — one-command mission activation from this session's staged HANDOFF |
 | `skills/dispatch/` | Convenience trigger for the dispatch workflow |
 | `skills/overmind/` | Explicit skill for team-building actions |
 | `skills/roster/` | Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync |
