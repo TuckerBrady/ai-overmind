@@ -70,7 +70,7 @@ The specialist's folder is `[team-root]/[Specialist Folder]/`.
 **Passphrases are scoped to the MISSION, not the specialist.** One mission = one passphrase, however many specialists it touches:
 
 - **Solo dispatch** — generate a fresh phrase in that specialist's voice (flavors below).
-- **Multi-specialist dispatch** (one task spanning several briefs, or a set of coordinated missions dispatched together) — generate ONE shared operation codeword and stamp the same phrase into every HANDOFF. The human walks down the line saying the same phrase to each session; routing is handled by each specialist's own folder, so uniqueness per agent buys nothing and costs the human three codewords for one job. Voice the shared phrase to the OPERATION rather than any one specialist — mission-flavored, cinematic, e.g. *"Every station reported in before the window closed."*
+- **Multi-specialist dispatch** (one task spanning several briefs, or a set of coordinated missions dispatched together) — the primary activation is **`/go`** (see `skills/go/SKILL.md`): the human opens each session and types `/go`; each specialist activates from their own HANDOFF. No phrase to relay. Still stamp ONE shared operation codeword into every HANDOFF as the fallback (for sessions without the plugin, and for the ritual) — voice it to the OPERATION rather than any one specialist, mission-flavored and cinematic, e.g. *"Every station reported in before the window closed."*
 
 Never reuse a phrase from a previous mission. Each specialist has a distinct flavor — match it for solo dispatches. This list doubles as the **voice archive**: retired specialists keep their flavor here so resurrections come back sounding like themselves. Only dispatch to names active in TEAM_ROSTER.md:
 
@@ -249,7 +249,7 @@ Report to whoever initiated the dispatch — the human directly, or a specialist
 >
 > I'm monitoring the mission. I'll let you know when they're done — you don't need to check back.
 
-If multiple specialists were dispatched in one shot, give the ONE shared codeword and list the sessions to open: "Open Mara's, Sloane's, and Tess's sessions and say the same phrase to each." If dispatching laterally (specialist to specialist), also note which session should be opened and in what order if sequencing matters. Keep it tight — the human knows what to do from here.
+If multiple specialists were dispatched in one shot, the instruction is one line: "Open Mara's, Sloane's, and Tess's sessions and type `/go` in each." (Mention the shared codeword only as the fallback.) If dispatching laterally (specialist to specialist), also note which session should be opened and in what order if sequencing matters. Keep it tight — the human knows what to do from here.
 
 ---
 
