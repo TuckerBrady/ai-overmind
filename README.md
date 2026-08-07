@@ -1,12 +1,19 @@
-# ai-overmind v3.9.2
+# ai-overmind v3.9.3
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Seven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, and **MOTHER** — a headless watcher that keeps a live board painted while your team works.
+Eight capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v3.9.3
+
+- **`/diagnostic` — system verification.** Borrowed from Starfleet: higher numbers are quicker, Level 1 is the complete teardown. `/diagnostic` runs a fast local sweep in seconds — install version vs. the marketplace, team root reachability, canonical structure, roster/folder agreement, Sleeper block currency, Gopher freshness, board-vs-disk integrity. `/diagnostic 2` adds live platform probes: it writes an artifact and runs a real throwaway scheduled task end-to-end, proving MOTHER's engine works before you depend on it. `/diagnostic 1` dispatches the audit to every asset so each one verifies its own wiring and signs for it — the only way to catch a stale Instructions block or a mis-mounted folder in someone else's project, because only that session can see them.
+- **Every FAIL prints its fix.** A diagnostic that reports a broken state without the remedy has only relocated the confusion. Failures are ordered by what to do first and keyed to the field manual.
+- **The version-drift check is the one that earns its keep.** Auto-sync only fires when a PR containing a version bump merges to the default branch — not on direct pushes — so an install pinned to an old snapshot is a normal state, not a bug. `/diagnostic` now names it in one line instead of costing you an afternoon.
+- **PASS means verified this session.** Never inferred from memory or from a previous run. A check that couldn't be performed reports SKIP, and a check that can only ever fail is treated as a broken check rather than a finding.
 
 ## What's New in v3.9.2
 

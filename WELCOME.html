@@ -158,7 +158,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v3.9.2</div>
+    <div class="ver">v3.9.3</div>
     <p class="tag">Build and run a personal AI team. <strong>One phrase and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -184,6 +184,7 @@
     <h2><span class="idx">01</span>What's New in v3.9.x</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>/diagnostic (v3.9.3)</b> — verify the whole installation, or diagnose it when something’s off. Starfleet numbering: higher is quicker, Level 1 is the complete teardown. <code>/diagnostic</code> sweeps locally in seconds; <code>/diagnostic 2</code> proves the artifact and scheduled-task channels by actually using them; <code>/diagnostic 1</code> has every asset audit its own wiring and sign for it. Every FAIL prints its fix.</div>
       <div class="new-item"><b>MOTHER (v3.9.2)</b> — every dispatch launches a headless watcher (named for the ship computer in <i>Alien</i>) who repaints a live mission board while your team works, at a cadence set by priority. She detects completion herself and stands down. You never manage her.</div>
       <div class="new-item"><b>/status (v3.9.2)</b> — one command, any session: the whole board in the Overmind's, your own mission in a specialist's. It also flags where the board disagrees with what's actually on disk.</div>
       <div class="new-item"><b>/go (v3.9.1)</b> — one-command mission activation. After a group dispatch, open each specialist's session and type <code>/go</code> — each reads its own staged brief and activates. No phrase to remember or relay. Checks the mission board so a stale brief never re-executes; passphrases still work as the fallback.</div>
@@ -207,7 +208,8 @@
       <div class="step"><div class="num">2</div><div class="body"><b>Create one folder</b> on your computer — e.g., "My AI Team". This is the team root. Every project you create will connect this same folder.</div></div>
       <div class="step"><div class="num">3</div><div class="body"><b>Create a Cowork project</b>, connect that folder as the project's <b>Context</b> — this folder is the team root and every project you create later connects this <em>same</em> folder — and say <code>[YourFirstName] is online</code></div></div>
       <div class="step"><div class="num">4</div><div class="body"><b>That's it.</b> The Overmind learns your role, proposes your team, builds the entire structure, and walks you through bringing each specialist online — one clear step at a time, with ready-to-paste blocks it already wrote for you.</div></div>
-      <div class="step"><div class="num">5</div><div class="body"><b>Setup runs once.</b> When your team is online, the ceremony is over for good — every future session boots straight into work. From here, you're just building the relationship.</div></div>
+      <div class="step"><div class="num">5</div><div class="body"><b>Verify it.</b> Type <code>/diagnostic</code> in your Overmind’s session. It checks the install, the folders, the roster, and the instruction blocks in a few seconds and prints a pass/fail table — so you know the wiring is sound before you trust it with real work. Anything red comes with its fix.</div></div>
+      <div class="step"><div class="num">6</div><div class="body"><b>Setup runs once.</b> When your team is online, the ceremony is over for good — every future session boots straight into work. From here, you're just building the relationship.</div></div>
     </div>
     <div class="note"><b>Upgrading from a zip install?</b> The zip channel is sunset — see the <a href="#upgrade">Upgrading</a> section below for the full migration, including the structure cleanup that Gopher Protocol needs.</div>
     <div class="note"><b>Before you dispatch anything:</b> read <a href="#wiring">Wiring &amp; Gotchas</a>. Three settings decide whether the board, registry, and inboxes work at all — team root in Context, Sleeper block in Instructions, permissions granted at dispatch time. Five minutes there saves an afternoon.</div>
@@ -299,6 +301,12 @@
         <h3>/status</h3>
         <p>Type it in any session. In the Overmind's you get the whole board — in flight, deadlines, who's checked in — plus the board surfaced in front of you. In a specialist's you get their own mission and progress. It also compares the board against what's actually on disk and tells you where they disagree, which is usually the most useful thing it can say.</p>
       </div>
+      <div class="card">
+        <div class="icon">🩺</div>
+        <h3>/diagnostic</h3>
+        <p>Run it the moment your team is built, and any time something feels wrong. The fast sweep checks your installed version against the marketplace, whether this project can actually reach the team root, whether the structure and roster agree, whether your Sleeper block is the current one, and whether the board matches what's on disk. <code>/diagnostic 2</code> goes further and <em>uses</em> the moving parts — it writes an artifact and runs a real throwaway scheduled task — so you learn MOTHER's engine works before a mission depends on it. <code>/diagnostic 1</code> dispatches the audit to every asset: only their own session can see their Context and Instructions, so only they can honestly sign for them.</p>
+        <p style="margin-top:10px;font-style:italic;color:#6b7a91;font-size:12.5px">Every FAIL comes with its fix. And the Level 1 test is its own proof — if dispatch, <code>/go</code>, and boot registration all work, the audit completing says so.</p>
+      </div>
     </div>
 
     <div style="margin-top:40px;background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:26px 22px 18px">
@@ -376,6 +384,7 @@
     <table style="margin-top:8px">
       <tr><th>Feature</th><th>Try saying</th></tr>
       <tr><td>Status</td><td><code>/status</code></td></tr>
+      <tr><td>Diagnostics</td><td><code>/diagnostic</code> — or <code>/diagnostic 1</code> for the full multi-session audit</td></tr>
       <tr><td>Team Building</td><td><code>Add a data analyst to the team</code></td></tr>
       <tr><td>Handoffs</td><td><code>Write a handoff</code> — then say the passphrase it gives you next session</td></tr>
       <tr><td>Dispatch</td><td><code>Brief Mara on the Q3 backlog cleanup — critical, due Friday</code></td></tr>
@@ -421,6 +430,7 @@
       <tr><td><code>hooks/hooks.json</code></td><td>SessionStart hook — injects firmware automatically</td></tr>
       <tr><td><code>agents/splinter-twin.md</code></td><td>Subagent that hydrates from a specialist's files for quick in-session work</td></tr>
       <tr><td><code>skills/status/</code></td><td><code>/status</code> &mdash; live mission status and board reconciliation</td></tr>
+      <tr><td><code>skills/diagnostic/</code></td><td><code>/diagnostic</code> &mdash; system verification at three levels; every failure reports its own fix</td></tr>
       <tr><td><code>skills/go/</code></td><td><code>/go</code> — one-command mission activation from this session's staged HANDOFF</td></tr>
       <tr><td><code>skills/dispatch/</code></td><td>Convenience trigger for the dispatch workflow</td></tr>
       <tr><td><code>skills/overmind/</code></td><td>Explicit skill for team-building actions</td></tr>
