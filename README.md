@@ -1,12 +1,18 @@
-# ai-overmind v3.9.3
+# ai-overmind v3.9.5
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Eight capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
+Nine capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v3.9.5
+
+- **A plain-language overview page is now the front door.** The bare site URL serves an explanation written for someone who has never heard of any of this — no jargon, no assumed context, aimed at anyone from an executive to a relative who does not work in software. The field manual keeps its own URL and is linked from the overview. Built because explaining what this is, one person at a time, does not scale.
+- **The overview covers engineering directly.** A section on what a team looks like inside a codebase: reviewing every change, writing the tests that get skipped, keeping documentation from rotting, and diagnosing failures. It states the limits plainly, including that nothing merges on its own and you remain the reviewer of record.
+- **Feature counts corrected.** The README said eight capabilities, the field manual said six, and the real number is nine — none of them counted `/status`, which shipped in v3.9.2. All three now agree, and `/status` and `/diagnostic` are documented as first-class features rather than mentioned in passing.
 
 ## What's New in v3.9.3
 
@@ -85,7 +91,7 @@ Updates ship automatically when a new version is released — run `claude plugin
 
 ---
 
-## The Six Features
+## The Nine Features
 
 ### 1 — Team Building
 
@@ -149,6 +155,28 @@ The tier below dispatch. Any team member can leave a short note in a peer's `INB
 | Say this | What happens |
 |----------|--------------|
 | `Leave a note for [Name]: ...` | Appends a dated entry to their inbox |
+
+### 7 — MOTHER
+
+Every dispatch launches a headless watcher, named for the ship computer in *Alien*. She repaints a live mission board while your team works, at a cadence set by the mission's priority, detects completion on her own, and asks to stand down when the work is done. You never manage her and she never speaks to you directly.
+
+### 8 — /status
+
+One command, any session. In the Overmind's session it reports the whole board; in a specialist's session it reports that specialist's own mission and progress. It also flags where the board disagrees with what is actually on disk, so a stale row gets caught rather than believed.
+
+| Say this | What happens |
+|----------|--------------|
+| `/status` | Reports live mission state for the current session |
+| `What's in flight?` | Same, phrased naturally |
+
+### 9 — /diagnostic
+
+Verifies the installation and diagnoses it when something is off. Three levels, Starfleet numbering, where higher is quicker: `/diagnostic` sweeps locally in seconds, `/diagnostic 2` proves the artifact and scheduled-task channels by actually using them, and `/diagnostic 1` has every asset audit its own wiring and sign for it. Every FAIL prints its own fix.
+
+| Say this | What happens |
+|----------|--------------|
+| `/diagnostic` | Fast local sweep of the whole installation |
+| `/diagnostic 1` | Full multi-session asset audit |
 
 ---
 
