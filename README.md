@@ -1,12 +1,22 @@
-# ai-overmind v3.9.5
+# ai-overmind v4.0.0
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Nine capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
+Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the council** — coordination between multiple Overminds in one org — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.0.0
+
+- **BOOT.md — the single-source boot layer.** Every team member's boot instructions now live in one canonical file, `BOOT.md`, at their folder root. Thin runtime wrappers adapt it — a `CLAUDE.md` import for working-directory runtimes, a paste-wrapper for Project Instructions runtimes — but the content lives in exactly one place. Edit BOOT.md, nowhere else. One rule rides along: a boot edit is not done until it's re-pasted into any paste-based runtime.
+- **Existing installs don't break.** If your team was built by an earlier version, everything keeps working exactly as it does today. The team-building, roster, and diagnostic skills recognize the legacy layout, tell you about it, and offer the migration — generating BOOT.md from your existing instruction block plus the wrappers. The offer is never forced mid-mission and nothing is rewritten silently.
+- **Missions and lanes.** The mission number is the goal, not the assignment. Work triaged across several specialists toward one goal shares one mission ID; each specialist's slice is a lane, written `M-017 / alex`. One board row per mission, per-lane state in the status cell, and one blocked lane never hides the others. If the outputs don't combine into one deliverable, they're separate missions.
+- **Dispatch activates with `/go` — passphrases retired to session handoffs.** Dispatched missions no longer carry a passphrase: open the specialist's session, type `/go`, they activate fully briefed. Passphrases live on where they started — an agent's own session-to-session handoffs, fresh and evocative as ever.
+- **Bring-your-own A2A transport.** An optional `TRANSPORT.md` at the team root binds the team to whatever agent-to-agent MCP server your org runs. With it, dispatch posts a task per lane to your team channel, sessions register and catch up on wake, and the channel ledger replaces the file-scraping watcher. Without it, nothing changes — installs with no transport see zero behavior difference, and file-only operation remains complete on its own.
+- **The council.** For orgs running more than one Overmind (transport required): a standing channel of verified Overminds coordinates cross-team missions (CTM-### series) while each team keeps its own private channel. Admission runs a seating protocol — prove Overmind tier via challenge/response, declare your version, upgrade if behind. Cross-team exchange is compiled results, never another team's internals.
+- **Translation duty.** You never learn a wire format. Whatever compact protocol agents use on a transport channel, your Overmind owes you a plain-English scoreboard — Mission, Asset, Status, Latest signal, Next — rendered at every mission event and every `/status`, unprompted.
 
 ## What's New in v3.9.5
 
@@ -91,7 +101,7 @@ Updates ship automatically when a new version is released — run `claude plugin
 
 ---
 
-## The Nine Features
+## The Eleven Features
 
 ### 1 — Team Building
 
@@ -116,17 +126,16 @@ The Overmind proactively offers handoffs at natural stopping points. You never h
 
 Send work to a specialist without explaining everything from scratch.
 
-Describe what needs to happen and who should handle it. The Overmind writes a mission brief to the specialist's folder, snapshots your open browser tabs so they can pick up exactly where you left off, and gives you a passphrase. Open the specialist's session, say the passphrase — they activate ready to work.
+Describe what needs to happen and who should handle it. The Overmind writes a mission brief to the specialist's folder, snapshots your open browser tabs so they can pick up exactly where you left off, and stages the mission for activation. Open the specialist's session, type `/go` — they activate ready to work. Work spanning several specialists toward one goal shares a single mission ID, with one lane per specialist.
 
 Any session can dispatch, not just the Overmind. Specialists can brief each other when work crosses domain boundaries mid-task.
 
 | Say this | What happens |
 |----------|--------------|
-| `Send this to [Name]` | Writes mission brief to specialist folder + generates passphrase |
+| `Send this to [Name]` | Writes mission brief to specialist folder, stages it for `/go` |
 | `Brief [Name] on [task]` | Same as above |
 | `Dispatch to [Name]` | Same as above |
-| `[passphrase]` | Specialist session: activates the mission |
-| `/go` | Same — activates that session's staged mission, no phrase needed |
+| `/go` | Specialist session: activates that session's staged mission |
 | `/status` | Live mission status in this session — board + artifact for the Overmind, own mission for a specialist |
 
 ### 4 — Splinter Twins
@@ -178,6 +187,21 @@ Verifies the installation and diagnoses it when something is off. Three levels, 
 | `/diagnostic` | Fast local sweep of the whole installation |
 | `/diagnostic 1` | Full multi-session asset audit |
 
+### 10 — Transport Binding
+
+Optional, and off by default. Drop a `TRANSPORT.md` at the team root describing your org's agent-to-agent MCP server and team channel, and the whole system becomes transport-aware: dispatch posts a task per lane to the channel, sessions register and read their backlog on wake, `/status` reads the live channel ledger, and that ledger replaces the file-scraping watcher. The plugin never names or assumes a vendor — the binding file is config, not code, and it stays org-private.
+
+No `TRANSPORT.md`, no change. Installs without a transport behave exactly as before; file-only operation is complete on its own.
+
+### 11 — The Council
+
+For organizations running more than one Overmind. Requires a transport. A standing council channel of verified Overminds coordinates cross-team missions (the CTM-### series, distinct from M-###) while each team keeps its own private channel — cross-team exchange is compiled results, never another team's internals. Admission runs a seating protocol: prove Overmind tier via challenge/response, declare your plugin version, and upgrade if behind — a behind-version Overmind holds a provisional seat until it's current.
+
+| Say this | What happens |
+|----------|--------------|
+| `Set up the council` | Creates the council channel and COUNCIL_BOARD.md |
+| `Seat [name]'s Overmind` | Runs the seating protocol for a new member |
+
 ---
 
 ## Usage Reference
@@ -198,9 +222,9 @@ Verifies the installation and diagnoses it when something is off. Three levels, 
 
 ## How the Passphrase System Works
 
-Everything runs on passphrases. The Overmind writes a brief, invents a passphrase, and tells you what it is. You say the phrase to the right session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.
+Passphrases belong to handoffs. At the end of a session the Overmind writes a brief, invents a passphrase, and tells you what it is. Say the phrase at the start of your next session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.
 
-Phrases are scoped to the mission: a solo dispatch gets a phrase in that specialist's voice, and a mission spanning several specialists gets one shared operation codeword. For group ops you don't even need the codeword — open each session and type `/go`; the phrase remains as the fallback.
+As of v4.0.0, dispatched missions don't use passphrases at all: open the specialist's session and type `/go`. Solo mission or one lane of a group op, it's the same single command in every session.
 
 ---
 
@@ -216,6 +240,8 @@ Phrases are scoped to the mission: a solo dispatch gets a phrase in that special
 | `skills/dispatch/` | Convenience trigger for the dispatch workflow |
 | `skills/overmind/` | Explicit skill for team-building actions |
 | `skills/roster/` | Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync |
+| `skills/diagnostic/` | `/diagnostic` — three-level system verification; every failure prints its own fix |
+| `skills/council/` | Council operations — seat other Overminds, run cross-team missions (transport required) |
 | `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
 | `WELCOME.html` | Styled field manual — presented on first activation |
 | `CONNECTORS.md` | Directory service connector documentation |

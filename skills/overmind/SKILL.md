@@ -6,9 +6,6 @@ description: >
   asking to design, build, or manage a custom team of AI specialists.
   Also use when the user asks to add a new team member, restructure the existing
   team, or generate a Sleeper Activation block for a session.
-metadata:
-  version: "0.1.0"
-  author: "Tucker Brady"
 ---
 
 # Overmind — AI Team Builder
@@ -17,12 +14,14 @@ Read the firmware in `hooks/firmware.md` (at this plugin's root — `${CLAUDE_PL
 
 Follow it exactly. The activation passphrase, introduction sequence, team-building workflow, sleeper protocol, and session management rules are all there.
 
+Two structural notes for v4. Team building now generates each member's boot layer as a single-source `BOOT.md` at the folder root, plus thin runtime wrappers — the structure lives in the firmware's TEAM BUILDING section. And an optional org A2A transport can be bound later by adding a `TRANSPORT.md` at the team root — see the firmware's A2A TRANSPORT section; installs without one behave exactly as before. A team folder with a content-bearing `Project Instructions.md` and no `BOOT.md` is the legacy layout: offer the migration, never force it.
+
 Quick reference for the most common triggers:
 
 **"[FirstName] is online"** → Activation passphrase. Respond "Asset activated. Stand by." then execute the Introduction Sequence from the firmware.
 
 **"Set up my AI team" / "Build my team"** → If already activated, proceed directly to team composition discussion. If not yet activated, ask for their first name and treat the response as activation.
 
-**"Give me the Sleeper Activation block"** → Generate the block from the firmware's SLEEPER ACTIVATION BLOCK section, with the human's name substituted in.
+**"Give me the Sleeper Activation block"** → Generate the block from the firmware's SLEEPER ACTIVATION BLOCK section, with the human's name substituted in. In the v4 layout the block lives inside the member's `BOOT.md`; paste-based runtimes copy BOOT.md's full contents into the platform's Project Instructions.
 
 **"Add [role] to the team" / "Remove [name]" / "Bring back [name]" / "Sync the roster"** → Roster changes are a first-class operation with their own skill: invoke `skills/roster/SKILL.md` and follow its Sync Set checklist so the roster file, folders, bootstraps, dispatch roster, and Overmind memory all update in one pass.

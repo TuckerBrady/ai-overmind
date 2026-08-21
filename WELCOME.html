@@ -158,7 +158,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v3.9.5</div>
+    <div class="ver">v4.0.0</div>
     <p class="tag">Build and run a personal AI team. <strong>One phrase and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -182,9 +182,15 @@
   </ul></nav>
 
   <section id="new">
-    <h2><span class="idx">01</span>What's New in v3.9.x</h2>
+    <h2><span class="idx">01</span>What's New</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>BOOT.md (v4.0.0)</b> — every team member's boot layer is now one canonical file, <code>BOOT.md</code>, at their folder root. Thin wrappers adapt it per runtime — a <code>CLAUDE.md</code> import for working-directory runtimes, a paste-wrapper for Project Instructions runtimes — so edits go to BOOT.md and nowhere else. One law rides along: a boot edit is not done until it's re-pasted into any paste-based runtime. Existing teams keep working exactly as they do today — the skills detect the legacy layout and offer the migration; nothing is forced mid-mission and nothing is rewritten silently.</div>
+      <div class="new-item"><b>Missions &amp; lanes (v4.0.0)</b> — the mission number is the goal, not the assignment. Work triaged across several specialists toward one goal shares one mission ID; each specialist's slice is a lane, written <code>M-017 / alex</code>. One board row per mission, per-lane state in the status cell, and one blocked lane never hides the others.</div>
+      <div class="new-item"><b>/go-only dispatch (v4.0.0)</b> — dispatched missions no longer carry passphrases: open the specialist's session and type <code>/go</code>. Passphrases are retired to what they were born for — a session's own handoffs, fresh and evocative as ever.</div>
+      <div class="new-item"><b>Transport binding (v4.0.0)</b> — an optional <code>TRANSPORT.md</code> at the team root binds the team to whatever agent-to-agent MCP server your org runs: dispatch posts a task per lane to your team channel, sessions register and catch up on wake, and the channel ledger replaces the file-scraping watcher. No transport file, no change — file-only installs behave exactly as before.</div>
+      <div class="new-item"><b>The council (v4.0.0)</b> — for orgs running more than one Overmind (transport required). A standing channel of verified Overminds runs cross-team missions (the CTM-### series) behind a seating protocol: prove Overmind tier, declare your version, upgrade if behind. Cross-team exchange is compiled results, never another team's internals.</div>
+      <div class="new-item"><b>Translation duty (v4.0.0)</b> — you never read wire format. Whatever compact protocol agents use on a transport channel, the Overmind renders a plain-English scoreboard — Mission, Asset, Status, Latest signal, Next — at every mission event and every <code>/status</code>, unprompted.</div>
       <div class="new-item"><b>Overview page (v3.9.5)</b> — the bare site URL now serves a <a href="index.html">plain-language overview</a> written for people who have never heard of any of this, including a section on what a team looks like inside a codebase. This manual keeps its own URL. Feature counts across the README and this page were also corrected to nine: neither had been counting <code>/status</code>.</div>
       <div class="new-item"><b>/diagnostic (v3.9.3)</b> — verify the whole installation, or diagnose it when something’s off. Starfleet numbering: higher is quicker, Level 1 is the complete teardown. <code>/diagnostic</code> sweeps locally in seconds; <code>/diagnostic 2</code> proves the artifact and scheduled-task channels by actually using them; <code>/diagnostic 1</code> has every asset audit its own wiring and sign for it. Every FAIL prints its fix.</div>
       <div class="new-item"><b>MOTHER (v3.9.2)</b> — every dispatch launches a headless watcher (named for the ship computer in <i>Alien</i>) who repaints a live mission board while your team works, at a cadence set by priority. She detects completion herself and stands down. You never manage her.</div>
@@ -258,7 +264,7 @@
   </section>
 
   <section id="features">
-    <h2><span class="idx">05</span>The Nine Features</h2>
+    <h2><span class="idx">05</span>The Eleven Features</h2>
     <div class="rule"></div>
     <div class="features">
       <div class="card">
@@ -274,7 +280,7 @@
       <div class="card">
         <div class="icon">🎯</div>
         <h3>Dispatch</h3>
-        <p>Send work to a specialist without explaining everything from scratch. The Overmind writes a mission brief to the specialist's folder, snapshots your open browser tabs, and gives you a passphrase. Open the specialist's session, say the phrase — they activate ready to work. Any session can dispatch, not just the Overmind.</p>
+        <p>Send work to a specialist without explaining everything from scratch. The Overmind writes a mission brief to the specialist's folder, snapshots your open browser tabs, and stages the mission. Open the specialist's session, type <code>/go</code> — they activate ready to work. Work spanning several specialists shares one mission ID with a lane per specialist. Any session can dispatch, not just the Overmind.</p>
       </div>
       <div class="card">
         <div class="icon">👥</div>
@@ -309,6 +315,16 @@
         <p>Run it the moment your team is built, and any time something feels wrong. The fast sweep checks your installed version against the marketplace, whether this project can actually reach the team root, whether the structure and roster agree, whether your Sleeper block is the current one, and whether the board matches what's on disk. <code>/diagnostic 2</code> goes further and <em>uses</em> the moving parts — it writes an artifact and runs a real throwaway scheduled task — so you learn MOTHER's engine works before a mission depends on it. <code>/diagnostic 1</code> dispatches the audit to every asset: only their own session can see their Context and Instructions, so only they can honestly sign for them.</p>
         <p style="margin-top:10px;font-style:italic;color:#6b7a91;font-size:12.5px">Every FAIL comes with its fix. And the Level 1 test is its own proof — if dispatch, <code>/go</code>, and boot registration all work, the audit completing says so.</p>
       </div>
+      <div class="card">
+        <div class="icon">🔌</div>
+        <h3>Transport Binding</h3>
+        <p>Optional. A <code>TRANSPORT.md</code> at the team root binds the team to whatever agent-to-agent MCP server your org runs — the plugin never names or assumes a vendor. With it, dispatch posts a task per lane to your team channel, sessions register and read their backlog on wake, and the channel ledger replaces the file-scraping watcher. Without it, nothing changes: file-only operation is complete on its own. The binding file is org-private — never publish it.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🏛️</div>
+        <h3>The Council</h3>
+        <p>For orgs running more than one Overmind (transport required). A standing council channel of verified Overminds coordinates cross-team missions — the CTM-### series, tracked on <code>COUNCIL_BOARD.md</code> — while each team keeps its own private channel. Seating runs a protocol: prove Overmind tier via challenge/response, declare your plugin version, upgrade if behind. Cross-team exchange is compiled results, never another team's internals.</p>
+      </div>
     </div>
 
     <div style="margin-top:40px;background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:26px 22px 18px">
@@ -341,7 +357,7 @@
       <text x="459" y="104" text-anchor="middle" fill="#8494ab" font-size="11" font-family="Segoe UI,sans-serif">HANDOFF.md + board row</text>
 
       <line x1="538" y1="91" x2="594" y2="91" stroke="#f6ad55" stroke-width="1.5" marker-end="url(#arA)"/>
-      <text x="566" y="79" text-anchor="middle" fill="#f6ad55" font-size="11" font-family="Segoe UI,sans-serif">passphrase</text>
+      <text x="566" y="79" text-anchor="middle" fill="#f6ad55" font-size="11" font-family="Segoe UI,sans-serif">/go</text>
 
       <rect x="598" y="62" width="176" height="58" rx="8" fill="#161e2d" stroke="#223047"/>
       <text x="686" y="86" text-anchor="middle" fill="#d7e0ee" font-family="Cascadia Code,Consolas,monospace" font-size="12" font-weight="bold">SPECIALIST SESSION</text>
@@ -389,10 +405,10 @@
       <tr><td>Diagnostics</td><td><code>/diagnostic</code> — or <code>/diagnostic 1</code> for the full multi-session audit</td></tr>
       <tr><td>Team Building</td><td><code>Add a data analyst to the team</code></td></tr>
       <tr><td>Handoffs</td><td><code>Write a handoff</code> — then say the passphrase it gives you next session</td></tr>
-      <tr><td>Dispatch</td><td><code>Brief Mara on the Q3 backlog cleanup — critical, due Friday</code></td></tr>
-      <tr><td>Splinter Twins</td><td><code>Ask Tess a quick question: what were last sprint's hours?</code></td></tr>
+      <tr><td>Dispatch</td><td><code>Brief Cade on the Q3 backlog cleanup, critical, due Friday</code></td></tr>
+      <tr><td>Splinter Twins</td><td><code>Ask Owen a quick question: what were last sprint's hours?</code></td></tr>
       <tr><td>Mission Board</td><td><code>What's in flight?</code></td></tr>
-      <tr><td>Inboxes</td><td><code>Leave a note for Sloane: the offsite moved to Thursday</code></td></tr>
+      <tr><td>Inboxes</td><td><code>Leave a note for Sam: the offsite moved to Thursday</code></td></tr>
     </table>
   </section>
 
@@ -407,20 +423,20 @@
       <tr><td><code>Give me the Sleeper Activation block</code></td><td>Generates the passphrase block for Project Instructions</td></tr>
       <tr><td><code>Write a handoff</code></td><td>Saves session state and generates activation passphrase</td></tr>
       <tr><td><code>Brief [Name] on [task]</code></td><td>Dispatches a mission to a specialist</td></tr>
-      <tr><td><code>Send this to [Name]</code></td><td>Same — writes mission brief + generates passphrase</td></tr>
+      <tr><td><code>Send this to [Name]</code></td><td>Same — writes mission brief, staged for <code>/go</code></td></tr>
       <tr><td><code>Ask [Name] a quick question</code></td><td>Spawns an in-session splinter twin</td></tr>
       <tr><td><code>What's in flight?</code></td><td>Reads MISSION_BOARD.md and reports live mission status</td></tr>
       <tr><td><code>Leave a note for [Name]</code></td><td>Appends a dated entry to the specialist's INBOX.md</td></tr>
-      <tr><td><code>[passphrase]</code></td><td>Activates the waiting brief or mission in that session</td></tr>
-      <tr><td><code>/go</code></td><td>Same — activates this session's staged mission, no phrase needed</td></tr>
+      <tr><td><code>[passphrase]</code></td><td>Activates a waiting handoff brief — handoffs keep passphrases; dispatched missions use <code>/go</code></td></tr>
+      <tr><td><code>/go</code></td><td>Activates this session's staged mission — the activation for every dispatch</td></tr>
     </table>
   </section>
 
   <section id="passphrases">
     <h2><span class="idx">07</span>How the Passphrase System Works</h2>
     <div class="rule"></div>
-    <p class="lead">Everything runs on passphrases. The Overmind writes a brief, invents a passphrase, and tells you what it is. You say the phrase to the right session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.</p>
-    <p class="lead">Phrases are scoped to the <b>mission</b>: a solo dispatch gets a phrase in that specialist's voice, and a mission spanning several specialists gets one shared operation codeword. For group ops you don't even need the codeword — open each session and type <code>/go</code>; the phrase remains as the fallback.</p>
+    <p class="lead">Passphrases belong to <b>handoffs</b>. At the end of a session the Overmind writes a brief, invents a passphrase, and tells you what it is. Say the phrase at the start of your next session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.</p>
+    <p class="lead">As of v4.0.0, dispatched missions don't use passphrases at all: open the specialist's session and type <code>/go</code>. Solo mission or one lane of a group op, it's the same single command in every session.</p>
   </section>
 
   <section id="components">
@@ -437,6 +453,7 @@
       <tr><td><code>skills/dispatch/</code></td><td>Convenience trigger for the dispatch workflow</td></tr>
       <tr><td><code>skills/overmind/</code></td><td>Explicit skill for team-building actions</td></tr>
       <tr><td><code>skills/roster/</code></td><td>Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync</td></tr>
+      <tr><td><code>skills/council/</code></td><td>Council operations — seat other Overminds, run cross-team missions (transport required)</td></tr>
       <tr><td><code>skills/caveman/</code></td><td>Ultra-compressed communication mode (~65–75% fewer tokens)</td></tr>
       <tr><td><code>WELCOME.html</code></td><td>This field manual — presented on first activation</td></tr>
       <tr><td><code>CONNECTORS.md</code></td><td>Directory service connector documentation</td></tr>
@@ -495,7 +512,7 @@
   </section>
 
   <footer>
-    <span>ai-overmind v3.9.1 — Tucker Brady</span>
+    <span>ai-overmind v4.0.0 — Tucker Brady</span>
     <span class="status">● OVERMIND STANDING BY</span>
   </footer>
 

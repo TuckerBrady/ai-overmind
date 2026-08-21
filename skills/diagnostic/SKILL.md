@@ -77,10 +77,31 @@ member folder maps to a roster entry. Orphans in either direction → FAIL, *fix
 skill's sync pass (`/overmind` → roster → sync), which reconciles roster, folders, bootstraps,
 and dispatch roster in one pass.
 
-**B4 — Member files at folder root.** For each member folder: bootstrap present, persona file
-present, `INBOX.md` present. All cross-session files live at the **folder root** — never under
-`.auto-memory/`, which is not the project folder. Missing `INBOX.md` → create it, then PASS
-with a note. Missing persona or bootstrap → FAIL, *fix:* regenerate via the roster skill.
+**B4 — Member files at folder root.** For each member folder: persona file present, `INBOX.md`
+present. All cross-session files live at the **folder root** — never under `.auto-memory/`,
+which is not the project folder. Missing `INBOX.md` → create it, then PASS with a note.
+Missing persona → FAIL, *fix:* regenerate via the roster skill.
+
+**B5 — Boot layer per member.** Each member folder must be in one of two recognizable states:
+
+- **Current layout:** `BOOT.md` at the folder root, and — where a working-directory runtime is
+  in play — a `CLAUDE.md` wrapper whose import reads exactly `@BOOT.md`. The filename is
+  deliberately space-free; an import path with spaces is undocumented behavior and fails
+  silently. Wrapper present with the import missing, renamed, or pointing elsewhere → FAIL,
+  *fix:* restore the `@BOOT.md` line; boot content is edited in BOOT.md only, never the wrapper.
+- **Legacy layout:** a content-bearing `Project Instructions.md` and no `BOOT.md`. Not a FAIL —
+  flag it with the migration pointer: the roster skill generates BOOT.md from the existing block
+  plus the runtime wrappers. Offer, never force mid-mission, never silently rewrite.
+
+Neither state (no BOOT.md and no content-bearing instructions) → FAIL, *fix:* regenerate the
+boot layer via the roster skill.
+
+**B6 — Transport binding.** Only when `TRANSPORT.md` exists at the team root; otherwise SKIP
+silently — file-only operation is complete on its own. When present: the file parses (server,
+team channel, calls table), and the tools it names are reachable **in this session**. Tools
+named but unreachable → report the transport as **DORMANT** — a state, not a failure; every
+transport-aware feature falls back to file-only behavior until the tools return. File present
+but malformed → FAIL, *fix:* regenerate it from the firmware's TRANSPORT.md template.
 
 ### C · Identity & activation wiring
 
@@ -93,11 +114,19 @@ duties — read `HANDOFF.md`, check `INBOX.md`, **write your row to `GOPHER_REGI
 must accept `/go` as an activation trigger. A block missing the registration clause is the
 pre-v3.9.2 version: it registered only via the SessionStart hook, which is not guaranteed to
 arrive before the first message, making boot registration a coin flip. → FAIL, *fix:* regenerate
-and re-paste the block for every project, not just this one.
+and re-paste the block for every project, not just this one. In the current layout the canonical
+source is the member's `BOOT.md` — edit there, and remember the dual-runtime law: a boot edit is
+not done until it's re-pasted into every paste-based runtime.
 
 **C3 — Own Gopher row.** Your row exists in `GOPHER_REGISTRY.md`. Report its age: fresh (<6 h),
 stale (>6 h), dormant (>48 h), or absent. Absent or dormant → refresh it now and note that you
 did. If it was absent, that is evidence C2 failed even if the block *looks* right.
+
+**C4 — Paper members.** Every Active roster row needs boot evidence — a Gopher row, ever. A
+roster member with no Gopher row was created on paper but never booted: flag as **PAPER
+MEMBER**, not ACTIVE. *Fix:* open that member's session and run its first boot (`/go` or any
+first message); the roster skill holds adds and resurrections at PENDING FIRST BOOT until this
+evidence lands, so a paper member usually means that tracking was skipped.
 
 ### D · Board integrity
 
@@ -110,6 +139,15 @@ report which side you trust and why.
 
 **D3 — Stale in-flight.** Any ACTIVE row past its deadline, or any mission whose assignee has
 never registered, gets surfaced with its age.
+
+**D4 — Board vs ledger.** Only when a transport exists (B6 found `TRANSPORT.md` and its tools);
+otherwise SKIP. The channel ledger is a second witness against the board: compare
+`MISSION_BOARD.md` rows to the channel's TASK and status posts. A board row still ACTIVE whose
+lane posted done, or a ledger TASK with no board row, is a FAIL of bookkeeping — apply D2's
+authority order and report which side you trust and why. One grading caution: a missing channel
+ACK next to a moved board row usually means the session was **permission-gated**, not
+disobedient — first posts on a transport can hit permission prompts. Front-load approvals at
+dispatch, and grade accordingly.
 
 ### Report — Level 3
 
