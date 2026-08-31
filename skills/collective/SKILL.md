@@ -21,17 +21,19 @@ This inverts v4.0.0: that release stopped cold without `TRANSPORT.md`. The Colle
 
 ## Step 0 — Find the venue
 
-The Collective needs one thing: a folder every seated team can read and write. Three classes, all proven live:
+The Collective needs one thing: a folder every seated team can read and write. **Git is the recommended default** — it's the reference venue, the only one with a full two-party round trip proven live, and it comes with commit attribution and tamper-evident history for free. The other two classes are proven fallbacks, not equal alternatives: reach for them when git is a bad fit for this human, not by default.
 
-| Class | For whom | Notes |
-|---|---|---|
-| **Synced folder** (OneDrive / Google Drive / Dropbox share) | the zero-tech default | The vacation-photos motion: share a folder → partner accepts → both point their Overminds at the path. Never point a human at a sync ROOT — sandboxed runtimes refuse to mount a folder containing a protected app location. Name a **leaf** folder; on refusal, retry narrower. Recommend pinning "always keep on this device." |
-| **Git** (free private repo) | reference venue — agents drive sync themselves | pull-before-read, commit+push-after-post. Free bonuses: commit attribution, tamper-evident history. The only venue with a full two-party round trip proven live. |
-| **Connector API** (SharePoint, Google Drive connector, etc.) | zero local install; paste-based runtimes | The connector IS the transport — nothing to sync. Google Drive rule: disable conversion-to-Google-types on create (else every `.md` post silently becomes a Doc), and read via the **raw** download call only — the "friendly" read rewrites content. |
+| Class | Priority | For whom | Notes |
+|---|---|---|---|
+| **Git** (free private repo) | **Default recommendation** | anyone with, or willing to create, a GitHub account | The Overmind does everything mechanical — `gh repo create --private`, scaffold the binder, push — the human never touches git directly. pull-before-read, commit+push-after-post. |
+| **Synced folder** (OneDrive / Google Drive / Dropbox share) | Fallback #1 | someone with zero interest in a GitHub account, or already living in a synced drive | The vacation-photos motion: share a folder → partner accepts → both point their Overminds at the path. Never point a human at a sync ROOT — sandboxed runtimes refuse to mount a folder containing a protected app location. Name a **leaf** folder; on refusal, retry narrower. Recommend pinning "always keep on this device." |
+| **Connector API** (SharePoint, Google Drive connector, etc.) | Fallback #2 | paste-based runtimes with zero local install and a connector already available | The connector IS the transport — nothing to sync. Google Drive rule: disable conversion-to-Google-types on create (else every `.md` post silently becomes a Doc), and read via the **raw** download call only — the "friendly" read rewrites content. |
 
-**Detect, per runtime.** A working-directory runtime can scan for sync markers, a `.git` folder, or `gh auth status`. A sandboxed runtime cannot scan at all — detection there is a **conversation**: ask which service the human already uses, have them connect a named leaf folder, verify by a write/read-back round trip. Connect-then-verify, never sniff.
+**Detect, per runtime.** A working-directory runtime can scan for a `.git` folder or `gh auth status` first — if either is already there, that settles it. Otherwise check for sync markers. A sandboxed runtime cannot scan at all — detection there is a **conversation**: lead with "do you have (or want) a GitHub account?" before asking about sync services. Connect-then-verify, never sniff.
 
-**Recommend, don't quiz.** One recommendation based on what exists, with the fork named out loud — "You have OneDrive already — easiest path. GitHub gives you a better paper trail but needs an account. I'd start with OneDrive." Never hand back a cold menu of three options with no opinion.
+**Recommend git, state the fallback, don't quiz.** Default posture: "I'd set this up as a private GitHub repo — I'll create and configure it, you just approve it and share the invite link. Takes two minutes, no git knowledge needed." Only pivot to a fallback when the human pushes back on creating a GitHub account at all, or one is already unavailable in this runtime — in that case name the pivot out loud ("No GitHub — let's use a OneDrive folder instead, same idea") rather than silently downgrading. Never hand back a cold menu of three options with no opinion.
+
+**Every seated peer needs its own way in, regardless of venue.** On git, that means an individual GitHub account for each human whose Overmind will be seated — the convener invites each one as a collaborator on the private repo. A shared account or shared token across multiple humans defeats commit attribution and the trust boundary alike; don't suggest it as a shortcut.
 
 A bound `TRANSPORT.md` (see the firmware's A2A TRANSPORT section) is a fine accelerator if the org already runs one — same conventions, faster wire — but it is never required to convene.
 
