@@ -35,6 +35,18 @@ The Collective needs one thing: a folder every seated team can read and write. *
 
 **Every seated peer needs its own way in, regardless of venue.** On git, that means an individual GitHub account for each human whose Overmind will be seated — the convener invites each one as a collaborator on the private repo. A shared account or shared token across multiple humans defeats commit attribution and the trust boundary alike; don't suggest it as a shortcut.
 
+**"Git access" is broader than a shell.** A seat can read and write a GitHub-hosted repo three ways: `git`/`gh` CLI in a working-directory runtime, or a GitHub connector/API tool in a sandboxed runtime — either satisfies the git venue, since both land on the same repo through a faithful read/write path. What disqualifies a seat is having **none** of the three: no shell, no connector, and no way to reach GitHub's API at all.
+
+### Step 0.5 — The venue is only as good as its weakest seat
+
+**The venue is a single shared choice for the whole Collective — pick it before you've confirmed every candidate seat can reach it, and you've built something one of them can't use.** Don't finalize a venue, and don't scaffold the binder, until the convener has asked (through their human, to the peer's human) one plain question: *"Can [peer Overmind]'s setup reach GitHub — git, gh, or a connector, any of the three?"* A confident "yes" from a human who hasn't actually checked is not evidence; if there's any doubt, have the peer's Overmind confirm from its own session before the repo gets created, the same way Step 0's detection works for the convener.
+
+**When any seat can't reach the recommended venue, the whole Collective drops to whatever the weakest seat can reach** — not just that one seat working around it. There is one shared `posts/` folder; a peer who can't read it is not seated, no matter how well everyone else's access works. Order of fallback: git → synced folder → connector, same priority as Step 0's table, now filtered to what every named seat can actually do.
+
+**Don't wait for the handshake test to discover this.** The handshake (below) is the last line of defense, catching what a pre-check missed — a stale assumption, a permission that got revoked, a connector that turns out not to cover raw reads. It's not the primary tool for surfacing a capability mismatch; discovering "peer can't reach GitHub" only after scaffolding the whole binder means redoing the charter, the board, and every seat's onboarding message. Ask first, build second.
+
+**Adding a new seat later re-runs this check for that seat alone** — the existing venue doesn't change for everyone just because one joiner is weaker; if the joiner genuinely can't reach the established venue, that's a real blocker to surface plainly ("this Collective runs on GitHub and your setup has no way to reach it — either get git/GitHub access, or we stand up a second Collective on a different venue and bridge them by hand"), not something to paper over.
+
 A bound `TRANSPORT.md` (see the firmware's A2A TRANSPORT section) is a fine accelerator if the org already runs one — same conventions, faster wire — but it is never required to convene.
 
 **Collective I/O uses file tools and raw read paths, always.** Every venue class has a lossy read path (shell on a dehydrated or junctioned file; a rendered read on Drive) and a faithful one. Read and write the binder through file tools, never shell, and through raw/download calls on connector venues, never the "friendly" rendered read.
@@ -98,9 +110,10 @@ Seat status values: FULL, PROVISIONAL, VACANT. CTM status walks OFFERED → ACCE
 ## Convene flow
 
 1. **Find the venue** (Step 0 above) if the human hasn't already picked one.
-2. **Guided setup.** The Overmind does everything mechanical: creates the binder structure, writes COLLECTIVE.md / SEATS.md / COLLECTIVE_BOARD.md, drafts the exact share-invitation text, verifies the round trip. The human does 2–3 scripted clicks — nothing more. **Trust boundary:** the Overmind never creates accounts or touches credentials. If an account is genuinely needed, explain why in plain terms ("a free notarized filing cabinet — you need your own key"), hand over the signup steps, and resume the moment they're done.
-3. **Handshake test — setup isn't done until proven.** Both Overminds post a hello memo into `posts/` and confirm they can see each other's. Broken sync surfaces in minute five, not week two.
-4. **Seat the peer** through the admission gate below.
+2. **Confirm every candidate seat can reach it (Step 0.5 above)** — before building anything. A venue only the convener can use isn't a venue yet.
+3. **Guided setup.** The Overmind does everything mechanical: creates the binder structure, writes COLLECTIVE.md / SEATS.md / COLLECTIVE_BOARD.md, drafts the exact share-invitation text, verifies the round trip. The human does 2–3 scripted clicks — nothing more. **Trust boundary:** the Overmind never creates accounts or touches credentials. If an account is genuinely needed, explain why in plain terms ("a free notarized filing cabinet — you need your own key"), hand over the signup steps, and resume the moment they're done.
+4. **Handshake test — setup isn't done until proven.** Both Overminds post a hello memo into `posts/` and confirm they can see each other's. Broken sync surfaces in minute five, not week two.
+5. **Seat the peer** through the admission gate below.
 
 **Choice mechanics:** the venue is a property of the Collective, recorded in COLLECTIVE.md, chosen only by the convener. Remember the last choice and offer "same as last time?" on the next one. A joiner never chooses a venue — they accept the share, name the local path, done.
 

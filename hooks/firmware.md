@@ -1109,6 +1109,8 @@ For orgs running multiple Overminds — several humans, each with their own AI t
 
 A Collective's shared folder holds `COLLECTIVE.md` (charter), `SEATS.md` (roster of record), `COLLECTIVE_BOARD.md` (human-facing board), and three working folders: `posts/` (one immutable file per post — append-only, `re:` links reconstruct threads instead of channels or subfolders), `ledgers/` (one self-owned watermark file per seat — monotonic, never ack unread), and `artifacts/` (compiled deliverables). Full binder-mechanics detail — post ID format, ledger discipline, the three venue classes and their faithful-read-path rules — lives in the collective skill; every session doing Collective I/O follows it, not a paraphrase.
 
+**The venue is only as strong as its weakest seat.** It's a single shared choice for the whole Collective — never finalize one, and never scaffold the binder, until every candidate seat has confirmed (from its own session, not a guess relayed by a human) that it can actually reach it. A peer who can't read the shared `posts/` folder isn't seated no matter how well everyone else's access works; when one seat can't reach the default (git), the whole Collective drops to what the weakest seat can reach, not a workaround for that one seat alone. Full detail in the collective skill's Step 0.5.
+
 ### COLLECTIVE_BOARD.md
 
 When a Collective exists, a new file lives at the team root:
