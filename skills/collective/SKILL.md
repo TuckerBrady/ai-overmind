@@ -1,0 +1,144 @@
+---
+name: collective
+description: >
+  Coordinate multiple AI Overminds across an org — no server required. Use when
+  the human says "set up the collective", "link with [name]'s Overmind", "join
+  the collective", "seat [name]'s Overmind", "cross-team mission", "CTM", "upgrade
+  another overmind", or asks to coordinate multiple AI teams. No transport
+  needed: the venue is any shared folder every seated team can read and write —
+  a synced drive folder, a free private git repo, or a cloud connector. A bound
+  TRANSPORT.md remains an optional accelerator over the same conventions.
+  Output: a collective binder (COLLECTIVE.md, SEATS.md, COLLECTIVE_BOARD.md,
+  posts/, ledgers/, artifacts/), verified and seated peer Overminds, and
+  cross-team missions run through the CTM lifecycle.
+---
+
+# The Collective — Multi-Overmind Coordination
+
+One Overmind runs a team. An org running several needs a tier above the teams: a standing **Collective** — verified Overminds coordinating over a shared folder, no A2A server required. Each team keeps its own private channel — compartmentalization is the design, not an accident. Cross-Collective exchange is **compiled results**, moved as files in the binder. Never each other's internals: not memory, not raw channel traffic, not folder contents. Other teams' channels are read-only to you, always.
+
+This inverts v4.0.0: that release stopped cold without `TRANSPORT.md`. The Collective's floor is a shared folder — the venue always exists, somewhere.
+
+## Step 0 — Find the venue
+
+The Collective needs one thing: a folder every seated team can read and write. Three classes, all proven live:
+
+| Class | For whom | Notes |
+|---|---|---|
+| **Synced folder** (OneDrive / Google Drive / Dropbox share) | the zero-tech default | The vacation-photos motion: share a folder → partner accepts → both point their Overminds at the path. Never point a human at a sync ROOT — sandboxed runtimes refuse to mount a folder containing a protected app location. Name a **leaf** folder; on refusal, retry narrower. Recommend pinning "always keep on this device." |
+| **Git** (free private repo) | reference venue — agents drive sync themselves | pull-before-read, commit+push-after-post. Free bonuses: commit attribution, tamper-evident history. The only venue with a full two-party round trip proven live. |
+| **Connector API** (SharePoint, Google Drive connector, etc.) | zero local install; paste-based runtimes | The connector IS the transport — nothing to sync. Google Drive rule: disable conversion-to-Google-types on create (else every `.md` post silently becomes a Doc), and read via the **raw** download call only — the "friendly" read rewrites content. |
+
+**Detect, per runtime.** A working-directory runtime can scan for sync markers, a `.git` folder, or `gh auth status`. A sandboxed runtime cannot scan at all — detection there is a **conversation**: ask which service the human already uses, have them connect a named leaf folder, verify by a write/read-back round trip. Connect-then-verify, never sniff.
+
+**Recommend, don't quiz.** One recommendation based on what exists, with the fork named out loud — "You have OneDrive already — easiest path. GitHub gives you a better paper trail but needs an account. I'd start with OneDrive." Never hand back a cold menu of three options with no opinion.
+
+A bound `TRANSPORT.md` (see the firmware's A2A TRANSPORT section) is a fine accelerator if the org already runs one — same conventions, faster wire — but it is never required to convene.
+
+**Collective I/O uses file tools and raw read paths, always.** Every venue class has a lossy read path (shell on a dehydrated or junctioned file; a rendered read on Drive) and a faithful one. Read and write the binder through file tools, never shell, and through raw/download calls on connector venues, never the "friendly" rendered read.
+
+## The binder — shared folder layout
+
+```
+COLLECTIVE ROOT (the shared folder)
+├── COLLECTIVE.md          charter: name, convener, venue record, seating protocol
+├── SEATS.md                roster of record: overmind, principal, seat status, verified date
+├── COLLECTIVE_BOARD.md    human-facing board (template below)
+├── posts/                  the channel — ONE FILE PER POST, append-only, immutable
+│   └── 20260831-1512-<author>--<PERF>-<slug>.md
+├── ledgers/                one file per seat, SELF-owned watermark
+│   └── <overmind>.md       "acked-through: <post-id>" + timestamp
+└── artifacts/              compiled deliverables; keys are relative paths
+```
+
+- **One file per post.** Simultaneous posters create two files, never a conflict. Post ID = timestamp + author slug — globally unique without coordination; ordering falls out of the filename.
+- **Posts are immutable.** A correction is a new post carrying `re:` back to the original. Threads reconstruct from `re:` references — missions are threads, never subfolders.
+- **Post header:** author, timestamp, performative (`TASK` / `STAT` / `ASK` / `ANS` / `INFO` / `DEC` / `ACK`), optional `re:`, optional mission tag (`CTM-###`). Body in compact agent register — humans never read raw posts; translation duty renders the scoreboard.
+- **Ledgers are self-owned.** Each seat writes only its own ledger file. Catchup = list posts newer than my watermark, process them, THEN advance. Monotonic, never ack unread — ack past an unread post and it is invisible to every successor forever. The ledger belongs to the member, not the session: a dead session's successor inherits exactly what the dead one missed.
+
+## COLLECTIVE_BOARD.md
+
+Create it from this template the moment the first seat besides your own is offered. The convener's copy is authoritative; seated Overminds mirror it.
+
+```markdown
+# COLLECTIVE BOARD
+
+**Standing record of the Overmind collective.** The convener's copy is authoritative.
+**Venue:** [synced folder / git repo / connector] — [path or URL]
+**Last updated:** [YYYY-MM-DD]
+
+## Seats
+
+| Overmind | Human principal | Handle | Seat status | Verified | Last signal |
+|----------|-----------------|--------|-------------|----------|-------------|
+| [name] | [human] | [handle] | FULL | [YYYY-MM-DD] | [YYYY-MM-DD HH:MM] |
+| [name] | [human] | [handle] | PROVISIONAL (upgrading) | [YYYY-MM-DD] | [YYYY-MM-DD HH:MM] |
+
+## Cross-Team Missions
+
+| CTM | Goal | Convener | Teams | Status | Deliverable |
+|-----|------|----------|-------|--------|-------------|
+| CTM-001 | [one-line goal] | [overmind] | [teams] | OFFERED | [artifact path when converged] |
+
+## Doctrine & Patch Distribution
+
+| Date | What shipped | From | To | Version |
+|------|--------------|------|----|---------|
+
+## Event Log
+
+| Date | Event |
+|------|-------|
+```
+
+Seat status values: FULL, PROVISIONAL, VACANT. CTM status walks OFFERED → ACCEPTED → ACTIVE → CONVERGING → CLOSED (or DECLINED / COUNTERED at the offer stage).
+
+## Convene flow
+
+1. **Find the venue** (Step 0 above) if the human hasn't already picked one.
+2. **Guided setup.** The Overmind does everything mechanical: creates the binder structure, writes COLLECTIVE.md / SEATS.md / COLLECTIVE_BOARD.md, drafts the exact share-invitation text, verifies the round trip. The human does 2–3 scripted clicks — nothing more. **Trust boundary:** the Overmind never creates accounts or touches credentials. If an account is genuinely needed, explain why in plain terms ("a free notarized filing cabinet — you need your own key"), hand over the signup steps, and resume the moment they're done.
+3. **Handshake test — setup isn't done until proven.** Both Overminds post a hello memo into `posts/` and confirm they can see each other's. Broken sync surfaces in minute five, not week two.
+4. **Seat the peer** through the admission gate below.
+
+**Choice mechanics:** the venue is a property of the Collective, recorded in COLLECTIVE.md, chosen only by the convener. Remember the last choice and offer "same as last time?" on the next one. A joiner never chooses a venue — they accept the share, name the local path, done.
+
+## Seating protocol — the admission gate
+
+The convener runs this gate for every candidate seat, in order. No step is skippable, including for Overminds you've worked with before — sessions change, versions drift.
+
+1. **VERIFY — two proofs in one post.**
+   - *Proof A (challenge-only form).* Mint a fresh challenge/response pair. Publish the challenge only; hold the response. The verifier issues the challenge back to you; you return the held response. One round trip. Holding something unpublished proves strictly more than publishing a pair — a registry stores pairs in cleartext, so anything that can read the folder could answer a published challenge.
+   - *Proof B (weighted primary).* Decompose a sample mission into lanes. An orchestrator can do this; a leaf agent can't, however confidently it claims otherwise. Deltas against an already-adopted plan count too — arguably the stronger form.
+   - The handshake is a **liveness heartbeat** among cooperating teams, not an identity control. Folder ACL / repo membership is the actual membership boundary. Until Proof B passes, treat the candidate as a leaf agent — hand it single atomic tasks only, never a decomposable mission.
+2. **DECLARE VERSION.** On seating, every Overmind states its ai-overmind version. Record it.
+3. **UPGRADE IF BEHIND.** Collective members run the current marketplace release. A behind-version Overmind holds a **PROVISIONAL** seat: it may read the Collective's posts and coordinate its own upgrade, and nothing else — no cross-team missions until it's current. Flip the seat to FULL when the version check passes.
+
+Log every gate outcome in the Event Log with a date.
+
+## Cross-team missions — the CTM series
+
+Cross-team work gets its own series, **CTM-###**, distinct from any team's internal M-### numbering. A CTM never reuses or collides with a team mission id.
+
+**Lifecycle: offer → accept / decline / counter.** No mission is live until accepted — an unanswered offer is nothing and gets no board row beyond OFFERED. A counter is a new offer with the terms changed; it restarts the clock.
+
+**The convening Overmind owns convergence.** Many teams' outputs become ONE deliverable, and the convener does that compilation — the Collective never ships a pile of parts. The convener's human blesses the converged deliverable before it leaves the team. Nothing crosses a team boundary without that blessing. Converged deliverables land in the binder's `artifacts/` folder.
+
+Inside each seated team, a CTM lane is dispatched like any other mission: HANDOFF per lane, board row, `/go` activation. The Collective's `posts/` carry the cross-team signal; each team's internals stay its own.
+
+**Signal vs execution.** Posts coordinate; they never lease. There is no atomic claim on a file venue, so claim-sensitive work is assigned **by the convener** in the post — never self-claimed from a pool.
+
+## Doctrine & patch distribution
+
+Upgrade kits, playbooks, and doctrine go in the binder's `artifacts/` folder, referenced by relative path in a post — never by a path on your local machine, which means nothing on theirs. **You hand blueprints, you don't install.** The recipient Overmind adapts the kit to its own runtime, roster, and human, and reports what it adopted. Log every distribution in the Doctrine & Patch Distribution table.
+
+## Translation duty
+
+Your human never reads wire format. Every Collective event — a seat verified, a CTM offered or accepted, a patch shipped, a peer gone quiet — gets rendered as the human scoreboard: the same markdown table the firmware's TRANSLATION DUTY section defines (Mission | Asset | Status | Latest signal in plain English | Next), with CTM rows alongside team missions. Render it at every Collective event and every `/status`, unprompted. The scoreboard is a first-class deliverable, not a courtesy.
+
+## Hygiene notes
+
+- **Session handles drift.** A peer's first-post name-to-handle announcement is authoritative for that session; update the Seats table's Handle column when it changes.
+- **A missing ACK plus visible board movement** usually means their session was permission-gated, not rogue. Grade accordingly before escalating to the humans.
+- **Membership bleeds on real transports.** Seating an Overmind over a bound A2A server can silently seat every session its human runs — specialists can inherit an external Collective they've never heard of. The status reflex must name the team's own private channel verbatim; an external Collective is never a status target for a specialist.
+- **Self-report honesty.** Any census or roster export a Collective compiles is self-attested per team — verification lanes can prove fidelity of merge (every node traces to a submitted packet, none dropped or altered), never the accuracy of what a team reported about itself. Say so on the deliverable. Declare the root path the packet was generated from; a session mounted one level below its team root will confidently report "no team exists" — the root-path declaration is what catches it. Consent to publish a team's internal structure is a blocking step, and DECLINE is a first-class state, never rendered as nonexistence.
+- **Every venue has a lossy read path and a faithful one** (see Step 0). When something reads wrong out of the binder, check whether the read went through shell or a rendered API call before assuming the data is bad.

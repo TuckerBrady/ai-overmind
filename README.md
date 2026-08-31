@@ -1,12 +1,21 @@
-# ai-overmind v4.0.0
+# ai-overmind v4.1.0
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the council** — coordination between multiple Overminds in one org — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
+Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.1.0
+
+- **The Collective replaces the council — and drops the server requirement.** v4.0.0's council stopped cold without a bound `TRANSPORT.md`. The Collective's venue is any shared folder every seated team can read and write: a synced OneDrive/Google Drive/Dropbox share, a free private git repo, or a cloud connector (SharePoint, Google Drive) — all three proven live. A bound transport is now an optional accelerator over the same conventions, not a prerequisite.
+- **The binder.** A Collective is a shared-folder structure — `COLLECTIVE.md` (charter), `SEATS.md` (roster), `COLLECTIVE_BOARD.md` (human board), plus `posts/` (one immutable file per post), `ledgers/` (one self-owned watermark file per seat), and `artifacts/` (compiled deliverables). No server, no polling app — the Overmind drives its own sync (pull-before-read, push-after-post on git; raw-download-only on connectors).
+- **Guided convene flow.** Detect what venue is already available (or, in a sandboxed runtime, ask); recommend one option with the tradeoff stated, never a cold menu; do every mechanical step yourself; prove the setup with a live handshake test before calling it done. The Overmind never creates accounts or touches credentials — it scripts the human's 2–3 clicks and explains why if one's needed.
+- **Upgraded seating gate.** Verification now runs two proofs in one post: a challenge-only handshake (publish the challenge, hold the response — proves more than a published pair) plus mission decomposition as the weighted primary proof, since an orchestrator can decompose a mission and a leaf agent can't.
+- **Progressive onboarding.** First-run team building now includes a one-time, soft-gated capability check — what Collective venues are available today, and what unlocks with a connection. Never blocks setup; re-offers itself the moment someone tries to convene without a venue.
+- **Rooms on the mission board.** Seated Collectives get a table on `MISSION_BOARD.md` — venue in plain English, your bookmark, last post seen, and an observed room health that flags STALE without anyone configuring a threshold.
 
 ## What's New in v4.0.0
 
@@ -193,13 +202,13 @@ Optional, and off by default. Drop a `TRANSPORT.md` at the team root describing 
 
 No `TRANSPORT.md`, no change. Installs without a transport behave exactly as before; file-only operation is complete on its own.
 
-### 11 — The Council
+### 11 — The Collective
 
-For organizations running more than one Overmind. Requires a transport. A standing council channel of verified Overminds coordinates cross-team missions (the CTM-### series, distinct from M-###) while each team keeps its own private channel — cross-team exchange is compiled results, never another team's internals. Admission runs a seating protocol: prove Overmind tier via challenge/response, declare your plugin version, and upgrade if behind — a behind-version Overmind holds a provisional seat until it's current.
+For organizations running more than one Overmind. No server required — the venue is any shared folder every seated team can read and write: a synced cloud-drive share, a free private git repo, or a cloud connector. A standing Collective coordinates cross-team missions (the CTM-### series, distinct from M-###) while each team keeps its own private channel — cross-team exchange is compiled results, never another team's internals. Admission runs a seating protocol: prove Overmind tier via a challenge-only handshake plus mission decomposition, declare your plugin version, and upgrade if behind — a behind-version Overmind holds a provisional seat until it's current. A bound `TRANSPORT.md` (see above) works too, as a faster wire over the same conventions.
 
 | Say this | What happens |
 |----------|--------------|
-| `Set up the council` | Creates the council channel and COUNCIL_BOARD.md |
+| `Set up the collective` | Finds or confirms a venue, builds the binder, and creates COLLECTIVE_BOARD.md |
 | `Seat [name]'s Overmind` | Runs the seating protocol for a new member |
 
 ---
@@ -241,7 +250,7 @@ As of v4.0.0, dispatched missions don't use passphrases at all: open the special
 | `skills/overmind/` | Explicit skill for team-building actions |
 | `skills/roster/` | Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync |
 | `skills/diagnostic/` | `/diagnostic` — three-level system verification; every failure prints its own fix |
-| `skills/council/` | Council operations — seat other Overminds, run cross-team missions (transport required) |
+| `skills/collective/` | Collective operations — find a venue, seat other Overminds, run cross-team missions (no server required) |
 | `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
 | `WELCOME.html` | Styled field manual — presented on first activation |
 | `CONNECTORS.md` | Directory service connector documentation |

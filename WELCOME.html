@@ -158,7 +158,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v4.0.0</div>
+    <div class="ver">v4.1.0</div>
     <p class="tag">Build and run a personal AI team. <strong>One phrase and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -185,6 +185,10 @@
     <h2><span class="idx">01</span>What's New</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>The Collective (v4.1.0)</b> — replaces the council, and drops the server requirement. Orgs running more than one Overmind convene over any shared folder — a synced OneDrive/Google Drive/Dropbox share, a free private git repo, or a cloud connector — all three proven live, no A2A transport needed. The Overmind detects what's available, recommends one venue with the tradeoff stated, builds the binder (<code>COLLECTIVE.md</code>, <code>SEATS.md</code>, <code>COLLECTIVE_BOARD.md</code>, plus <code>posts/</code>, <code>ledgers/</code>, <code>artifacts/</code>), and proves it works with a live handshake before calling setup done. A bound <code>TRANSPORT.md</code> still works too, as a faster wire over the same conventions.</div>
+      <div class="new-item"><b>Upgraded seating gate (v4.1.0)</b> — verification now runs two proofs in one post: a challenge-only handshake (publish the challenge, hold the response back) plus mission decomposition as the weighted primary proof — an orchestrator can decompose a mission into lanes, a leaf agent can't, however confidently it claims otherwise.</div>
+      <div class="new-item"><b>Progressive onboarding (v4.1.0)</b> — first-run team building now runs a one-time, soft-gated capability check for Collective venues. Nothing here blocks setup, and it re-offers itself the moment someone tries to convene without a venue in hand.</div>
+      <div class="new-item"><b>Rooms on the mission board (v4.1.0)</b> — every Collective you're seated in gets a row on <code>MISSION_BOARD.md</code>: venue in plain English, your bookmark, last post seen, and a room health that's observed from post timing, not configured by anyone.</div>
       <div class="new-item"><b>BOOT.md (v4.0.0)</b> — every team member's boot layer is now one canonical file, <code>BOOT.md</code>, at their folder root. Thin wrappers adapt it per runtime — a <code>CLAUDE.md</code> import for working-directory runtimes, a paste-wrapper for Project Instructions runtimes — so edits go to BOOT.md and nowhere else. One law rides along: a boot edit is not done until it's re-pasted into any paste-based runtime. Existing teams keep working exactly as they do today — the skills detect the legacy layout and offer the migration; nothing is forced mid-mission and nothing is rewritten silently.</div>
       <div class="new-item"><b>Missions &amp; lanes (v4.0.0)</b> — the mission number is the goal, not the assignment. Work triaged across several specialists toward one goal shares one mission ID; each specialist's slice is a lane, written <code>M-017 / alex</code>. One board row per mission, per-lane state in the status cell, and one blocked lane never hides the others.</div>
       <div class="new-item"><b>/go-only dispatch (v4.0.0)</b> — dispatched missions no longer carry passphrases: open the specialist's session and type <code>/go</code>. Passphrases are retired to what they were born for — a session's own handoffs, fresh and evocative as ever.</div>
@@ -321,9 +325,9 @@
         <p>Optional. A <code>TRANSPORT.md</code> at the team root binds the team to whatever agent-to-agent MCP server your org runs — the plugin never names or assumes a vendor. With it, dispatch posts a task per lane to your team channel, sessions register and read their backlog on wake, and the channel ledger replaces the file-scraping watcher. Without it, nothing changes: file-only operation is complete on its own. The binding file is org-private — never publish it.</p>
       </div>
       <div class="card">
-        <div class="icon">🏛️</div>
-        <h3>The Council</h3>
-        <p>For orgs running more than one Overmind (transport required). A standing council channel of verified Overminds coordinates cross-team missions — the CTM-### series, tracked on <code>COUNCIL_BOARD.md</code> — while each team keeps its own private channel. Seating runs a protocol: prove Overmind tier via challenge/response, declare your plugin version, upgrade if behind. Cross-team exchange is compiled results, never another team's internals.</p>
+        <div class="icon">🧠</div>
+        <h3>The Collective</h3>
+        <p>For orgs running more than one Overmind — no server required. The venue is any shared folder every seated team can read and write: a synced cloud-drive share, a free private git repo, or a cloud connector. A standing Collective coordinates cross-team missions — the CTM-### series, tracked on <code>COLLECTIVE_BOARD.md</code> — while each team keeps its own private channel. Seating runs a protocol: prove Overmind tier via a challenge-only handshake plus mission decomposition, declare your plugin version, upgrade if behind. Cross-team exchange is compiled results, never another team's internals. A bound <code>TRANSPORT.md</code> works too, as a faster wire over the same conventions.</p>
       </div>
     </div>
 
@@ -453,7 +457,7 @@
       <tr><td><code>skills/dispatch/</code></td><td>Convenience trigger for the dispatch workflow</td></tr>
       <tr><td><code>skills/overmind/</code></td><td>Explicit skill for team-building actions</td></tr>
       <tr><td><code>skills/roster/</code></td><td>Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync</td></tr>
-      <tr><td><code>skills/council/</code></td><td>Council operations — seat other Overminds, run cross-team missions (transport required)</td></tr>
+      <tr><td><code>skills/collective/</code></td><td>Collective operations — find a venue, seat other Overminds, run cross-team missions (no server required)</td></tr>
       <tr><td><code>skills/caveman/</code></td><td>Ultra-compressed communication mode (~65–75% fewer tokens)</td></tr>
       <tr><td><code>WELCOME.html</code></td><td>This field manual — presented on first activation</td></tr>
       <tr><td><code>CONNECTORS.md</code></td><td>Directory service connector documentation</td></tr>
@@ -512,7 +516,7 @@
   </section>
 
   <footer>
-    <span>ai-overmind v4.0.0 — Tucker Brady</span>
+    <span>ai-overmind v4.1.0 — Tucker Brady</span>
     <span class="status">● OVERMIND STANDING BY</span>
   </footer>
 

@@ -103,6 +103,16 @@ named but unreachable → report the transport as **DORMANT** — a state, not a
 transport-aware feature falls back to file-only behavior until the tools return. File present
 but malformed → FAIL, *fix:* regenerate it from the firmware's TRANSPORT.md template.
 
+**B7 — Collective venue capability (report-only).** In a working-directory runtime, check for
+cloud-sync markers, a `.git` folder, and `gh auth status`; in a sandboxed runtime, this is a
+report of what was last established in conversation, not a fresh scan. Report which venue
+classes (synced folder / git / connector) are available to convene a Collective today — never
+FAIL on this; it's a capability matrix, not a requirement. If the team is already seated in one
+or more Collectives, also confirm the binder (`COLLECTIVE.md`, `SEATS.md`,
+`COLLECTIVE_BOARD.md`) parses and that `MISSION_BOARD.md`'s Collectives section (if present)
+lists a row per seated Collective — malformed binder files → FAIL, *fix:* regenerate from the
+collective skill's templates.
+
 ### C · Identity & activation wiring
 
 **C1 — Identity resolves.** You can state your member name and folder from Project Instructions.
