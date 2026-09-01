@@ -103,6 +103,26 @@ named but unreachable → report the transport as **DORMANT** — a state, not a
 transport-aware feature falls back to file-only behavior until the tools return. File present
 but malformed → FAIL, *fix:* regenerate it from the firmware's TRANSPORT.md template.
 
+**B7 — Collective venue capability (report-only).** In a working-directory runtime, check for
+cloud-sync markers, a `.git` folder, and `gh auth status`; in a sandboxed runtime, this is a
+report of what was last established in conversation, not a fresh scan. Report which venue
+classes (git / synced folder / connector) are available to convene a Collective today — never
+FAIL on this; it's a capability matrix, not a requirement. If the team is already seated in one
+or more Collectives, also confirm the binder (`COLLECTIVE.md`, `SEATS.md`,
+`COLLECTIVE_BOARD.md`) parses and that `MISSION_BOARD.md`'s Collectives section (if present)
+lists a row per seated Collective — malformed binder files → FAIL, *fix:* regenerate from the
+collective skill's templates.
+
+**B8 — Genesis Seed hygiene (Overmind sessions only, report-only).** If `Overmind/.genesis-seed`
+exists, confirm it's readable and never referenced from any shared file (`TEAM_ROSTER.md`,
+`GOPHER_REGISTRY.md`, `MISSION_BOARD.md`, any Collective binder) — a reference anywhere shared
+is a **FAIL**, *fix:* the nonce has leaked its purpose even if the value itself hasn't; treat it
+as compromised, generate a fresh nonce, and re-mint the Genesis ID and challenge/response pair.
+If the file doesn't exist yet, that's not a failure — it means `/assimilate` hasn't been run
+here yet; note it only if the human is actively trying to join a Collective. Never run this
+check from a specialist session — a specialist has no `Overmind/.genesis-seed` to check, by
+design, and asking implies it should.
+
 ### C · Identity & activation wiring
 
 **C1 — Identity resolves.** You can state your member name and folder from Project Instructions.

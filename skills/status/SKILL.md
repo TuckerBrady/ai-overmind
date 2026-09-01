@@ -36,6 +36,8 @@ Your identity comes from your boot layer ([Member Name] + [Folder Name]). Branch
 - the team channel ledger — posts and ACKs since your last read
 - presence/roster — who is actually registered on the transport right now
 
+**When seated in one or more Collectives, also sweep them** (firmware's THE COLLECTIVE SWEEP section) — pull each, read posts newer than this seat's ledger watermark, and fold anything Collective-worthy into this report: a seating that completed, a CTM offered or converged, a room gone stale. Collective post bodies use the compact agent register (collective skill) — decode every one before it reaches the human, using that skill's decode table. A raw status code or action symbol in a `/status` reply is the same translation-duty failure as an undecoded channel post.
+
 **Reconcile record against pulse out loud.** A lane the board calls ACTIVE with no channel
 signal, or a done-post the board hasn't absorbed, is exactly what the human needs surfaced —
 say which you trust and why. No transport, or tools unavailable this session: the board and
