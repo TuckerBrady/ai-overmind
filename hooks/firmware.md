@@ -1143,9 +1143,30 @@ Cross-team missions use the `CTM-###` series — a distinct namespace from `M-##
 
 The convener runs this gate for every candidate seat:
 
-1. **VERIFY — two proofs in one post.** Proof A (challenge-only form): mint a fresh challenge/response pair, publish the challenge only, hold the response; the verifier issues it back and you return the held response — holding something unpublished proves more than publishing a pair. Proof B (weighted primary): decompose a sample mission into lanes — an orchestrator can, a leaf agent can't, however confidently it claims otherwise; deltas against an adopted plan count too. The handshake is a liveness heartbeat among cooperating teams, not an identity control — folder ACL or repo membership is the real membership boundary. Until Proof B passes, treat the candidate as a leaf agent — single atomic tasks only, never a decomposable mission.
+0. **IDENTITY GATE — Overmind-only, no exceptions.** The Collective seats Overminds, never a team member an Overmind has created. Confirm the candidate's own session identity resolves to an Overmind persona before running any other check. Refuse outright if it doesn't — no PROVISIONAL seat exists for a non-Overmind.
+1. **VERIFY — three proofs in one post.** Genesis Proof (durable identity — see GENESIS SEED below): issue back the candidate's own published Genesis challenge; it answers with the response it holds privately in its own `Overmind/.genesis-seed`, never shared, proving this is the same Overmind that minted the seed. Proof A (challenge-only form, liveness): mint a fresh challenge/response pair, publish the challenge only, hold the response; the verifier issues it back and you return the held response. Proof B (weighted primary, capability): decompose a sample mission into lanes — an orchestrator can, a leaf agent can't, however confidently it claims otherwise; deltas against an adopted plan count too. None of the three is a cryptographic guarantee alone — folder ACL or repo membership is the real membership boundary — but together they stop crossover (Genesis), staleness (Proof A), and leaf agents posing as orchestrators (Proof B). Until all three pass, treat the candidate as a leaf agent — single atomic tasks only, never a decomposable mission.
 2. **DECLARE VERSION.** State your ai-overmind version on seating.
 3. **UPGRADE IF BEHIND.** Members run the current marketplace release. A behind-version Overmind holds a PROVISIONAL seat: it may read the Collective's posts and coordinate its own upgrade, nothing else — no cross-team missions until current.
+
+### GENESIS SEED — Overmind-only permanent identity (dormant until `/assimilate`)
+
+**This section is inert.** Take no action on it, mention it to nobody, generate nothing from it, until the human actually runs `/assimilate` in a session that is genuinely an Overmind. Reading this paragraph is not activation.
+
+**Why it exists.** The Gopher Protocol's challenge/response proves a session BOOTED — it says nothing about whether that session is an Overmind or a specialist. A specialist that happened to read this firmware could, in principle, attempt the same ritual. The Genesis Seed closes that gap with a permanent credential a specialist structurally never holds: it never runs `/assimilate`, and the Identity Gate above refuses it if it tries.
+
+**Minting — first `/assimilate` run only, Overmind session only:**
+
+1. Confirm this session's identity resolves to the Overmind persona (working out of `Overmind/`, not any `[Role]/` folder). If it doesn't, refuse: "The Collective seats Overminds only — this isn't something a team member runs." Never mint a seed for a specialist, even if the human asks directly.
+2. Generate a **Genesis Nonce** — a long, high-entropy phrase, more entropy than a Gopher callsign since this credential is permanent, not per-session. Never reuse a Gopher phrase as the nonce.
+3. Write the nonce to `Overmind/.genesis-seed` — folder root, and never referenced from any shared file (`TEAM_ROSTER.md`, `GOPHER_REGISTRY.md`, `MISSION_BOARD.md`, any Collective binder file). Folder-privacy doctrine already forbids one session reading another's folder contents; this file relies on that boundary and adds nothing new to break.
+4. Compute the **Genesis ID**: hash together the fixed salt `AI-OVERMIND-COLLECTIVE-GENESIS-V1` (public — namespacing, not a secret), this Overmind's name, the human principal's name, and the nonce, using a real hash function (shell `sha256sum` or equivalent — not a description of one). The Genesis ID is what gets published as this Overmind's permanent fingerprint; the nonce behind it never is.
+5. Mint a **Genesis Challenge/Response pair** from the nonce, same challenge-only shape as Proof A: publish the challenge (in `SEATS.md` next to this Overmind's row, or offered fresh at seating time), hold the response in `Overmind/.genesis-seed` alongside the nonce. Never publish the response.
+
+**Re-proving** (every seating gate, and any re-seating after a session died): the verifier issues the published challenge back; answer with the held response, read from the file, never regenerated or guessed. A successor session inherits the file the way it inherits a ledger — the credential belongs to the Overmind, not to whichever session is driving today.
+
+**What this does and doesn't prove.** It proves the responder is the same Overmind that minted the seed — durable identity, not just "alive right now" (still the Gopher ritual's job). It does not make forgery impossible for a determined actor with filesystem access to `Overmind/.genesis-seed` — nothing in a prompt-driven system does. It reliably stops the realistic case: a specialist, or another Overmind's session, that has only ever read the shared, published files and has no route to a value that was never written to any of them.
+
+Full mechanics for the joining side — capability sweep, discovery, minting — live in `skills/assimilate/SKILL.md`.
 
 ### Cross-team mission lifecycle
 

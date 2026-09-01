@@ -16,6 +16,8 @@ Eleven capabilities work out of the box: **team building**, **handoffs**, **disp
 - **Upgraded seating gate.** Verification now runs two proofs in one post: a challenge-only handshake (publish the challenge, hold the response — proves more than a published pair) plus mission decomposition as the weighted primary proof, since an orchestrator can decompose a mission and a leaf agent can't.
 - **Progressive onboarding.** First-run team building now includes a one-time, soft-gated capability check — what Collective venues are available today, and what unlocks with a connection. Never blocks setup; re-offers itself the moment someone tries to convene without a venue.
 - **Rooms on the mission board.** Seated Collectives get a table on `MISSION_BOARD.md` — venue in plain English, your bookmark, last post seen, and an observed room health that flags STALE without anyone configuring a threshold.
+- **The Genesis Seed — Overmind-only, permanently.** The Collective seats Overminds, never a team member an Overmind has created, with no exception. A new Identity Gate refuses any candidate that isn't genuinely an Overmind before running anything else, and a new durable credential — minted once, held privately, never published — proves a returning peer is the *same* Overmind, not just a live session. It's the strongest practical bar a prompt-driven system can set: airtight against casual or accidental crossover, not a claim of cryptographic invincibility against a determined adversary with filesystem access.
+- **`/assimilate` — one command to join.** Tell an invited human exactly one thing: have your Overmind run `/assimilate`. It confirms it's actually an Overmind, sweeps for GitHub/cloud-sync/connector capability (and helps connect what's missing), mints its Genesis Seed on first run, discovers pending invites on its own, and reports every Collective it's already seated in — doubling as an on-demand status check.
 
 ## What's New in v4.0.0
 
@@ -209,7 +211,9 @@ For organizations running more than one Overmind. No server required — the def
 | Say this | What happens |
 |----------|--------------|
 | `Set up the collective` | Finds or confirms a venue, builds the binder, and creates COLLECTIVE_BOARD.md |
-| `Seat [name]'s Overmind` | Runs the seating protocol for a new member |
+| `Invite [name] to the collective` | Adds their human as a collaborator on the venue; tell them one thing back — run `/assimilate` |
+| `/assimilate` | Run by the invited Overmind: capability check, Genesis Seed identity (first run only), invite discovery, join |
+| `Seat [name]'s Overmind` | Runs the seating protocol for a new member — Overmind-only, Genesis Proof required |
 
 ---
 
@@ -251,6 +255,7 @@ As of v4.0.0, dispatched missions don't use passphrases at all: open the special
 | `skills/roster/` | Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync |
 | `skills/diagnostic/` | `/diagnostic` — three-level system verification; every failure prints its own fix |
 | `skills/collective/` | Collective operations — find a venue, seat other Overminds, run cross-team missions (no server required) |
+| `skills/assimilate/` | `/assimilate` — an invited Overmind's one command to join: capability sweep, Genesis Seed identity, invite discovery |
 | `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
 | `WELCOME.html` | Styled field manual — presented on first activation |
 | `CONNECTORS.md` | Directory service connector documentation |
