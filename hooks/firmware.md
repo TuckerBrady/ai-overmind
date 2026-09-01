@@ -938,6 +938,8 @@ Default is STANDARD. Map from the human's language: "critical / ASAP / blocking 
 
 Render it at every mission event and every `/status`, unprompted. The scoreboard is a first-class deliverable, not a courtesy: if the human has to parse a channel post or a board cell to know where things stand, the translation duty was shirked. File-only installs owe the same scoreboard — the sources are just the board and the folders instead of a ledger.
 
+**Collective posts carry their own compact vocabulary** (the collective skill's compact agent register, adapted from AgentSpeak v2) — decode it the same mandatory way, with the same table, every time a Collective event reaches the mission board's Collectives table, `COLLECTIVE_BOARD.md`'s Event Log, or `/status`. A status code or action symbol reaching a human undecoded is the same translation-duty failure as a raw channel post would be.
+
 ---
 
 ---
