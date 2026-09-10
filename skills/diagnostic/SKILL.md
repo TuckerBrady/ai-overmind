@@ -148,6 +148,16 @@ MEMBER**, not ACTIVE. *Fix:* open that member's session and run its first boot (
 first message); the roster skill holds adds and resurrections at PENDING FIRST BOOT until this
 evidence lands, so a paper member usually means that tracking was skipped.
 
+**C5 — Collective sweep is boot-wired.** Only applies when this Overmind holds any Collective
+membership (an `Overmind/.genesis-seed` exists AND a binder root is recorded in `COLLECTIVE.md`,
+memory, or the mission board). If so, the Overmind's `BOOT.md` must carry a COLLECTIVE SWEEP step
+naming every binder root. Membership without the boot step → FAIL, *fix:* append the canonical
+step from the firmware's THE COLLECTIVE SWEEP section, then re-paste per the dual-runtime law.
+This is the v4.1.1 field fix: a convener once sat 8 days deaf to its own binder because the sweep
+lived in doctrine, not in boot. Also compare each ledger watermark against the binder's newest
+post — a watermark more than a few days behind the newest post while sessions have been running
+is this same failure live, even if the boot step exists (it may be malformed or unreachable).
+
 ### D · Board integrity
 
 **D1 — Board parses**, and every assignee resolves to a roster member.
