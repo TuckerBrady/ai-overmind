@@ -1,4 +1,4 @@
-# ai-overmind v4.1.0
+# ai-overmind v4.1.1
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,17 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.1.1
+
+One fix, found in the field: **the Collective sweep is now wired into BOOT.md, not just declared in firmware.** v4.1.0 defined the sweep as a turn-boundary duty "the same way inbox checks work" — but inbox checks work because they're steps in the boot layer, and the sweep wasn't. Real cost: a convener ran sessions across 8 days while a peer's seating round and a deposited CTM deliverable sat unread in the binder; every session ran its boot checklist faithfully, and the sweep was in none of them.
+
+- **Firmware:** convening or joining a Collective now appends a canonical COLLECTIVE SWEEP step to the Overmind's own BOOT.md (same mechanism the A2A membership reflex already uses), including a 3-day stale-item surface so unanswered offers and pending invites reach the human unprompted.
+- **`/collective`:** the convene flow gains an explicit "wire the sweep into your own boot layer" step before any peer is seated.
+- **`/assimilate`:** joiners wire the same boot step immediately after the hello post — a hello without the boot wiring is how a seat goes deaf.
+- **`/diagnostic`:** new C5 check — Collective membership without the boot step is a FAIL, and a ledger watermark sitting days behind the binder's newest post while sessions have been running is flagged as this failure live.
+
+**Upgrading an existing member of a Collective:** after updating the plugin, run `/diagnostic` — C5 will tell you exactly what to append to your BOOT.md, and the dual-runtime law applies (re-paste into paste-based runtimes).
 
 ## What's New in v4.1.0
 
