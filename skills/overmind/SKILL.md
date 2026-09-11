@@ -26,4 +26,4 @@ Quick reference for the most common triggers:
 
 **"Give me the Sleeper Activation block"** → Generate the block from the firmware's SLEEPER ACTIVATION BLOCK section, with the human's name substituted in. In the v4 layout the block lives inside the member's `BOOT.md`; paste-based runtimes copy BOOT.md's full contents into the platform's Project Instructions.
 
-**"Add [role] to the team" / "Remove [name]" / "Bring back [name]" / "Sync the roster"** → Roster changes are a first-class operation with their own skill: invoke `skills/roster/SKILL.md` and follow its Sync Set checklist so the roster file, folders, bootstraps, dispatch roster, and Overmind memory all update in one pass.
+**"Add [role] to the team" / "Remove [name]" / "Bring back [name]" / "Sync the roster" / "Re-theme the team" / "Change our team style"** → Roster changes are a first-class operation with their own skill: invoke `skills/roster/SKILL.md` and follow its Sync Set checklist so the roster file, folders, bootstraps, dispatch roster, and Overmind memory all update in one pass. Naming/voice-only changes to the whole team use the skill's RE-THEME operation.
