@@ -158,9 +158,22 @@ memory, or the mission board). If so, the Overmind's `BOOT.md` must carry a COLL
 naming every binder root. Membership without the boot step → FAIL, *fix:* append the canonical
 step from the firmware's THE COLLECTIVE SWEEP section, then re-paste per the dual-runtime law.
 This is the v4.1.1 field fix: a convener once sat 8 days deaf to its own binder because the sweep
-lived in doctrine, not in boot. Also compare each ledger watermark against the binder's newest
-post — a watermark more than a few days behind the newest post while sessions have been running
-is this same failure live, even if the boot step exists (it may be malformed or unreachable).
+lived in doctrine, not in boot. Then check each ledger:
+
+- **Format.** A format-1 ledger (only `acked-through: <post-id>`) → FAIL, *fix:* migrate per the
+  collective skill's Ledgers rule and re-paste the canonical sweep step. Filename-order catchup
+  permanently skips posts from any peer whose clock disagrees with yours.
+- **Skipped posts.** Any binder post whose `re:` target is at or below this seat's newest
+  processed post (or its format-1 watermark), but which the ledger hasn't recorded as processed →
+  FAIL. That's a post this seat will never see. On git, "recorded" means the commit that added the
+  post is reachable from `acked-commit`; elsewhere, it means the ID is in the Processed list or at
+  or below `floor`. *Fix:* process it now, then migrate. A reply whose filename sorts before its
+  own `re:` target is proof of clock skew — name both authors. v4.1.3 field case: a peer's
+  challenge responses sat unseen for 10 days because the convener's clock named its question
+  21:30 while committing it at 21:00.
+- **Staleness.** A newest processed post (git: `acked-commit`) days behind the binder head while
+  sessions have been running is the deaf-seat failure live, even if the boot step exists (it may
+  be malformed or unreachable).
 
 ### D · Board integrity
 
