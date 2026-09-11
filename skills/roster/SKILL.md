@@ -1,11 +1,13 @@
 ---
 name: roster
 description: >
-  Add, remove, rename, or re-role a member of the AI team — one seamless, repeatable
-  process that keeps every file in sync. Use when the human says "add a team member",
-  "add [role] to the team", "remove [name]", "retire [name]", "I removed [names]",
-  "downsize the team", "bring back [name]", "resurrect [name]", "rename [name]",
-  "who's on the team", or "sync the roster". Also use when the sessions the human
+  Add, remove, rename, re-role, or re-theme a member (or the whole team) — one
+  seamless, repeatable process that keeps every file in sync. Use when the human
+  says "add a team member", "add [role] to the team", "remove [name]", "retire
+  [name]", "I removed [names]", "downsize the team", "bring back [name]",
+  "resurrect [name]", "rename [name]", "who's on the team", "sync the roster",
+  "re-theme the team", "change our team style", "switch to [preset name] style",
+  or "give the team a new name theme". Also use when the sessions the human
   actually has no longer match TEAM_ROSTER.md. Output: roster, folders, boot layers,
   dispatch roster, and Overmind memory all updated in one pass.
 ---
@@ -36,6 +38,7 @@ If TEAM_ROSTER.md doesn't exist yet, create it at the team root:
 
 **Canonical roster of record.** If a doc, skill, or memory disagrees with this file, this file wins.
 **Last updated:** [YYYY-MM-DD]
+**Team Style:** [Mission Control / The Guild / Skunkworks / Freestyle — see firmware's TEAM STYLE PRESETS]
 
 ## Active
 
@@ -76,6 +79,18 @@ The team root is the connected folder — the one every project in the ecosystem
 ## Operation: RENAME / RE-ROLE
 
 Treat as a single transaction: update folder name (if role changed), bootstrap identity section, persona file name and contents, and the full Sync Set. Note the old name in TEAM_ROSTER.md ("formerly [X]") so old documents still resolve.
+
+## Operation: RE-THEME
+
+Switches the whole active roster to a different Team Style preset (see the firmware's TEAM STYLE PRESETS section) — a bulk, coordinated version of RENAME. A `TEAM_ROSTER.md` with no Team Style line predates this feature: treat it as Freestyle before proceeding.
+
+1. **Confirm the target style** — one of the firmware presets, or "Freestyle" to drop theming and let names stand as invented. If the human names a style that doesn't exist yet, that's fine: work out its naming pool and tone with them the same way the Introduction Sequence would, then treat it as a new ad hoc preset for this team (it doesn't need to be added to the firmware to be used).
+2. **Map old name → new name** for every Active member, drawing from the new preset's pool (never reuse a name across two live members). Show the human the full mapping before touching disk — this changes what they call people day to day.
+3. **Walk the full Sync Set per member**, same as RENAME / RE-ROLE: folder name stays (role didn't change, just the persona name), bootstrap identity section, persona file name and contents (update the Voice & Personality field to the new preset's tone line), BOOT.md / CLAUDE.md wrapper / Project Instructions.md wherever the old name appears, GOPHER_REGISTRY.md rows, MISSION_BOARD.md rows, dispatch roster, INBOX.md headers, and Overmind memory. Note the old name in TEAM_ROSTER.md ("formerly [X]") for each, same as any rename.
+4. **Update TEAM_ROSTER.md's Team Style header line** to the new preset (or "Freestyle").
+5. **The dual-runtime law applies** — a renamed member's BOOT.md isn't done until the human re-pastes it into any paste-based runtime that member runs in. Call this out once for the whole batch, not per member.
+
+This is a naming/voice change only — it never touches role, domain, responsibilities, or folder structure. If the human wants those to change too, that's ADD/REMOVE or RENAME / RE-ROLE on top of this, not part of it.
 
 ## Operation: AUDIT ("sync the roster")
 
