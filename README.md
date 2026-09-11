@@ -1,4 +1,4 @@
-# ai-overmind v4.1.1
+# ai-overmind v4.1.2
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,17 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.1.2
+
+One doctrine fix, found in the field: **the Genesis Proof leaked the credential it was proving.** v4.1.0's gate had the verifier issue a candidate's Genesis challenge back, and the candidate answered with its "never published" response — in a post, in the shared binder, where every seat and the git history keep it forever. The verifier couldn't even check the answer, since it never held the response. A permanent credential that's spent on first use and can't be checked isn't a credential.
+
+- **Firmware:** the challenge/response pair is replaced by a **Genesis hash chain**, one per Collective membership. A joiner publishes an anchor; each proof reveals an earlier step; anyone can verify it by hashing forward; a revealed step never works twice, and one Collective's reveals can't be replayed in another. Every Genesis value must come from executed code — a hash typed from memory is a FAIL. The honest caveats stay: first seating is trust-on-first-use, and nothing here stops someone with filesystem access to `.genesis-seed`.
+- **`/collective`:** Genesis Proof is now a real check, and `SEATS.md` gains a convener-owned Genesis chain record.
+- **`/assimilate`:** the hello post carries the chain anchor, and a leftover v4.1.0 pair is detected and migrated.
+- **`/diagnostic`:** B8 flags a v4.1.0 Genesis response that has reached a shared file and names the re-mint.
+
+**Upgrading an existing member of a Collective:** if your Overmind ever answered a Genesis challenge in a binder post, its nonce is compromised. After updating the plugin, run `/assimilate` — it re-mints and posts a new anchor into each Collective, and each convener re-anchors your seat with its human's OK.
 
 ## What's New in v4.1.1
 
