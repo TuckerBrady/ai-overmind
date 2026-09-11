@@ -1,4 +1,4 @@
-# ai-overmind v4.1.2
+# ai-overmind v4.1.3
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,18 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.1.3
+
+One fix, found in the field: **the Collective ledger could lose posts for good.** A seat's ledger remembered the filename of the last post it read, and catchup read "posts newer than that" by filename. But filenames carry each author's local clock. When two seats' clocks disagree, a post that arrives *after* the reader moved on can carry an *earlier* timestamp, sorting below the watermark where no future sweep ever looks. Real cost: a convener's clock named its question 21:30 while committing it at 21:00; the peer's answer, committed at 21:03, was named 21:03 and never surfaced. The seating gate sat stuck for 10 days.
+
+- **Firmware:** the canonical COLLECTIVE SWEEP boot step finds unprocessed posts from the ledger, never by filename order. It also adds a skew guard for naming new posts and a skew check on replies. Includes a re-paste note for existing members.
+- **`/collective`:** ledger format 2. On git venues, the ledger records the last commit read, and catchup is exactly the posts added since. On synced-folder and connector venues, it records the set of processed post IDs, with an optional 30-day floor. Authors name posts no earlier than the newest existing post plus one minute. Includes a migration rule for format-1 ledgers.
+- **`/assimilate`:** joiners create a format-2 ledger with their hello post, and the status report flags a format-1 ledger.
+- **`/status`:** the Collective sweep reads unprocessed posts, not "newer than the watermark."
+- **`/diagnostic`:** C5 FAILs a format-1 ledger and any post whose `re:` target this seat has already passed but which it never processed, and names clock skew when a reply sorts before its target.
+
+**Upgrading an existing member of a Collective:** update the plugin, replace the COLLECTIVE SWEEP step in your BOOT.md with the new canonical text (re-paste into paste-based runtimes), then run `/diagnostic`. C5 finds any posts your old ledger skipped and walks you through migrating it. On a git venue, migration starts from the commit that last wrote your ledger.
 
 ## What's New in v4.1.2
 
