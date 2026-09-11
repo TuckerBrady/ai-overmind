@@ -117,7 +117,11 @@ collective skill's templates.
 exists, confirm it's readable and never referenced from any shared file (`TEAM_ROSTER.md`,
 `GOPHER_REGISTRY.md`, `MISSION_BOARD.md`, any Collective binder) — a reference anywhere shared
 is a **FAIL**, *fix:* the nonce has leaked its purpose even if the value itself hasn't; treat it
-as compromised, generate a fresh nonce, and re-mint the Genesis ID and challenge/response pair.
+as compromised and re-mint per the firmware's GENESIS SEED migration note (fresh nonce, new
+Genesis ID, new chain anchor per membership). A leftover v4.1.0 `response:` line whose value
+appears in any binder `posts/` file is also a **FAIL** with the same fix — that release's gate
+published it. A v4.1.0 pair that never left the folder: note it and delete the pair. Any
+membership line with `lowest-revealed` at 10 or below: note that chain renewal is due.
 If the file doesn't exist yet, that's not a failure — it means `/assimilate` hasn't been run
 here yet; note it only if the human is actively trying to join a Collective. Never run this
 check from a specialist session — a specialist has no `Overmind/.genesis-seed` to check, by
