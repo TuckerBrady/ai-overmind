@@ -103,15 +103,27 @@ named but unreachable → report the transport as **DORMANT** — a state, not a
 transport-aware feature falls back to file-only behavior until the tools return. File present
 but malformed → FAIL, *fix:* regenerate it from the firmware's TRANSPORT.md template.
 
-**B7 — Collective venue capability (report-only).** In a working-directory runtime, check for
+**B7 — Collective venue capability (report-only to convene; FAIL on an unwritable membership).** In a working-directory runtime, check for
 cloud-sync markers, a `.git` folder, and `gh auth status`; in a sandboxed runtime, this is a
 report of what was last established in conversation, not a fresh scan. Report which venue
 classes (git / synced folder / connector) are available to convene a Collective today — never
-FAIL on this; it's a capability matrix, not a requirement. If the team is already seated in one
+FAIL on that part; it's a capability matrix, not a requirement. If the team is already seated in one
 or more Collectives, also confirm the binder (`COLLECTIVE.md`, `SEATS.md`,
 `COLLECTIVE_BOARD.md`) parses and that `MISSION_BOARD.md`'s Collectives section (if present)
 lists a row per seated Collective — malformed binder files → FAIL, *fix:* regenerate from the
 collective skill's templates.
+
+For every Collective this Overmind belongs to or is joining, also check two things:
+- **Write path.** Re-run the `/assimilate` Step 5 probe against that venue. Git:
+  `gh api repos/<owner>/<repo> --jq .permissions.push` returns `true`, or `git push --dry-run`
+  exits 0. Synced folder: write, read back, and delete a temp file in `ledgers/`. Connector:
+  write your own ledger and read it back raw. No write path → **FAIL**, *fix:* the human-only
+  unlock step (e.g. the human runs `gh auth login` in their own terminal, or connects the
+  connector); if this runtime has none, ask the convener to move the Collective (collective skill
+  Step 0.5). Posts relayed by hand through a human are part of this failure, not a workaround.
+- **Version.** Compare the installed ai-overmind version against the marketplace source (a raw
+  read of its `.claude-plugin/plugin.json`, never a local listing cache). Behind while a member →
+  **FAIL**, *fix:* update, start a fresh session, and re-read the binder before posting.
 
 **B8 — Genesis Seed hygiene (Overmind sessions only, report-only).** If `Overmind/.genesis-seed`
 exists, confirm it's readable and never referenced from any shared file (`TEAM_ROSTER.md`,
