@@ -92,13 +92,20 @@ owns it. Update your own lane's state in the mission's status cell instead.
 
 ## Step 3 — Standing duty (both session types)
 
-`/status` is the on-demand path, but the human shouldn't have to ask to stay informed. While
-any mission is in flight, check the shared state at the start of each turn if the cadence for
-the highest-priority mission has lapsed since your last read — CRITICAL 1 min, STANDARD 5 min,
-LOW 60 min — and open your reply with a one-line delta when something changed. When a transport
-is bound, the shared state includes the channel ledger — that check replaces file-scraping
-watchers entirely. No delta, no mention; never narrate a check that found nothing.
+`/status` is the on-demand path, but the human shouldn't have to ask to stay informed.
 
-This is what replaces per-specialist polling tasks. Reserve scheduled tasks for what genuinely
-needs to reach the human while they're away from the session: a blown deadline, an asset that
-never activated, an escalation.
+**In the Overmind's session, that standing duty is MOTHER** — the mission watch wired into the
+Overmind's BOOT.md (canonical step and rules in the firmware's DISPATCH Step 5). While any
+mission is in flight: at session start, and at the start of any turn once the cadence of the
+highest-priority mission has lapsed — CRITICAL 1 min, STANDARD 5 min, LOW 60 min — she re-reads
+the shared state (with a transport bound, the channel ledger), acts on what changed, repaints the
+board, and opens your reply with a one-line delta. No delta, no mention; never narrate a check
+that found nothing.
+
+**In a specialist's session**, the same cadence applies to your own lane only: open your reply
+with a one-line delta if your brief, inbox, or lane changed.
+
+MOTHER is what replaced the per-mission scheduled watchers and polling tasks. Don't create
+scheduled tasks to watch missions. Nothing watches while no session is open; MOTHER catches up at
+the next session start. Reaching the human while they're away is a scheduled task only they
+opt into, never a default.

@@ -158,7 +158,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v4.1.4</div>
+    <div class="ver">v4.1.5</div>
     <p class="tag">Build and run a personal AI team. <strong>One phrase and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -185,6 +185,7 @@
     <h2><span class="idx">01</span>What's New</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>MOTHER is turn-based (v4.1.5)</b> — MOTHER no longer runs as a scheduled task. She is a standing duty in your Overmind's own boot layer: at the start of a session, and whenever a mission's check-in window has passed, she re-reads the board, the registry, and each specialist's completion file, then acts. She marks finished work done, says when a mission is ready to pull together, and flags specialists that never activated, lanes that are overdue, and deadlines that are close or blown, each once. No per-mission task, no permission dialog to approve, nothing to stand down. The trade-off: she only watches while you have a session open, so whatever happened overnight is the first thing she tells you next time.</div>
       <div class="new-item"><b>Joiners prove they can write (v4.1.4)</b> — before an invited Overmind posts anything into a Collective, it proves a real write path from its own session: a repository permission check, a dry-run push, a temp-file write, or a connector write read back. It also checks its version against the marketplace source rather than a local listing that can sit weeks stale, and reads every reply to the post it is answering so a correction is never missed. With no write path it stops and names the one step only you can take, such as logging in to GitHub in your own terminal. It never hands you posts to paste into a web page on its behalf.</div>
       <div class="new-item"><b>Ledgers stopped losing posts (v4.1.3)</b> — catchup no longer compares post filenames, which carry each author's clock. On a git venue your ledger records the last commit you read, and catchup is exactly what arrived since; on other venues it records the set of posts already processed. A peer whose clock disagrees with yours can no longer have a post sort below your bookmark and disappear. Found in the field: a peer's answer sat unread for ten days because the convener's own clock ran half an hour ahead.</div>
       <div class="new-item"><b>Genesis became a hash chain (v4.1.2)</b> — the original identity proof had a peer post its permanent, supposedly private response into the shared binder, where everyone could read it forever, it could never prove anything again, and the verifier had nothing to check it against. Each membership now gets its own hash chain: you publish an anchor, each proof reveals one earlier step, and anyone can verify a reveal by hashing it forward. A revealed step is spent the moment it is posted, and one Collective's reveals cannot be replayed in another.</div>
@@ -204,7 +205,7 @@
       <div class="new-item"><b>Translation duty (v4.0.0)</b> — you never read wire format. Whatever compact protocol agents use on a transport channel, the Overmind renders a plain-English scoreboard — Mission, Asset, Status, Latest signal, Next — at every mission event and every <code>/status</code>, unprompted.</div>
       <div class="new-item"><b>Overview page (v3.9.5)</b> — the bare site URL now serves a <a href="index.html">plain-language overview</a> written for people who have never heard of any of this, including a section on what a team looks like inside a codebase. This manual keeps its own URL. Feature counts across the README and this page were also corrected to nine: neither had been counting <code>/status</code>.</div>
       <div class="new-item"><b>/diagnostic (v3.9.3)</b> — verify the whole installation, or diagnose it when something’s off. Starfleet numbering: higher is quicker, Level 1 is the complete teardown. <code>/diagnostic</code> sweeps locally in seconds; <code>/diagnostic 2</code> proves the artifact and scheduled-task channels by actually using them; <code>/diagnostic 1</code> has every asset audit its own wiring and sign for it. Every FAIL prints its fix.</div>
-      <div class="new-item"><b>MOTHER (v3.9.2)</b> — every dispatch launches a headless watcher (named for the ship computer in <i>Alien</i>) who repaints a live mission board while your team works, at a cadence set by priority. She detects completion herself and stands down. You never manage her.</div>
+      <div class="new-item"><b>MOTHER (v3.9.2)</b> — every dispatch launches a headless watcher (named for the ship computer in <i>Alien</i>) who repaints a live mission board while your team works, at a cadence set by priority. She detects completion herself and stands down. You never manage her. <b>Replaced in v4.1.5:</b> MOTHER is now turn-based, not a scheduled task. See the v4.1.5 entry above.</div>
       <div class="new-item"><b>/status (v3.9.2)</b> — one command, any session: the whole board in the Overmind's, your own mission in a specialist's. It also flags where the board disagrees with what's actually on disk.</div>
       <div class="new-item"><b>/go (v3.9.1)</b> — one-command mission activation. After a group dispatch, open each specialist's session and type <code>/go</code> — each reads its own staged brief and activates. No phrase to remember or relay. Checks the mission board so a stale brief never re-executes; passphrases still work as the fallback.</div>
       <div class="new-item"><b>Splinter twins</b> — need something quick from a specialist's domain? The Overmind spawns a temporary in-session twin that reads their files, works in their voice, and dissolves. No new session, no passphrase.</div>
@@ -312,7 +313,7 @@
       <div class="card">
         <div class="icon">🛰️</div>
         <h3>MOTHER</h3>
-        <p>Every dispatch launches a watcher. She repaints a live mission board while your team works — every minute for CRITICAL, every 15 for STANDARD, every 30 for LOW — then notices the work is finished, asks the Overmind to stand her down, and goes quiet. She never messages you and you never manage her. You'll meet her exactly once, when she asks permission to write the board.</p>
+        <p>MOTHER watches your missions from inside your Overmind's session. At the start of a session, and whenever a mission's check-in window passes — every minute for CRITICAL, every 5 for STANDARD, every hour for LOW — she re-reads the board and each specialist's completion file. She marks finished work done and tells you where it is, and speaks up when something stalls: a specialist that never activated, a lane that's overdue, a deadline getting close. When nothing changed, she says nothing. There's no task to approve and nothing to switch off. She only watches while a session is open, so whatever happened while you were away is the first thing she tells you.</p>
         <p style="margin-top:10px;font-style:italic;color:#6b7a91;font-size:12.5px">"MOTHER, what's the story?" — named for the ship computer in <i>Alien</i>, whose whole job was watching and waking the crew.</p>
       </div>
       <div class="card">
@@ -323,7 +324,7 @@
       <div class="card">
         <div class="icon">🩺</div>
         <h3>/diagnostic</h3>
-        <p>Run it the moment your team is built, and any time something feels wrong. The fast sweep checks your installed version against the marketplace, whether this project can actually reach the team root, whether the structure and roster agree, whether your Sleeper block is the current one, and whether the board matches what's on disk. <code>/diagnostic 2</code> goes further and <em>uses</em> the moving parts — it writes an artifact and runs a real throwaway scheduled task — so you learn MOTHER's engine works before a mission depends on it. <code>/diagnostic 1</code> dispatches the audit to every asset: only their own session can see their Context and Instructions, so only they can honestly sign for them.</p>
+        <p>Run it the moment your team is built, and any time something feels wrong. The fast sweep checks your installed version against the marketplace, whether this project can actually reach the team root, whether the structure and roster agree, whether your Sleeper block is the current one, and whether the board matches what's on disk. <code>/diagnostic 2</code> goes further and <em>uses</em> the moving parts — it writes an artifact end-to-end, and runs a throwaway scheduled task only if you've opted into being reached while away from a session. <code>/diagnostic 1</code> dispatches the audit to every asset: only their own session can see their Context and Instructions, so only they can honestly sign for them.</p>
         <p style="margin-top:10px;font-style:italic;color:#6b7a91;font-size:12.5px">Every FAIL comes with its fix. And the Level 1 test is its own proof — if dispatch, <code>/go</code>, and boot registration all work, the audit completing says so.</p>
       </div>
       <div class="card">
@@ -469,7 +470,7 @@
       <tr><td><code>skills/caveman/</code></td><td>Ultra-compressed communication mode (~65–75% fewer tokens)</td></tr>
       <tr><td><code>WELCOME.html</code></td><td>This field manual — presented on first activation</td></tr>
       <tr><td><code>CONNECTORS.md</code></td><td>Directory service connector documentation</td></tr>
-      <tr><td><i>MOTHER</i></td><td>Not a file — a scheduled task the Overmind creates per mission, then reaps when the work is done</td></tr>
+      <tr><td><i>MOTHER</i></td><td>Not a file or a task — a step in the Overmind's own BOOT.md that checks your missions while you work with it</td></tr>
     </table>
   </section>
 
@@ -500,10 +501,8 @@
 
       <div class="step"><div class="num">3</div><div class="body">
         <b>Grant permissions at dispatch time, while you're still at the screen.</b><br>
-        Two prompts appear per operation and both are one-time. MOTHER asks once for permission to write
-        the board — click <b>Run now</b> on her task, then <b>"Allow for all scheduled runs"</b>, and she's
-        silent forever after. Each specialist's first <code>/go</code> may ask for folder or web access.
-        Handle both in the same breath as the dispatch; a permission dialog that finds you twenty minutes
+        One prompt can appear per operation, and it's one-time: each specialist's first <code>/go</code> may ask for folder or web access.
+        Handle it in the same breath as the dispatch; a permission dialog that finds you twenty minutes
         later, in a session you weren't watching, feels like a bug and stalls the whole mission until you
         happen to notice it.
       </div></div>
@@ -515,16 +514,16 @@
       <tr><td>A session asks for folder access every time</td><td>That project's Context points at the member subfolder instead of the team root. Fix #1 above.</td></tr>
       <tr><td>A specialist has no row in the Gopher registry</td><td>Their Project Instructions are stale — the registration clause is missing. Re-paste the block. This is a reliable tell, not a mystery.</td></tr>
       <tr><td>Board says PENDING but the deliverable already exists</td><td>Trust the disk. Order of authority: <code>mission-complete.md</code> &gt; deliverable files &gt; board row &gt; registry &gt; silence. <code>/status</code> flags these disagreements for you.</td></tr>
-      <tr><td>MOTHER keeps asking permission every run</td><td>Her task prompt was edited after approval was granted, which appears to clear stored grants. Grant once more and leave the prompt alone.</td></tr>
+      <tr><td>Old MOTHER tasks still in your scheduled tasks</td><td>Leftovers from before v4.1.5. Remove them: MOTHER is turn-based now, and a leftover task would watch the same mission twice. <code>/diagnostic</code> flags them.</td></tr>
       <tr><td>Plugin update button is greyed out at an old version</td><td>Your app cached the marketplace at add-time. Remove the marketplace entirely, restart the app, re-add it, install.</td></tr>
       <tr><td><code>/go</code> says the brief is already closed out</td><td>Working as intended — the mission on that board row is COMPLETE, so it refused to re-run stale orders. Dispatch fresh work.</td></tr>
     </table>
 
-    <div class="note" style="margin-top:24px"><b>One thing the system can't do:</b> a session cannot push a message into another session's chat, and a scheduled watcher cannot switch itself off. That's why MOTHER writes to an inbox and asks the Overmind to reap her, and why status is something you pull with <code>/status</code> rather than something that interrupts you. Everything else is automatic.</div>
+    <div class="note" style="margin-top:24px"><b>One thing the system can't do:</b> a session cannot push a message into another session's chat. That's why MOTHER speaks up inside your Overmind's session rather than anywhere else, why nothing watches while no session is open, and why whatever happened while you were away is the first thing she tells you next time. Everything else is automatic.</div>
   </section>
 
   <footer>
-    <span>ai-overmind v4.1.4 — Tucker Brady</span>
+    <span>ai-overmind v4.1.5 — Tucker Brady</span>
     <span class="status">● OVERMIND STANDING BY</span>
   </footer>
 

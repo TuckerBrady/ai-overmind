@@ -1,12 +1,25 @@
-# ai-overmind v4.1.4
+# ai-overmind v4.1.5
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — a headless watcher that keeps a live board painted while your team works — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
+Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — the mission watch that notices when work finishes or stalls and keeps the board current, riding along in your sessions — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.1.5
+
+One change, bringing the last scheduled watcher in line with how the rest of the system works: **MOTHER is now turn-based.** Every dispatch on a file-only install used to launch a scheduled task per mission, plus an optional polling task, each needing a one-time approval and a stand-down when the work was done. Meanwhile `/status` already described a turn-based check that "replaces per-specialist polling tasks," and firmware still had its own polling template from v3.9.x — three overlapping watchers. In the field, a team ran over a month of active missions with no scheduled watcher at all.
+
+- **Firmware:** MOTHER is a standing duty in the Overmind's BOOT.md. At session start, and whenever a mission's check-in window lapses (CRITICAL 1 min · STANDARD 5 · LOW 60), she re-reads the board, the Gopher registry, and each lane's completion file (or the channel ledger), then acts. She marks lanes done, calls a mission ready to converge, unblocks dependents, pings phantom flips and silent boots, flags specialists that never activated, and escalates overdue lanes and deadlines. Each finding is surfaced once.
+- **`/dispatch`:** no scheduled tasks, no approvals to prime, nothing to stand down. Dispatch just confirms MOTHER is wired into BOOT.md.
+- **`/status`:** its standing duty is MOTHER.
+- **`/diagnostic`:** new C6 fails a missing MOTHER step or any leftover `mother-watch-*` / `dispatch-poll-*` task. E2's scheduled-task probe only runs if you've opted into away-from-session escalations.
+
+**The trade-off, stated plainly:** nothing watches while no session is open. Anything that finishes or stalls overnight is the first thing MOTHER tells you next session. Reaching you while you're away is a scheduled task you can opt into, never a default.
+
+**Upgrading:** update the plugin, then run `/diagnostic`. C6 tells you whether your Overmind's BOOT.md needs the MOTHER step (re-paste into paste-based runtimes) and lists any old watcher tasks to remove.
 
 ## What's New in v4.1.4
 
@@ -88,7 +101,7 @@ One fix, found in the field: **the Collective sweep is now wired into BOOT.md, n
 
 ## What's New in v3.9.3
 
-- **`/diagnostic` — system verification.** Borrowed from Starfleet: higher numbers are quicker, Level 1 is the complete teardown. `/diagnostic` runs a fast local sweep in seconds — install version vs. the marketplace, team root reachability, canonical structure, roster/folder agreement, Sleeper block currency, Gopher freshness, board-vs-disk integrity. `/diagnostic 2` adds live platform probes: it writes an artifact and runs a real throwaway scheduled task end-to-end, proving MOTHER's engine works before you depend on it. `/diagnostic 1` dispatches the audit to every asset so each one verifies its own wiring and signs for it — the only way to catch a stale Instructions block or a mis-mounted folder in someone else's project, because only that session can see them.
+- **`/diagnostic` — system verification.** Borrowed from Starfleet: higher numbers are quicker, Level 1 is the complete teardown. `/diagnostic` runs a fast local sweep in seconds — install version vs. the marketplace, team root reachability, canonical structure, roster/folder agreement, Sleeper block currency, Gopher freshness, board-vs-disk integrity. `/diagnostic 2` adds live platform probes: it writes an artifact end-to-end, and runs a throwaway scheduled task only if you've opted into away-from-session escalations. `/diagnostic 1` dispatches the audit to every asset so each one verifies its own wiring and signs for it — the only way to catch a stale Instructions block or a mis-mounted folder in someone else's project, because only that session can see them.
 - **Every FAIL prints its fix.** A diagnostic that reports a broken state without the remedy has only relocated the confusion. Failures are ordered by what to do first and keyed to the field manual.
 - **The version-drift check is the one that earns its keep.** Auto-sync only fires when a PR containing a version bump merges to the default branch — not on direct pushes — so an install pinned to an old snapshot is a normal state, not a bug. `/diagnostic` now names it in one line instead of costing you an afternoon.
 - **PASS means verified this session.** Never inferred from memory or from a previous run. A check that couldn't be performed reports SKIP, and a check that can only ever fail is treated as a broken check rather than a finding.
@@ -229,7 +242,9 @@ The tier below dispatch. Any team member can leave a short note in a peer's `INB
 
 ### 7 — MOTHER
 
-Every dispatch launches a headless watcher, named for the ship computer in *Alien*. She repaints a live mission board while your team works, at a cadence set by the mission's priority, detects completion on her own, and asks to stand down when the work is done. You never manage her and she never speaks to you directly.
+MOTHER watches your missions. She isn't a background process: she's a standing duty in the Overmind's own boot layer, named for the ship computer in *Alien*. Whenever you're working with your Overmind, at the start of the session and again whenever a mission's check-in window has passed, she re-reads the board, the Gopher registry, and each specialist's completion file. When something finished, she marks it done and tells you where the deliverable is. When something stalled, she says so: a specialist that never activated, one that booted but never took the brief, a lane that's overdue, a deadline that's close or blown. She repaints the live board when anything changed and says nothing when nothing did.
+
+There's nothing to approve, schedule, or switch off. The one trade-off: she only watches while you have a session open, so anything that happens overnight is the first thing she tells you next time.
 
 ### 8 — /status
 

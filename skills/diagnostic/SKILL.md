@@ -187,6 +187,14 @@ lived in doctrine, not in boot. Then check each ledger:
   sessions have been running is the deaf-seat failure live, even if the boot step exists (it may
   be malformed or unreachable).
 
+**C6 — MOTHER is boot-wired, and the old watchers are gone.** The Overmind's `BOOT.md` must carry
+the **MOTHER — MISSION WATCH** step (canonical text in the firmware's DISPATCH Step 5). Missing →
+FAIL, *fix:* append it, then re-paste per the dual-runtime law. Then list scheduled tasks: any
+`mother-watch-*` or `dispatch-poll-*` task, enabled or not, → FAIL, *fix:* have the human remove
+them — v4.1.5 retired scheduled watchers, and leaving one means a mission is watched twice. Also
+flag, as this same failure live, any in-flight mission whose `mission-complete.md` exists while
+its board lane still isn't done after sessions have run.
+
 ### D · Board integrity
 
 **D1 — Board parses**, and every assignee resolves to a roster member.
@@ -220,20 +228,22 @@ A single table, one row per check, `PASS / FAIL / SKIP`. Then:
 
 ## LEVEL 2 — Adds live platform probes
 
-Everything in Level 3, plus three probes that prove the moving parts actually move. Tell the
+Everything in Level 3, plus three probes that prove the moving parts actually move. If E2 will run (see below), tell the
 human up front that Level 2 creates and then removes a temporary scheduled task, and collect
 its approvals in the same breath — a permission dialog that finds them ten minutes later reads
 as a bug.
 
 **E1 — Artifact channel.** Write and update an artifact (reuse `mission-board` if it exists,
 otherwise create a scratch one). Confirm the update returns cleanly. FAIL → the live board will
-not repaint; MOTHER still works but the human loses visibility.
+not repaint; MOTHER still catches every change but the human loses the visual board.
 
-**E2 — Scheduled-task channel (MOTHER's engine).** Create a **one-shot task, already enabled**,
-firing ~2 minutes out, whose only job is to append one dated line to the Overmind's `INBOX.md`.
-When the line appears, delete the task and PASS. If it never fires → FAIL, *fix:* scheduled
-tasks need their approvals granted in this session; re-run and approve when prompted. Never
-leave the probe task behind.
+**E2 — Scheduled-task channel (opt-in escalations only).** Since v4.1.5 nothing in the plugin
+depends on scheduled tasks — MOTHER is turn-based. Run this probe only if the human has opted
+into away-from-session escalations; otherwise report SKIP. When it runs: create a **one-shot
+task, already enabled**, firing ~2 minutes out, whose only job is to append one dated line to the
+Overmind's `INBOX.md`. When the line appears, delete the task and PASS. If it never fires → FAIL,
+*fix:* scheduled tasks need their approvals granted in this session; re-run and approve when
+prompted. Never leave the probe task behind.
 
 **E3 — Network reach.** Confirm `raw.githubusercontent.com` is fetchable (A2 already proves it —
 report SKIP-as-covered rather than fetching twice).
@@ -257,10 +267,10 @@ mystery.
    asset, "be specific."
 2. **Sign your own row first** as the Overmind, so the format is unambiguous.
 3. **Dispatch the audit** to every specialist via the dispatch skill — CRITICAL, one shared
-   operation codeword, MOTHER launched per the dispatch rules, all approvals front-loaded.
+   operation codeword, MOTHER watching from your turns per the dispatch rules, all approvals front-loaded.
 4. **Tell the human exactly one thing:** open each specialist session and type `/go`.
-5. **Collect and report** the full matrix when the rows land. Stand MOTHER down when the last
-   row is signed; she cannot disable herself.
+5. **Collect and report** the full matrix when the rows land. MOTHER reports each row as it
+   lands; there is no watcher to stand down.
 
 ### Wording the boot-registration check so it is answerable
 

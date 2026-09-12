@@ -342,6 +342,8 @@ report cadences. Write the real list; delete this section if empty.]
 
 When `TRANSPORT.md` exists at the team root, append the A2A MEMBERSHIP REFLEX section (text in the A2A TRANSPORT section below) to every member's BOOT.md. When it doesn't, leave it out entirely — a file-only BOOT.md never mentions a transport.
 
+The **Overmind's** BOOT.md always carries one more step, on every install: the MOTHER mission watch (canonical text in DISPATCH Step 5, "MOTHER — the mission watch"). Specialists don't get it — watching the board is the Overmind's job.
+
 ### CLAUDE.md wrapper template (working-directory runtimes)
 
 ```markdown
@@ -781,59 +783,38 @@ If `TRANSPORT.md` exists at the team root and its tools are available this sessi
 
 If there is no transport, skip this step — nothing else changes.
 
-### Step 5: Set up completion monitoring
+### Step 5: MOTHER — the mission watch (turn-based, every install)
 
-**Transport-aware installs:** do NOT create a scheduled polling task. The channel ledger replaces file-scraping watchers — you (the dispatcher) check the ledger at every turn boundary and on every `/status`, and reconcile it against the board. Specialists post done/blocked to the channel on mission close (their membership reflex), so completion arrives as signal, not as a file you have to poll for. mission-complete.md is still written and still authoritative — the ledger just gets you there without a watcher. (Naming note: the scheduled watcher was called MOTHER in older docs; where a ledger exists, the watcher is sunset and "MOTHER" names the membership reflex instead.)
+**MOTHER is not a scheduled task. She is a standing duty in the Overmind's own BOOT.md**, the same way the Collective sweep, Gopher registration, and inbox checks are. Nothing runs between sessions, nothing needs approving, and nothing has to be stood down. Do NOT create a scheduled watcher or polling task for a dispatched mission — not `mother-watch-*`, not `dispatch-poll-*`, not anything else.
 
-**File-only installs:** create the polling task exactly as follows — this flow is unchanged from v3.9.x.
+Dispatch only has to confirm the watch is wired: the Overmind's BOOT.md must carry the MOTHER step below. If it doesn't, append it now and honor the dual-runtime law (the edit is not done until re-pasted into every paste-based runtime).
 
-After writing HANDOFF.md, create a scheduled task to monitor mission completion. This runs in the background — you don't need to babysit it and the human doesn't need to report back manually. You'll notify them when the specialist is done.
+Canonical boot step (append to the numbered activation list in the Overmind's BOOT.md):
 
-Call `mcp__scheduled-tasks__create_scheduled_task` with:
-- `taskId`: `dispatch-poll-[specialist-name-lowercase]-[YYYYMMDD]`
-- `cronExpression`: by priority tier — CRITICAL `* * * * *` (every minute) / STANDARD `*/5 * * * *` (every 5 minutes) / LOW `0 * * * *` (hourly)
-- `description`: `Mission poll — [specialist name] — [one-line mission summary]`
-- `prompt`: Use the template below, with all bracketed values filled in (escalation windows by tier: CRITICAL 30 min / 4 h · STANDARD 6 h / 24 h · LOW 24 h / 72 h)
+> N. **MOTHER — MISSION WATCH.** While any mission on `MISSION_BOARD.md` has a lane
+>    that isn't COMPLETE: at session start, and at the start of any turn once the
+>    cadence of the highest-priority in-flight mission has lapsed (CRITICAL 1 min ·
+>    STANDARD 5 min · LOW 60 min), re-read the board, `GOPHER_REGISTRY.md`, and each
+>    in-flight lane's `mission-complete.md` — with a transport bound, the channel
+>    ledger instead of the files. Act on what changed per the firmware's MOTHER rules,
+>    repaint the `mission-board` artifact if anything did, and open your reply with a
+>    one-line delta. Nothing changed = say nothing. Never create a scheduled task for this.
 
-**Polling task prompt template:**
+**MOTHER's rules — what each pass checks, and what she does.** Escalation windows by priority: **W1** (not activated) and **W2** (overdue) — CRITICAL 30 min / 4 h · STANDARD 6 h / 24 h · LOW 24 h / 72 h.
 
-```
-You are [Overmind name], monitoring a dispatched mission.
+1. **Done.** A lane's `mission-complete.md` exists (or its done post is on the ledger): mark that lane done on the board with today's date and tell the human in one line what finished and where the deliverable is. If every lane on the row is done, say the mission is ready to converge. If any BLOCKED row or lane lists this mission in Depends On, say it's now clear to start.
+2. **Working.** Lane ACTIVE and the specialist's Gopher row refreshed after the dispatch: online and working. No action.
+3. **Phantom flip.** Lane ACTIVE but the Gopher row predates the dispatch: unverified. Write a GOPHER PING to that specialist's `INBOX.md` if one isn't already waiting.
+4. **Silent boot.** Gopher row refreshed after the dispatch but the lane still PENDING past W1: they booted and never took the brief. Ping, and tell the human the boot layer in that runtime may be stale.
+5. **Not activated.** No Gopher refresh and the lane still PENDING past W1: tell the human "[Specialist] hasn't activated yet — open their session and type /go."
+6. **Overdue.** Activated but no completion past W2: tell the human the lane may need attention.
+7. **Deadlines** (skip when none): halfway to the deadline with the lane still PENDING → tell the human now. Deadline passed without the lane done → escalate first, before anything else in the reply.
 
-Specialist: [specialist name]
-Specialist folder: [absolute path to specialist's folder]
-Mission complete signal: [specialist-folder]/mission-complete.md
-Mission board: [team-root]/MISSION_BOARD.md — this mission's row: [mission ID]
-Gopher registry: [team-root]/GOPHER_REGISTRY.md
-Human operator: [human's first name]
-Priority: [CRITICAL / STANDARD / LOW] — escalation windows: not activated after [W1], overdue after [W2]
-Deadline: [YYYY-MM-DD HH:MM, or "none"]
-Task ID (to disable on completion): dispatch-poll-[specialist-name-lowercase]-[YYYYMMDD]
+Surface each finding **once**, and again only if it changes or escalates — a watch that repeats the same warning every turn gets tuned out. Specialists change nothing: they still write `mission-complete.md` and update their own lane, which is exactly what MOTHER reads.
 
-Your job each run:
+**The honest trade-off.** Nothing watches while no session is open. A mission that finishes, stalls, or blows a deadline overnight is caught at the next session start, where MOTHER surfaces it first. That is the model this system chooses on purpose: coordination rides along in sessions the human already opens, rather than infrastructure running beside them. If a human explicitly asks to be reached while away, a scheduled escalation task is their opt-in to set up — never a default, and never created by dispatch.
 
-1. Check if [specialist-folder]/mission-complete.md exists.
-   - If YES: Read it. Report to the human via a clear message: "[Specialist] has completed their mission. [summary from file]. See [deliverables path]." Reconcile the mission board: if row [mission ID] is not already COMPLETE, set it to COMPLETE with today's date. If any other board row lists [mission ID] in Depends On and is BLOCKED, note in your report that it is now clear to start. Then call mcp__scheduled-tasks__update_scheduled_task with enabled: false to stop this task.
-   - If NO: continue.
-
-2. Check [team-root]/MISSION_BOARD.md row [mission ID] and [team-root]/GOPHER_REGISTRY.md for [specialist name] — trust in that order (board = claimed state, registry = proof of boot):
-   - Board row ACTIVE + registry refreshed after dispatch: online and working. No action this cycle.
-   - Board row ACTIVE but registry timestamp predates the dispatch: phantom flip — treat as unverified. Write a GOPHER PING to [specialist-folder]/INBOX.md if one isn't already waiting.
-   - Registry refreshed after dispatch but row still PENDING past [W1]: silent boot — they booted but never took the brief. Write a GOPHER PING and notify the human that the specialist's BOOT.md paste may be stale or missing in that runtime.
-   - No registry refresh and row still PENDING: not yet activated. No action until [W1] past dispatch, then notify the human: "[Specialist] hasn't activated yet. Open their session and type /go."
-   - Activated but no mission-complete past [W2]: notify the human: "[Specialist] activated but mission is not yet complete. May need your attention."
-
-3. Deadline rules (skip if Deadline is "none"):
-   - Halfway to the deadline with the row still PENDING: notify the human now — the mission hasn't even started and the clock is running.
-   - Deadline passed without COMPLETE: escalate to the human immediately, regardless of tier or other windows.
-
-4. Do NOT report on every poll cycle. Only surface to the human when:
-   - Mission is complete
-   - Not activated past [W1], or silent boot detected
-   - Overdue past [W2], or a deadline rule fires
-```
-
-Fill in all bracketed values before creating the task. The path to the specialist's folder comes from Step 2. The team root is the connected folder.
+**Retiring the old watchers (v4.1.5).** Earlier versions launched MOTHER as a per-mission scheduled task (`mother-watch-*`), plus an optional polling task (`dispatch-poll-*`). On first contact with an install that still has any of them: list them for the human and have them removed, so there is never a scheduled watcher and a turn-based one reporting the same mission twice. (Naming note: with a transport bound, older docs used "MOTHER" for the membership reflex. MOTHER now means this watch on every install; with a ledger, she simply reads the ledger.)
 
 ### Step 6: Report back
 
