@@ -1,4 +1,4 @@
-# ai-overmind v4.3.0
+# ai-overmind v4.3.1
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,14 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.3.1
+
+**Every session names itself.**
+
+- **`/go` renames the session.** Activation now sets the session title to the mission it's running, for example `OPS-025 — TARS live test`, instead of leaving it as "AI Overmind." A mission's ID is always in the title; a multi-lane mission adds the lane (`M-017 / alex — Score Q3 backlog`); work with no mission gets a short plain title.
+- **A one-click copy title.** Every handoff and dispatched brief opens with its session title alone in a code block, and `/go` opens its first reply with the same block. If a rename doesn't reach a view (the mobile session list can lag), copy it and rename by hand.
+- **TARS stops miscounting `/go`.** The stamp `/go` writes into a handoff was making TARS report "Handoff written this session," and in a specialist's session, "a new brief was written." A stamped handoff is one that was read, so TARS no longer counts it as new.
 
 ## What's New in v4.3.0
 

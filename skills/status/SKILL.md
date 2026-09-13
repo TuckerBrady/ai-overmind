@@ -76,7 +76,9 @@ lines of prose, then the scoreboard, then the board.
 ## Step 2B — Asset Report (specialist session)
 
 Read your own `HANDOFF.md`, your mission's row on `MISSION_BOARD.md`, your `INBOX.md`, and
-whatever deliverables you've written so far. Report in four lines or fewer:
+whatever deliverables you've written so far. Open with the session title in its own code block
+(the brief's `SESSION TITLE`, per the title rules in `skills/go`) so the human can copy it. Then
+report in four lines or fewer:
 
 - **Mission** — what you're on, its ID, and your lane (`M-### / [name]`).
 - **Progress** — your lane's state, and what's done, concretely. Name files you've written.

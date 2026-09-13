@@ -89,9 +89,17 @@ If the tool returns tabs, store the list for inclusion in the HANDOFF template b
 
 ### Step 4: Write HANDOFF.md
 
-Write the file to `[team-root]/[Specialist Folder]/HANDOFF.md` — the folder root, where the specialist's Sleeper Protocol looks. Use this exact format — it matches what the specialist's Sleeper Protocol is expecting:
+Write the file to `[team-root]/[Specialist Folder]/HANDOFF.md` — the folder root, where the specialist's Sleeper Protocol looks. Use this exact format — it matches what the specialist's Sleeper Protocol is expecting.
+
+The brief opens with the **session title**, alone in a code block so the human can copy it with one click. Follow the title rules in `skills/go`: `M-### — [3 to 6 word essence]`, and on a multi-lane mission add the lane so sibling sessions stay distinct (`M-017 / alex — Score Q3 backlog`). `/go` renames the session to exactly this string.
+
+````
+**SESSION TITLE**
 
 ```
+M-### — [3 to 6 word essence]
+```
+
 ╔══════════════════════════════════════════════════════════════╗
 ║              CLASSIFIED — MISSION BRIEF                      ║
 ║              CLEARANCE: [ROLE]-LEVEL                         ║
@@ -153,17 +161,15 @@ Re-open these tabs at session start (in order):
 Activation is /go. No passphrase — dispatched missions activate
 on the go command.
 
-On activation, open your first reply with:
-
-    M-### — [short mission title]
-
-That line names the chat at the human level. If a session-title
-tool exists in your session, also set the session title to it.
+On activation, rename this session to the SESSION TITLE at the
+top of this brief (required; load the rename tool through tool
+search if it's deferred), and open your first reply with that
+title in a code block so the human can copy it.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             END TRANSMISSION // BURN AFTER READING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+````
 
 ### Step 4b: Add the mission to the board
 
@@ -225,7 +231,7 @@ On a **file-only install**, swap the ledger line for TARS's:
 
 ## Why this works
 
-Every specialist boot layer already contains the Sleeper Protocol: at startup, they silently read their HANDOFF.md and hold the staged mission. The human types `/go` → they activate, restore their browser context, open with the mission title so the chat names itself, deliver mission status, and go to work. No one needs to re-explain what was happening.
+Every specialist boot layer already contains the Sleeper Protocol: at startup, they silently read their HANDOFF.md and hold the staged mission. The human types `/go` → they activate, rename the session to the brief's title and open with it in a copyable code block, deliver mission status, and go to work. No one needs to re-explain what was happening.
 
 **Overmind-initiated loop:**
 1. Human describes task → Overmind dispatches (this skill)
