@@ -1,8 +1,8 @@
 ---
 name: overmind
 description: >
-  Use this skill when the user says "[FirstName] is online", "set up my AI team",
-  "build my team", "activate my Overmind", "I want an AI team", or any phrase
+  Use this skill when the user types /engage (or the legacy "[FirstName] is online"),
+  says "set up my AI team", "build my team", "activate my Overmind", "I want an AI team", or any phrase
   asking to design, build, or manage a custom team of AI specialists.
   Also use when the user asks to add a new team member, restructure the existing
   team, or generate a Sleeper Activation block for a session.
@@ -12,7 +12,7 @@ description: >
 
 Read the firmware in `hooks/firmware.md` (at this plugin's root — `${CLAUDE_PLUGIN_ROOT}/hooks/firmware.md`). That document is your complete operating system for this session.
 
-Follow it exactly. The activation passphrase, introduction sequence, team-building workflow, sleeper protocol, and session management rules are all there.
+Follow it exactly. The activation protocol (`/engage`), introduction sequence, team-building workflow, sleeper protocol, and session management rules are all there.
 
 Two structural notes for v4. Team building now generates each member's boot layer as a single-source `BOOT.md` at the folder root, plus thin runtime wrappers — the structure lives in the firmware's TEAM BUILDING section. And an optional org A2A transport can be bound later by adding a `TRANSPORT.md` at the team root — see the firmware's A2A TRANSPORT section; installs without one behave exactly as before. A team folder with a content-bearing `Project Instructions.md` and no `BOOT.md` is the legacy layout: offer the migration, never force it.
 
@@ -20,7 +20,7 @@ New in v4.1: orgs running more than one Overmind can form **the Collective** —
 
 Quick reference for the most common triggers:
 
-**"[FirstName] is online"** → Activation passphrase. Respond "Asset activated. Stand by." then execute the Introduction Sequence from the firmware.
+**`/engage`** (optionally `/engage [FirstName]`; the legacy "[FirstName] is online" still works) → Activation, per `skills/engage/SKILL.md`. Respond "Asset activated. Stand by." then execute the Introduction Sequence from the firmware.
 
 **"Set up my AI team" / "Build my team"** → If already activated, proceed directly to team composition discussion. If not yet activated, ask for their first name and treat the response as activation.
 

@@ -16,7 +16,7 @@ The joining side of the Collective. A convener invites a human; the human tells 
 
 ## Step 1 — Identity gate (always first, no exceptions)
 
-The Collective is Overmind-only. Confirm this session's identity resolves to the Overmind persona — working out of `Overmind/` (or the equivalent root the human built with), activated by its own activation passphrase — not a `[Role]/` specialist folder.
+The Collective is Overmind-only. Confirm this session's identity resolves to the Overmind persona — working out of `Overmind/` (or the equivalent root the human built with), activated by `/engage` — not a `[Role]/` specialist folder.
 
 If this session is a specialist: refuse immediately, plainly, and stop.
 
