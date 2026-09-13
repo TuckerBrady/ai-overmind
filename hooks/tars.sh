@@ -50,6 +50,19 @@ cue() { out+="TARS (cue): $1"$'\n'; }
 getn() { local v=""; [ -f "$1" ] && read -r v < "$1"; case $v in ''|*[!0-9]*) v=0 ;; esac; printf '%s' "$v"; }
 put() { printf '%s' "$2" > "$1"; }
 
+# fresh FILE REF: FILE was written since REF, not just stamped. /go writes an
+# "ACTIVATED:" line into a handoff when it runs it, which also bumps the
+# file's mtime. A stamped file is a brief that was read, not a new one.
+# A newly written handoff or brief overwrites the file, so it has no stamp.
+fresh() {
+  local line n=0
+  [ "$1" -nt "$2" ] || return 1
+  while (( n++ < 40 )) && IFS= read -r line; do
+    [[ $line =~ ^[[:space:]*_]*ACTIVATED: ]] && return 1
+  done < "$1"
+  return 0
+}
+
 first=""
 if [ ! -f "$st/started" ]; then
   first=1
@@ -66,7 +79,7 @@ put "$st/turns" "$turns"
 if (( turns % 5 == 0 )); then
   handoff="No handoff written this session."
   for h in "$cwd/HANDOFF.md" "$cwd/.auto-memory/HANDOFF.md"; do
-    [ "$h" -nt "$st/started" ] && { handoff="Handoff written this session."; break; }
+    fresh "$h" "$st/started" && { handoff="Handoff written this session."; break; }
   done
   if (( turns >= 45 )); then say "turn $turns. $handoff Hard threshold (45) reached."
   elif (( turns >= 30 )); then say "turn $turns. $handoff Soft threshold (30) reached."
@@ -148,7 +161,7 @@ if [ -n "$root" ]; then
       fi
     fi
   else
-    [ "$cwd/HANDOFF.md" -nt "$st/marker" ] && say "a new brief was written to your HANDOFF.md."
+    fresh "$cwd/HANDOFF.md" "$st/marker" && say "a new brief was written to your HANDOFF.md."
     inbox_growth "$cwd"
   fi
 fi

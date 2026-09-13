@@ -465,9 +465,15 @@ Before writing the HANDOFF, snapshot the current browser state. Call `mcp__Claud
 
 Save as `HANDOFF.md` at your own folder root inside the team root — the Overmind's is `[team-root]/Overmind/HANDOFF.md`, a specialist's is `[team-root]/[Role]/HANDOFF.md`. Overwrite any previous version.
 
-Use this exact format:
+Use this exact format. The first block is the **session title** — the name the next session gives itself, following the title rules in `skills/go` (`[MISSION-ID] — [essence]`, or just the essence with no mission). It sits first and alone in a code block so the human can copy it with one click:
+
+````
+**SESSION TITLE**
 
 ```
+[MISSION-ID] — [3 to 6 word essence]
+```
+
 ╔══════════════════════════════════════════════════════════════╗
 ║              SESSION HANDOFF — MISSION BRIEF                 ║
 ║              CLEARANCE: OVERMIND-LEVEL                       ║
@@ -525,13 +531,15 @@ Activation is /go. No passphrase.
 When [human's name] types /go, run the handoff checks in skills/go:
 not already ACTIVATED, SEAT is you, not older than 7 days without asking.
 Echo "Activating handoff written [WRITTEN] ([age]): [first Next Step]."
-Stamp ACTIVATED: [time] by [seat] under the header in every copy. Then
-respond "Asset activated. Stand by.", deliver status, and proceed.
+Stamp ACTIVATED: [time] by [seat] under the header in every copy. Rename
+the session to the SESSION TITLE and open the reply with it in a code
+block. Then respond "Asset activated. Stand by.", deliver status, and
+proceed.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             END TRANSMISSION // BURN AFTER READING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+````
 
 **Activation is `/go`, for handoffs and dispatches alike.** No passphrase is generated for a handoff, ever. The checks in `skills/go` do the job a passphrase used to: `/go` echoes which handoff it's activating, refuses a handoff meant for another seat, asks before running one already stamped `ACTIVATED` or more than 7 days old, and stamps it once it runs so it can never silently run twice.
 
@@ -721,9 +729,15 @@ Call `mcp__Claude_in_Chrome__tabs_context_mcp` to get all open tabs. Capture URL
 
 ### Step 4: Write HANDOFF.md
 
-Write the file to `[specialist-folder]/HANDOFF.md` — the folder root, where the specialist's Sleeper Protocol looks. Use this exact format:
+Write the file to `[specialist-folder]/HANDOFF.md` — the folder root, where the specialist's Sleeper Protocol looks. Use this exact format. The first block is the **session title**, per the title rules in `skills/go`: `M-### — [essence]`, with the lane added on a multi-lane mission (`M-017 / alex — Score Q3 backlog`):
+
+````
+**SESSION TITLE**
 
 ```
+M-### — [3 to 6 word essence]
+```
+
 ╔══════════════════════════════════════════════════════════════╗
 ║              CLASSIFIED — MISSION BRIEF                      ║
 ║              CLEARANCE: [ROLE]-LEVEL                         ║
@@ -784,16 +798,16 @@ Re-open these tabs at session start (in order):
 Activation is /go. No passphrase. Dispatched missions activate on the
 go command.
 
-When [human's name] types /go, respond: "Asset activated. Stand by."
-Open that first reply with "M-### — [short mission title]" so the chat
-names itself at the human level, and set the session title to the same
-string if a title tool exists in this session.
+When [human's name] types /go, rename this session to the SESSION TITLE
+above (load the rename tool through tool search if it's deferred), then
+open the first reply with the title in a code block so the human can
+copy it. Respond: "Asset activated. Stand by."
 Then deliver mission status and proceed with the work above.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             END TRANSMISSION // BURN AFTER READING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+````
 
 ### Step 4b: Add the mission to the board
 

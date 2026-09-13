@@ -46,13 +46,27 @@ A legacy handoff without the header predates v4.3.0: run checks 2, 5, and 6, and
 
 ### 4. Activate
 
-Your first line names the chat at the human level, exactly as the brief's ACTIVATION block instructs:
+**Name the session. This is required, not optional.** Take the title from the brief's `SESSION TITLE` block at the top. A brief without one (written before v4.3.1) gets a title built by the rules below.
 
+1. **Rename the session yourself.** Find the session-rename tool. In the Claude desktop app it's `mcp__ccd_session_mgmt__set_session_title` with `session_id: "self"`, and it's usually a deferred tool, so load it through tool search first. Not seeing it in your tool list doesn't mean it's missing: search before concluding there's none.
+2. **Open your activation reply with the title in its own code block**, above the echo line for a session handoff, so the human gets a one-click copy button whether or not the rename worked. Some views (the mobile session list, for one) may not pick up a rename made from inside a session, and the copy is how the human fixes that by hand:
+
+````
 ```
 M-### — [short mission title]
 ```
+````
 
-If a session-title tool exists in your session, set the session title to the same line. Then the banner — it is what the human scans to know which session they're looking at:
+3. If the rename failed or no rename tool exists in this runtime (Cowork, a paste-based runtime), say so in one line under the code block. Don't claim a rename that didn't happen.
+
+**Title rules** — the same for dispatch, handoffs, and `/go`:
+
+- **Part of a mission:** `[MISSION-ID] — [essence]`, for example `OPS-025 — TARS live test`. A multi-lane mission adds the lane so sibling sessions stay distinct: `M-017 / alex — Score Q3 backlog`.
+- **No mission:** just the essence, for example `Resume rewrite for Chief Engineer`.
+- **Essence** is three to six words naming what the session is about. No trailing period, no emoji, plain text, about 45 characters in all.
+- **A handoff that spans several missions** takes the mission of its first Next Step.
+
+Then the banner — it is what the human scans to know which session they're looking at:
 
 ```
 [ASSET NAME] · [MISSION ID] · ASSET ACTIVATED
