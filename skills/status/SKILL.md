@@ -94,18 +94,15 @@ owns it. Update your own lane's state in the mission's status cell instead.
 
 `/status` is the on-demand path, but the human shouldn't have to ask to stay informed.
 
-**In the Overmind's session, that standing duty is MOTHER** — the mission watch wired into the
-Overmind's BOOT.md (canonical step and rules in the firmware's DISPATCH Step 5). While any
-mission is in flight: at session start, and at the start of any turn once the cadence of the
-highest-priority mission has lapsed — CRITICAL 1 min, STANDARD 5 min, LOW 60 min — she re-reads
-the shared state (with a transport bound, the channel ledger), acts on what changed, repaints the
-board, and opens your reply with a one-line delta. No delta, no mention; never narrate a check
-that found nothing.
+**In Claude Code, that standing duty is TARS** — the plugin's turn hook. It runs before every
+message and reports facts: deliveries, inbox growth, a newly staged brief, Collective pushes, and
+turn checkpoints. Relay every `TARS:` line verbatim at the top of your reply, then act on it. In the
+Overmind's session, run the watch rules when TARS cues `mission watch due`. No TARS lines, no
+mention; never narrate a check that found nothing.
 
-**In a specialist's session**, the same cadence applies to your own lane only: open your reply
-with a one-line delta if your brief, inbox, or lane changed.
+**In lite mode (Cowork)**, hooks don't reliably run, so nothing checks mid-session. The boot layer's
+MISSION WATCH and COLLECTIVE SWEEP steps at session start are the whole watch, and `/status` is how
+the human checks in between.
 
-MOTHER is what replaced the per-mission scheduled watchers and polling tasks. Don't create
-scheduled tasks to watch missions. Nothing watches while no session is open; MOTHER catches up at
-the next session start. Reaching the human while they're away is a scheduled task only they
-opt into, never a default.
+Don't create scheduled tasks to watch missions. Reaching the human while they're away is a
+scheduled task only they opt into, never a default.

@@ -187,13 +187,20 @@ lived in doctrine, not in boot. Then check each ledger:
   sessions have been running is the deaf-seat failure live, even if the boot step exists (it may
   be malformed or unreachable).
 
-**C6 — MOTHER is boot-wired, and the old watchers are gone.** The Overmind's `BOOT.md` must carry
-the **MOTHER — MISSION WATCH** step (canonical text in the firmware's DISPATCH Step 5). Missing →
-FAIL, *fix:* append it, then re-paste per the dual-runtime law. Then list scheduled tasks: any
-`mother-watch-*` or `dispatch-poll-*` task, enabled or not, → FAIL, *fix:* have the human remove
-them — v4.1.5 retired scheduled watchers, and leaving one means a mission is watched twice. Also
-flag, as this same failure live, any in-flight mission whose `mission-complete.md` exists while
-its board lane still isn't done after sessions have run.
+**C6 — TARS is running, and nothing duplicates it.** Claude Code only; in lite mode report SKIP
+and say why.
+
+- **Firing.** `~/.claude/tars/sessions/` holds a directory for this session whose `turns` count
+  roughly matches the messages sent so far. Missing or frozen → FAIL, *fix:* the plugin's
+  `hooks/hooks.json` must register `UserPromptSubmit` → `bash "${CLAUDE_PLUGIN_ROOT}/hooks/tars.sh"`;
+  update or reinstall the plugin, then start a fresh session. On Windows, TARS needs Git Bash.
+- **Boot step.** The Overmind's `BOOT.md` carries the **MISSION WATCH** step (canonical text in the
+  firmware's DISPATCH Step 5). Missing, or still titled **MOTHER — MISSION WATCH** → FAIL, *fix:*
+  replace it with the canonical step, then re-paste per the dual-runtime law.
+- **No duplicates.** Any other `UserPromptSubmit` hook that counts turns — in
+  `~/.claude/settings.json` or the project's `.claude/settings*.json` → FAIL, *fix:* remove that
+  registration; TARS owns checkpoints, and a second counter doubles them. Any `mother-watch-*` or
+  `dispatch-poll-*` scheduled task → FAIL, *fix:* remove it.
 
 ### D · Board integrity
 
@@ -235,10 +242,10 @@ as a bug.
 
 **E1 — Artifact channel.** Write and update an artifact (reuse `mission-board` if it exists,
 otherwise create a scratch one). Confirm the update returns cleanly. FAIL → the live board will
-not repaint; MOTHER still catches every change but the human loses the visual board.
+not repaint; TARS still reports every change but the human loses the visual board.
 
-**E2 — Scheduled-task channel (opt-in escalations only).** Since v4.1.5 nothing in the plugin
-depends on scheduled tasks — MOTHER is turn-based. Run this probe only if the human has opted
+**E2 — Scheduled-task channel (opt-in escalations only).** Since v4.2.0 nothing in the plugin
+depends on scheduled tasks — TARS is a turn hook. Run this probe only if the human has opted
 into away-from-session escalations; otherwise report SKIP. When it runs: create a **one-shot
 task, already enabled**, firing ~2 minutes out, whose only job is to append one dated line to the
 Overmind's `INBOX.md`. When the line appears, delete the task and PASS. If it never fires → FAIL,
@@ -267,9 +274,9 @@ mystery.
    asset, "be specific."
 2. **Sign your own row first** as the Overmind, so the format is unambiguous.
 3. **Dispatch the audit** to every specialist via the dispatch skill — CRITICAL, one shared
-   operation codeword, MOTHER watching from your turns per the dispatch rules, all approvals front-loaded.
+   operation codeword, TARS watching per the dispatch rules, all approvals front-loaded.
 4. **Tell the human exactly one thing:** open each specialist session and type `/go`.
-5. **Collect and report** the full matrix when the rows land. MOTHER reports each row as it
+5. **Collect and report** the full matrix when the rows land. TARS reports each row as it
    lands; there is no watcher to stand down.
 
 ### Wording the boot-registration check so it is answerable

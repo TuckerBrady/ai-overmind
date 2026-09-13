@@ -187,14 +187,14 @@ TASK M-017 / alex — score the Q3 backlog — HANDOFF: Product Owner/HANDOFF.md
 
 **No transport:** skip this step. Nothing else changes.
 
-### Step 4d: Confirm MOTHER is watching — every install
+### Step 4d: Confirm TARS is watching
 
-MOTHER is the mission watch, and she is **not** a scheduled task. She's a standing duty in your own BOOT.md: at session start, and at the start of any turn once the in-flight mission's cadence has lapsed, you re-read the board, the Gopher registry, and each lane's `mission-complete.md` (or the channel ledger, with a transport bound), act on what changed, and repaint the board. The canonical boot step and her full rules — done, working, phantom flip, silent boot, not activated, overdue, deadlines — live in the firmware's DISPATCH Step 5.
+Nothing to launch. In Claude Code, TARS — the plugin's turn hook — reports a lane's delivery the moment its `mission-complete.md` appears, and cues you to run the watch rules when a mission's check-in window lapses. At session start, your BOOT.md **MISSION WATCH** step runs the same rules. Line formats, the watch rules, and lite-mode behavior live in the firmware (TARS — THE TURN HOOK, and DISPATCH Step 5).
 
 So this step is a check, not a launch:
 
-- Your BOOT.md carries the **MOTHER — MISSION WATCH** step → nothing to do.
-- It doesn't → append the canonical step now, and honor the dual-runtime law: the edit isn't done until re-pasted into every paste-based runtime.
+- Your BOOT.md carries the **MISSION WATCH** step → nothing to do.
+- It doesn't, or it's still titled **MOTHER — MISSION WATCH** → replace it with the canonical step, and honor the dual-runtime law: the edit isn't done until re-pasted into every paste-based runtime.
 
 **Never create a scheduled task for a dispatched mission** — no `mother-watch-*`, no `dispatch-poll-*`, and no approval to prime. If an older install still has either kind of task, list them for the human and have them removed, so a mission is never watched twice.
 
@@ -216,10 +216,10 @@ Then close with the human's entire job, in plain lines:
 
 If multiple specialists were dispatched in one shot, one scoreboard row per lane, and the middle line names them all: "Open each of their sessions and type `/go` in each." If dispatching laterally (specialist to specialist), also note which session should be opened and in what order if sequencing matters. Keep it tight — the human knows what to do from here.
 
-On a **file-only install**, swap the ledger line for MOTHER's:
+On a **file-only install**, swap the ledger line for TARS's:
 
-> **MOTHER is watching [mission ID].** Open [session names] and type **`/go`** in each. First activation may ask for folder access. Grant it while you're there.
-> I'll tell you when it's done, or if it stalls, the next time we talk. Nothing to click, nothing to switch off.
+> **TARS is watching [mission ID].** Open [session names] and type **`/go`** in each. First activation may ask for folder access. Grant it while you're there.
+> TARS reports the moment it lands while we're working, and I'll catch anything that happened while you were away at the start of our next session. Nothing to click, nothing to switch off.
 
 ---
 

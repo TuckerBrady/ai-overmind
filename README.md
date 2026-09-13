@@ -1,25 +1,33 @@
-# ai-overmind v4.1.5
+# ai-overmind v4.2.0
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **MOTHER** — the mission watch that notices when work finishes or stalls and keeps the board current, riding along in your sessions — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
+Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
 
-## What's New in v4.1.5
+## What's New in v4.2.0
 
-One change, bringing the last scheduled watcher in line with how the rest of the system works: **MOTHER is now turn-based.** Every dispatch on a file-only install used to launch a scheduled task per mission, plus an optional polling task, each needing a one-time approval and a stand-down when the work was done. Meanwhile `/status` already described a turn-based check that "replaces per-specialist polling tasks," and firmware still had its own polling template from v3.9.x — three overlapping watchers. In the field, a team ran over a month of active missions with no scheduled watcher at all.
+**TARS, the turn hook — and the Overmind moves home to Claude Code.**
 
-- **Firmware:** MOTHER is a standing duty in the Overmind's BOOT.md. At session start, and whenever a mission's check-in window lapses (CRITICAL 1 min · STANDARD 5 · LOW 60), she re-reads the board, the Gopher registry, and each lane's completion file (or the channel ledger), then acts. She marks lanes done, calls a mission ready to converge, unblocks dependents, pings phantom flips and silent boots, flags specialists that never activated, and escalates overdue lanes and deadlines. Each finding is surfaced once.
-- **`/dispatch`:** no scheduled tasks, no approvals to prime, nothing to stand down. Dispatch just confirms MOTHER is wired into BOOT.md.
-- **`/status`:** its standing duty is MOTHER.
-- **`/diagnostic`:** new C6 fails a missing MOTHER step or any leftover `mother-watch-*` / `dispatch-poll-*` task. E2's scheduled-task probe only runs if you've opted into away-from-session escalations.
+- **TARS replaces MOTHER.** MOTHER was a scheduled task per dispatched mission, plus an optional polling task, each needing a one-time approval and a stand-down. Meanwhile `/status` described a turn-based check, and firmware still carried its own polling template: three overlapping watchers, and in the field a team ran over a month of active missions with none of them running. TARS is one `UserPromptSubmit` hook, named for the robot in *Interstellar* with the honesty setting. Before every message you send, it reports **facts only**:
+  - turn checkpoints (every 5th turn, soft at 30, hard at 45), with handoff status read from disk
+  - a team member's `mission-complete.md` appearing, and your unread inbox growing
+  - a new brief staged in a team member's folder, in that member's own session
+  - a push to one of your Collective binders by someone else, checked in the background at most every five minutes
+  - a cue for the Overmind to run the watch rules when a mission's check-in window lapses
 
-**The trade-off, stated plainly:** nothing watches while no session is open. Anything that finishes or stalls overnight is the first thing MOTHER tells you next session. Reaching you while you're away is a scheduled task you can opt into, never a default.
+  The Overmind relays every `TARS:` line verbatim, then decides what it means. When nothing changed, TARS prints nothing. A quiet message costs roughly 80 ms on top of starting the shell.
+- **Claude Code is home.** The Overmind and every team member live in Claude Code, where hooks run and `CLAUDE.md` loads each member's boot layer automatically. Cowork still works, as **lite mode**: hooks don't reliably fire there, so TARS is silent and the boot layer's session-start checks are the whole watch.
+- **`/dispatch`:** no scheduled tasks and nothing to approve or stand down. It confirms the Overmind's BOOT.md carries the MISSION WATCH step.
+- **`/status`:** its standing duty is TARS.
+- **`/diagnostic`:** new C6 checks that TARS is firing, that the MISSION WATCH step is present, and that nothing duplicates it — no second turn-counting hook, no leftover MOTHER tasks. E2's scheduled-task probe only runs if you've opted into away-from-session escalations.
 
-**Upgrading:** update the plugin, then run `/diagnostic`. C6 tells you whether your Overmind's BOOT.md needs the MOTHER step (re-paste into paste-based runtimes) and lists any old watcher tasks to remove.
+**The trade-off, stated plainly:** nothing watches while no session is open. Anything that lands overnight is caught by the MISSION WATCH pass when you next open your Overmind.
+
+**Upgrading:** update the plugin and start a fresh session. Run `/diagnostic` — C6 tells you whether your Overmind's BOOT.md needs the MISSION WATCH step (it replaces any MOTHER step), and whether an old turn-counter hook or MOTHER task needs removing.
 
 ## What's New in v4.1.4
 
@@ -148,33 +156,29 @@ One fix, found in the field: **the Collective sweep is now wired into BOOT.md, n
 
 ---
 
-## Install (recommended: marketplace)
+## Install
 
-**Cowork:** Customize → Plugins → Add Marketplace → paste `TuckerBrady/ai-overmind`, then install **ai-overmind**.
-
-> **Upgrading from a zip install?** Delete your current instance of the plugin FIRST (Settings → Plugins → remove the uploaded version), then add the marketplace and install. Running both copies double-injects the firmware and duplicates every skill.
-
-**Claude Code:**
+**Claude Code (the home of your team):**
 ```bash
 claude plugin marketplace add TuckerBrady/ai-overmind
-claude plugin install ai-overmind
+claude plugin install ai-overmind@ai-overmind
 ```
 
-Updates ship automatically when a new version is released — run `claude plugin update` or let auto-update pick it up.
+Claude Code runs in a terminal, or in the Code tab of the Claude desktop app. Start a fresh session after installing or updating, since a running session keeps the plugin version it booted with. On Windows, Claude Code uses Git Bash, which TARS needs.
+
+**Cowork (lite mode):** Customize → Plugins → Add Marketplace → paste `TuckerBrady/ai-overmind`, then install **ai-overmind**. A team can run there, but hooks aren't guaranteed to fire: TARS is silent, and each member's `BOOT.md` has to be pasted into Project Instructions.
+
+> **Upgrading from a zip install?** Delete your current instance of the plugin FIRST, then add the marketplace and install. Running both copies double-injects the firmware and duplicates every skill.
 
 ## Quickstart
 
-1. **Install** from the marketplace (above) and create a dedicated Cowork project (e.g., "My AI Team")
-2. **Open** the project. The Overmind waits silently.
-3. **Say** `[YourFirstName] is online`
-4. The Overmind learns your role, proposes your team, and builds everything
-5. **Paste the Sleeper Activation block** into this project's Project Instructions (the Overmind will give it to you — do this for your own project AND each specialist's)
+1. **Install** the plugin in Claude Code (above).
+2. **Create one folder** for your team — e.g. `My AI Team`. This is the team root.
+3. **Open Claude Code in that folder** and say `[YourFirstName] is online`. The Overmind learns your role, proposes your team, and builds a folder for every member — itself included — each with its own `BOOT.md` and a `CLAUDE.md` wrapper that loads it.
+4. **Run each member in its own folder.** From here on, open Claude Code in the Overmind's folder to talk to your Overmind, and in a team member's folder to run that member. Dispatched work activates when you type `/go` in that member's session.
+5. **Verify it.** Type `/diagnostic` in your Overmind's session. It checks the install, the folders, the roster, the boot layers, and TARS, then prints a pass/fail table with a fix for anything red.
 
-**Optional:** connect a directory service (Teams, Outlook, Google Workspace) for automatic role lookup. Without it, the Overmind asks you directly. See `CONNECTORS.md`.
-
-> **Why Project Instructions?** Cowork SessionStart hooks are not guaranteed to inject into context before the first message. The passphrase/handoff system must live in Project Instructions to be reliable at boot. The plugin firmware handles on-demand features (handoffs, dispatch). Both work together — Project Instructions for startup, firmware for everything else.
-
----
+Setup runs once. After that, every session boots straight into work.
 
 ## The Eleven Features
 
@@ -240,11 +244,11 @@ The tier below dispatch. Any team member can leave a short note in a peer's `INB
 |----------|--------------|
 | `Leave a note for [Name]: ...` | Appends a dated entry to their inbox |
 
-### 7 — MOTHER
+### 7 — TARS
 
-MOTHER watches your missions. She isn't a background process: she's a standing duty in the Overmind's own boot layer, named for the ship computer in *Alien*. Whenever you're working with your Overmind, at the start of the session and again whenever a mission's check-in window has passed, she re-reads the board, the Gopher registry, and each specialist's completion file. When something finished, she marks it done and tells you where the deliverable is. When something stalled, she says so: a specialist that never activated, one that booted but never took the brief, a lane that's overdue, a deadline that's close or blown. She repaints the live board when anything changed and says nothing when nothing did.
+TARS is the turn hook, named for the robot in *Interstellar* whose honesty setting could be dialed up. Before every message you send in Claude Code, TARS checks what changed and tells you in one line: a team member finished their work, a note landed in your inbox, someone posted in one of your Collectives, or it's time for a checkpoint. TARS reports facts only. Your Overmind decides what they mean — marking work done, flagging a stalled mission, answering a Collective post.
 
-There's nothing to approve, schedule, or switch off. The one trade-off: she only watches while you have a session open, so anything that happens overnight is the first thing she tells you next time.
+When nothing changed, TARS says nothing. There's nothing to approve, schedule, or switch off. TARS runs in Claude Code; in Cowork's lite mode it's silent, and your Overmind's startup check is the only watch. Nothing watches while no session is open, so anything that happened while you were away is caught when you next open your Overmind.
 
 ### 8 — /status
 
@@ -312,6 +316,7 @@ As of v4.0.0, dispatched missions don't use passphrases at all: open the special
 | Component | Purpose |
 |-----------|---------|
 | `hooks/firmware.md` | Core Overmind intelligence — team building, handoffs, dispatch, twins, mission board, and inboxes built in |
+| `hooks/tars.sh` | TARS, the turn hook: reports what changed before every message (Claude Code) |
 | `hooks/hooks.json` | SessionStart hook — injects firmware automatically |
 | `agents/splinter-twin.md` | Subagent that hydrates from a specialist's files for quick in-session work |
 | `skills/go/` | `/go` — one-command mission activation from this session's staged HANDOFF |
