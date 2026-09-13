@@ -28,7 +28,16 @@ Read `[your folder]/HANDOFF.md`.
 
 ### 3. Freshness check
 
-**Session handoff** (header `TYPE: SELF-HANDOFF`): its `SEAT` must be you, and its `WRITTEN` time must be newer than your last session. If either fails, say what you found and ask before acting. A legacy handoff without that header predates v4.3.0: proceed, and mention that.
+**Session handoff** (header `TYPE: SELF-HANDOFF`, or a legacy handoff without one). Run these checks in order before acting:
+
+1. **Find every copy.** Some installs keep the handoff at both the folder root and `.auto-memory/HANDOFF.md`. If the copies differ, use the one with the newer `WRITTEN` time and say that the copies differed.
+2. **Already activated?** If the handoff carries an `ACTIVATED: <time> by <seat>` line, don't silently run it again. Say: *"That handoff was already activated at [time] by [seat]. Resume it anyway?"* Resume only on a yes — a session that died mid-work needs a way back in.
+3. **Right seat?** The header's `SEAT` must be you. If it names another member, say so and stop.
+4. **Age.** Compare `WRITTEN` with the current time, read from a real clock rather than guessed. If it's more than 7 days old, say how old it is and ask before acting.
+5. **Echo what's activating.** Before doing anything else, show one line — *"Activating handoff written [WRITTEN] ([age]): [first Next Step]."* — so the human can see it's the brief they expect. That's the check a passphrase used to provide, without anything to memorize.
+6. **Stamp it.** Once you activate, write `ACTIVATED: [YYYY-MM-DD HH:MM] by [your seat]` directly under the header in every copy. That stamp is what keeps the same handoff from running twice.
+
+A legacy handoff without the header predates v4.3.0: run checks 2, 5, and 6, and mention that it's a legacy brief.
 
 **Dispatched brief:** If the brief names a mission ID and `MISSION_BOARD.md` at the team root is reachable, check that row:
 

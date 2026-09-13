@@ -12,8 +12,8 @@ Eleven capabilities work out of the box: **team building**, **handoffs**, **disp
 
 **No more phrases to remember. Two commands activate everything.**
 
-- **`/engage` activates a new Overmind.** It replaces "[YourFirstName] is online," and is named for Captain Picard's order in *Star Trek: The Next Generation*. Type `/engage`, or `/engage Sarah`, in your team's folder. If you didn't give a name, it asks, then runs the same one-time setup. On a team that's already set up it refuses to rebuild and points you to `/status` and `/go`. The old phrase still works, but nothing teaches it anymore.
-- **Handoffs activate on `/go`.** A handoff no longer ends with a passphrase to say next session: you type `/go`, the same as for a dispatched mission. The handoff's header now does the checking a passphrase used to. `TYPE` marks it as a self-handoff, `SEAT` names whose it is, and `WRITTEN` lets a session refuse a stale one. Old handoffs that still carry a passphrase activate on `/go` too.
+- **`/engage` activates a new Overmind.** It replaces "[YourFirstName] is online," and is named for Captain Picard's order in *Star Trek: The Next Generation*. Type `/engage`, or `/engage Sarah`, in your team's folder. If you didn't give a name, it asks, then runs the same one-time setup. If it sees any sign of an existing team — a roster, member boot layers, or a session that's already an Overmind — it refuses to rebuild and points you to `/status` and `/go`. In a folder that isn't empty and has no team, it asks before starting one. The old phrase still works, but nothing teaches it anymore.
+- **Handoffs activate on `/go`.** A handoff no longer ends with a passphrase to say next session: you type `/go`, the same as for a dispatched mission. `/go` now does the checking a passphrase used to. It echoes which handoff it's activating ("Activating handoff written 18:34: TARS live test"), refuses one meant for another seat, and asks before running one that's more than a week old. It also stamps the handoff `ACTIVATED` once it runs, so the same handoff can never silently run twice; `/go` on a stamped handoff offers to resume instead. Old handoffs that still carry a passphrase activate on `/go` too.
 - **The handoff voice archive stays, as flavor.** A member may still close a handoff with one line in its role's voice, but it's never a key.
 
 ## What's New in v4.2.0
@@ -318,7 +318,7 @@ Two commands, and no phrases to remember.
 - **`/engage`** activates a brand-new Overmind, once. It asks your first name if you didn't include it, then learns your role and builds your team.
 - **`/go`** activates whatever is staged in a session: a mission you dispatched to a team member, or a handoff a session wrote for its own next session. Solo mission, one lane of a group operation, or a handoff, it's the same command.
 
-You never write or touch a brief. A handoff's header (`TYPE`, `SEAT`, `WRITTEN`) is how a session confirms a brief is its own and still current, which is the job a passphrase used to do. Passphrases were retired from dispatch in v4.0.0 and from handoffs in v4.3.0.
+You never write or touch a brief. Before activating a handoff, `/go` shows you which one it is and when it was written, refuses a handoff meant for another seat, asks before running one over a week old, and stamps it `ACTIVATED` so it can't silently run twice. That's the job a passphrase used to do. Passphrases were retired from dispatch in v4.0.0 and from handoffs in v4.3.0.
 
 ---
 
