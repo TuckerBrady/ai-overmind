@@ -4,14 +4,14 @@ description: >
   Mission activation. When the human types /go, this session reads its own HANDOFF.md
   and activates the staged mission. The one activation trigger for every dispatched
   mission, solo or group: after a dispatch, the human opens each session and types /go.
-  No passphrase — dispatched missions activate on the go command. Use when the human
+  No passphrase — dispatched missions and session handoffs both activate on /go. Use when the human
   invokes /go or types "go" as their entire message in a session that may have a
   staged brief.
 ---
 
 # /go — Mission Activation
 
-Typing `/go` activates the staged mission. One command, any session, any mission. The human never relays a phrase to activate dispatched work — dispatched missions carry no passphrase.
+Typing `/go` activates the staged mission. One command, any session, any mission. The human never relays a phrase to activate anything — dispatched missions and session handoffs both carry no passphrase.
 
 ## Procedure
 
@@ -28,7 +28,9 @@ Read `[your folder]/HANDOFF.md`.
 
 ### 3. Freshness check
 
-If the brief names a mission ID and `MISSION_BOARD.md` at the team root is reachable, check that row:
+**Session handoff** (header `TYPE: SELF-HANDOFF`): its `SEAT` must be you, and its `WRITTEN` time must be newer than your last session. If either fails, say what you found and ask before acting. A legacy handoff without that header predates v4.3.0: proceed, and mention that.
+
+**Dispatched brief:** If the brief names a mission ID and `MISSION_BOARD.md` at the team root is reachable, check that row:
 
 - Row is **COMPLETE**, or your lane in the row's status cell is already marked done → the brief is stale. Respond: *"That brief is already closed out ([ID] COMPLETE on [date]). Standing by for new orders."* Do NOT re-execute. Stop here.
 - Row is PENDING / ACTIVE / BLOCKED, or the board is unreachable → proceed (note board unreachability in your activation report).
@@ -59,4 +61,4 @@ Then, in order:
 
 ## Relationship to passphrases
 
-Dispatched missions activate on `/go` only — the brief's ACTIVATION block says so, and dispatch generates no phrase. Passphrases survive in exactly one place: an agent's own session-to-session handoff, which keeps its passphrase protocol unchanged. If you find a legacy brief carrying a VERIFICATION PROTOCOL passphrase block, it predates the /go-only era — `/go` still activates it exactly the same way.
+Since v4.3.0, nothing in this system uses a passphrase. Dispatched missions and session handoffs both activate on `/go`, and a brand-new Overmind activates on `/engage`. A legacy brief that still carries a VERIFICATION PROTOCOL passphrase block activates on `/go` exactly the same way.

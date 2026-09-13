@@ -1,4 +1,4 @@
-# ai-overmind v4.2.0
+# ai-overmind v4.3.0
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,14 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.3.0
+
+**No more phrases to remember. Two commands activate everything.**
+
+- **`/engage` activates a new Overmind.** It replaces "[YourFirstName] is online," and is named for Captain Picard's order in *Star Trek: The Next Generation*. Type `/engage`, or `/engage Sarah`, in your team's folder. If you didn't give a name, it asks, then runs the same one-time setup. On a team that's already set up it refuses to rebuild and points you to `/status` and `/go`. The old phrase still works, but nothing teaches it anymore.
+- **Handoffs activate on `/go`.** A handoff no longer ends with a passphrase to say next session: you type `/go`, the same as for a dispatched mission. The handoff's header now does the checking a passphrase used to. `TYPE` marks it as a self-handoff, `SEAT` names whose it is, and `WRITTEN` lets a session refuse a stale one. Old handoffs that still carry a passphrase activate on `/go` too.
+- **The handoff voice archive stays, as flavor.** A member may still close a handoff with one line in its role's voice, but it's never a key.
 
 ## What's New in v4.2.0
 
@@ -174,7 +182,7 @@ Claude Code runs in a terminal, or in the Code tab of the Claude desktop app. St
 
 1. **Install** the plugin in Claude Code (above).
 2. **Create one folder** for your team — e.g. `My AI Team`. This is the team root.
-3. **Open Claude Code in that folder** and say `[YourFirstName] is online`. The Overmind learns your role, proposes your team, and builds a folder for every member — itself included — each with its own `BOOT.md` and a `CLAUDE.md` wrapper that loads it.
+3. **Open Claude Code in that folder** and type `/engage`. The Overmind learns your role, proposes your team, and builds a folder for every member — itself included — each with its own `BOOT.md` and a `CLAUDE.md` wrapper that loads it.
 4. **Run each member in its own folder.** From here on, open Claude Code in the Overmind's folder to talk to your Overmind, and in a team member's folder to run that member. Dispatched work activates when you type `/go` in that member's session.
 5. **Verify it.** Type `/diagnostic` in your Overmind's session. It checks the install, the folders, the roster, the boot layers, and TARS, then prints a pass/fail table with a fix for anything red.
 
@@ -192,14 +200,14 @@ After the build, the Overmind walks you through how to deploy each session and h
 
 Sessions have limited memory. Handoffs solve this.
 
-At the end of any session, ask for a handoff. The Overmind writes a structured brief — what was done, what's in progress, what's next — to a file in your project folder, then gives you a passphrase. Say the passphrase at the start of your next session. The Overmind activates fully briefed, no recap needed.
+At the end of any session, ask for a handoff. The Overmind writes a structured brief — what was done, what's in progress, what's next — to a file in your project folder, Type `/go` at the start of your next session. The Overmind activates fully briefed, no recap needed.
 
 The Overmind proactively offers handoffs at natural stopping points. You never have to remember to ask.
 
 | Say this | What happens |
 |----------|--------------|
-| `Write a handoff` | Saves mission brief + generates passphrase |
-| `[passphrase]` | Next session: activates the brief |
+| `Write a handoff` | Saves the mission brief |
+| `/go` | Next session: activates the brief |
 
 ### 3 — Dispatch
 
@@ -291,11 +299,11 @@ For organizations running more than one Overmind. No server required — the def
 
 | Say this | What happens |
 |----------|--------------|
-| `[FirstName] is online` | First-run activation — role lookup and team proposal |
+| `/engage` | First-run activation — role lookup and team proposal |
 | `Build my team` | Begins team composition |
 | `Add a [role] to the team` | Proposes and builds a new specialist |
-| `Give me the Sleeper Activation block` | Generates the passphrase block to paste into team member Project Instructions |
-| `Write a handoff` | Saves session state and generates activation passphrase |
+| `Give me the Sleeper Activation block` | Generates the boot block to paste into a team member's Project Instructions (lite mode) |
+| `Write a handoff` | Saves session state; `/go` activates it next session |
 | `Brief [Name] on [task]` | Dispatches a mission to a specialist |
 | `Ask [Name] a quick question` | Spawns an in-session splinter twin |
 | `What's in flight?` | Reads MISSION_BOARD.md and reports live mission status |
@@ -303,11 +311,14 @@ For organizations running more than one Overmind. No server required — the def
 
 ---
 
-## How the Passphrase System Works
+## How Activation Works
 
-Passphrases belong to handoffs. At the end of a session the Overmind writes a brief, invents a passphrase, and tells you what it is. Say the phrase at the start of your next session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.
+Two commands, and no phrases to remember.
 
-As of v4.0.0, dispatched missions don't use passphrases at all: open the specialist's session and type `/go`. Solo mission or one lane of a group op, it's the same single command in every session.
+- **`/engage`** activates a brand-new Overmind, once. It asks your first name if you didn't include it, then learns your role and builds your team.
+- **`/go`** activates whatever is staged in a session: a mission you dispatched to a team member, or a handoff a session wrote for its own next session. Solo mission, one lane of a group operation, or a handoff, it's the same command.
+
+You never write or touch a brief. A handoff's header (`TYPE`, `SEAT`, `WRITTEN`) is how a session confirms a brief is its own and still current, which is the job a passphrase used to do. Passphrases were retired from dispatch in v4.0.0 and from handoffs in v4.3.0.
 
 ---
 

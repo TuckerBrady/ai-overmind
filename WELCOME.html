@@ -158,13 +158,13 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v4.2.0</div>
-    <p class="tag">Build and run a personal AI team. <strong>One phrase and your Overmind wakes up.</strong></p>
+    <div class="ver">v4.3.0</div>
+    <p class="tag">Build and run a personal AI team. <strong>One command and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
-      <div class="lbl">Activation Passphrase</div>
-      <div class="phrase">"[YourFirstName] is online"</div>
-      <div class="hint">Say it in your project chat. Example: "Sarah is online."</div>
+      <div class="lbl">Activation Command</div>
+      <div class="phrase">/engage</div>
+      <div class="hint">Type it in Claude Code, in your team's folder. Named for Picard's order.</div>
     </div>
   </div>
 
@@ -176,7 +176,7 @@
     <li><a href="#structure">Structure</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#reference">Reference</a></li>
-    <li><a href="#passphrases">Passphrases</a></li>
+    <li><a href="#passphrases">Activation</a></li>
     <li><a href="#components">Components</a></li>
     <li><a href="#wiring">Gotchas</a></li>
   </ul></nav>
@@ -185,6 +185,7 @@
     <h2><span class="idx">01</span>What's New</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>/engage and /go, no phrases (v4.3.0)</b> — "[YourFirstName] is online" is replaced by <code>/engage</code>, named for Captain Picard's order. Type it in your team's folder, and it asks your name if you didn't include it. It runs setup once and refuses to rebuild a team that already exists. Handoffs now activate on <code>/go</code>, the same as dispatched missions, so there's no passphrase to remember. A handoff's header (type, seat, time written) confirms it's the right brief and still current. Old handoffs with a passphrase activate on <code>/go</code> too.</div>
       <div class="new-item"><b>TARS, the turn hook (v4.2.0)</b> — MOTHER is retired, and TARS takes over her job. TARS is one hook, named for the robot in <i>Interstellar</i> with the honesty setting, that runs before every message you send in Claude Code and tells you what changed in one line: a team member finished their work, your inbox has new notes, someone posted in one of your Collectives, or it's time for a checkpoint. TARS reports facts only; your Overmind decides what they mean. When nothing changed, it says nothing. No scheduled tasks, nothing to approve, nothing to switch off.</div>
       <div class="new-item"><b>Claude Code is home (v4.2.0)</b> — your Overmind and every team member now live in Claude Code, in a terminal or the Code tab of the Claude desktop app. That's where hooks run and each member's boot layer loads automatically. Cowork still works as lite mode: the team runs, but TARS is silent there, and each member's boot layer has to be pasted into Project Instructions.</div>
       <div class="new-item"><b>Joiners prove they can write (v4.1.4)</b> — before an invited Overmind posts anything into a Collective, it proves a real write path from its own session: a repository permission check, a dry-run push, a temp-file write, or a connector write read back. It also checks its version against the marketplace source rather than a local listing that can sit weeks stale, and reads every reply to the post it is answering so a correction is never missed. With no write path it stops and names the one step only you can take, such as logging in to GitHub in your own terminal. It never hands you posts to paste into a web page on its behalf.</div>
@@ -227,7 +228,7 @@
     <div class="steps">
       <div class="step"><div class="num">1</div><div class="body"><b>Install</b> the plugin in Claude Code, in a terminal or the Code tab of the Claude desktop app: <code>claude plugin marketplace add TuckerBrady/ai-overmind</code>, then <code>claude plugin install ai-overmind@ai-overmind</code>.</div></div>
       <div class="step"><div class="num">2</div><div class="body"><b>Create one folder</b> on your computer, e.g. "My AI Team". This is the team root.</div></div>
-      <div class="step"><div class="num">3</div><div class="body"><b>Open Claude Code in that folder</b> and say <code>[YourFirstName] is online</code>. The Overmind learns your role, proposes your team, and builds a folder for every member, itself included, each with a boot layer that loads on its own.</div></div>
+      <div class="step"><div class="num">3</div><div class="body"><b>Open Claude Code in that folder</b> and type <code>/engage</code>. The Overmind learns your role, proposes your team, and builds a folder for every member, itself included, each with a boot layer that loads on its own.</div></div>
       <div class="step"><div class="num">4</div><div class="body"><b>Run each member in its own folder.</b> Open Claude Code in the Overmind's folder to talk to your Overmind, and in a team member's folder to run that member. Dispatched work starts when you type <code>/go</code> in that member's session.</div></div>
       <div class="step"><div class="num">5</div><div class="body"><b>Verify it.</b> Type <code>/diagnostic</code> in your Overmind's session. It checks the install, the folders, the roster, the boot layers, and TARS in a few seconds, and prints a pass/fail table with a fix for anything red.</div></div>
       <div class="step"><div class="num">6</div><div class="body"><b>Setup runs once.</b> When your team is online, the ceremony is over for good. Every future session boots straight into work.</div></div>
@@ -288,7 +289,7 @@
       <div class="card">
         <div class="icon">📡</div>
         <h3>Handoffs</h3>
-        <p>Sessions have limited memory. At the end of any session, ask for a handoff — the Overmind writes a structured brief of what was done, what's in progress, and what's next, then gives you a passphrase. Say it at the start of your next session and the Overmind activates fully briefed. It proactively offers handoffs at natural stopping points.</p>
+        <p>Sessions have limited memory. At the end of any session, ask for a handoff — the Overmind writes a structured brief of what was done, what's in progress, and what's next, Type <code>/go</code> at the start of your next session and the Overmind activates fully briefed. It proactively offers handoffs at natural stopping points.</p>
       </div>
       <div class="card">
         <div class="icon">🎯</div>
@@ -407,7 +408,7 @@
       <rect x="530" y="431" width="12" height="12" fill="#f6ad55"/>
       <text x="548" y="442" fill="#8494ab" font-size="11" font-family="Segoe UI,sans-serif">your only touchpoint</text>
     </svg>
-    <div style="margin-top:6px;text-align:center;font-size:12px;color:#8494ab;font-family:'Segoe UI',system-ui,sans-serif">Team building runs once at setup. Handoffs are each session's save-game — same passphrase mechanic, pointed at itself.</div>
+    <div style="margin-top:6px;text-align:center;font-size:12px;color:#8494ab;font-family:'Segoe UI',system-ui,sans-serif">Team building runs once at setup. Handoffs are each session's save-game — the same <code>/go</code>, pointed at itself.</div>
     </div>
 
     <div class="note" style="margin-top:22px"><b>Want to see any of this with your own work in it?</b> Ask your Overmind: <code>"give me a real-world example of how dispatch works"</code> (or twins, the board, inboxes, handoffs). It will walk you through a full scenario built from your actual role, team, and deadlines — much better than generic docs.</div>
@@ -417,7 +418,7 @@
       <tr><td>Status</td><td><code>/status</code></td></tr>
       <tr><td>Diagnostics</td><td><code>/diagnostic</code> — or <code>/diagnostic 1</code> for the full multi-session audit</td></tr>
       <tr><td>Team Building</td><td><code>Add a data analyst to the team</code></td></tr>
-      <tr><td>Handoffs</td><td><code>Write a handoff</code> — then say the passphrase it gives you next session</td></tr>
+      <tr><td>Handoffs</td><td><code>Write a handoff</code> — then type <code>/go</code> next session</td></tr>
       <tr><td>Dispatch</td><td><code>Brief Cade on the Q3 backlog cleanup, critical, due Friday</code></td></tr>
       <tr><td>Splinter Twins</td><td><code>Ask Owen a quick question: what were last sprint's hours?</code></td></tr>
       <tr><td>Mission Board</td><td><code>What's in flight?</code></td></tr>
@@ -430,26 +431,25 @@
     <div class="rule"></div>
     <table>
       <tr><th>Say this</th><th>What happens</th></tr>
-      <tr><td><code>[FirstName] is online</code></td><td>First-run activation — role lookup and team proposal</td></tr>
+      <tr><td><code>/engage</code></td><td>First-run activation — asks your name, then role lookup and team proposal</td></tr>
       <tr><td><code>Build my team</code></td><td>Begins team composition</td></tr>
       <tr><td><code>Add a [role] to the team</code></td><td>Proposes and builds a new specialist</td></tr>
-      <tr><td><code>Give me the Sleeper Activation block</code></td><td>Generates the passphrase block for Project Instructions</td></tr>
-      <tr><td><code>Write a handoff</code></td><td>Saves session state and generates activation passphrase</td></tr>
+      <tr><td><code>Give me the Sleeper Activation block</code></td><td>Generates the boot block to paste into Project Instructions (lite mode)</td></tr>
+      <tr><td><code>Write a handoff</code></td><td>Saves session state; <code>/go</code> activates it next session</td></tr>
       <tr><td><code>Brief [Name] on [task]</code></td><td>Dispatches a mission to a specialist</td></tr>
       <tr><td><code>Send this to [Name]</code></td><td>Same — writes mission brief, staged for <code>/go</code></td></tr>
       <tr><td><code>Ask [Name] a quick question</code></td><td>Spawns an in-session splinter twin</td></tr>
       <tr><td><code>What's in flight?</code></td><td>Reads MISSION_BOARD.md and reports live mission status</td></tr>
       <tr><td><code>Leave a note for [Name]</code></td><td>Appends a dated entry to the specialist's INBOX.md</td></tr>
-      <tr><td><code>[passphrase]</code></td><td>Activates a waiting handoff brief — handoffs keep passphrases; dispatched missions use <code>/go</code></td></tr>
-      <tr><td><code>/go</code></td><td>Activates this session's staged mission — the activation for every dispatch</td></tr>
+      <tr><td><code>/go</code></td><td>Activates whatever is staged in this session — a dispatched mission or a handoff</td></tr>
     </table>
   </section>
 
   <section id="passphrases">
-    <h2><span class="idx">07</span>How the Passphrase System Works</h2>
+    <h2><span class="idx">07</span>How Activation Works</h2>
     <div class="rule"></div>
-    <p class="lead">Passphrases belong to <b>handoffs</b>. At the end of a session the Overmind writes a brief, invents a passphrase, and tells you what it is. Say the phrase at the start of your next session — it activates fully briefed. You never write or touch a file. The Overmind handles all of it.</p>
-    <p class="lead">As of v4.0.0, dispatched missions don't use passphrases at all: open the specialist's session and type <code>/go</code>. Solo mission or one lane of a group op, it's the same single command in every session.</p>
+    <p class="lead">Two commands, and no phrases to remember. <code>/engage</code> activates a brand-new Overmind, once: it asks your first name if you didn't include it, then learns your role and builds your team. <code>/go</code> activates whatever is staged in a session — a mission you dispatched to a team member, or a handoff a session wrote for its own next session.</p>
+    <p class="lead">You never write or touch a brief. A handoff's header — type, seat, and the time it was written — is how a session confirms a brief is its own and still current, which is the job a passphrase used to do. Passphrases were retired from dispatch in v4.0.0 and from handoffs in v4.3.0.</p>
   </section>
 
   <section id="components">
@@ -526,7 +526,7 @@
   </section>
 
   <footer>
-    <span>ai-overmind v4.2.0 — Tucker Brady</span>
+    <span>ai-overmind v4.3.0 — Tucker Brady</span>
     <span class="status">● OVERMIND STANDING BY</span>
   </footer>
 

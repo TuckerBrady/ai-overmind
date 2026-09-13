@@ -75,7 +75,7 @@ The specialist's folder is `[team-root]/[Specialist Folder]/`.
 - **Multi-specialist dispatch toward one deliverable** — one mission ID, one lane per specialist. Each lane gets its own HANDOFF, and every HANDOFF header carries the shared MISSION ID plus its LANE.
 - **Boundary test:** lanes are for work sharing a goal, not work sharing a dispatch moment. If the outputs don't combine into one deliverable or decision, they are separate missions — give each its own ID, even if you're dispatching them in the same breath.
 
-**No passphrases.** Dispatch does not generate activation passphrases — activation for every dispatched mission is `/go` (see `skills/go/SKILL.md`). Passphrases survive in exactly one place: an agent's own session-to-session handoff, which keeps its passphrase protocol unchanged. The passphrase flavor archive lives with the handoff feature, not here.
+**No passphrases.** Dispatch does not generate activation passphrases — activation for every dispatched mission is `/go` (see `skills/go/SKILL.md`). Session handoffs activate on `/go` too — since v4.3.0, nothing in this system uses a passphrase.
 
 ### Step 3b: Snapshot open browser tabs
 
