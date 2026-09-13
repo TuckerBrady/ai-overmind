@@ -173,13 +173,11 @@ Per-lane state lives in the status cell — e.g. `alex: PENDING · sam: PENDING`
 
 If this mission depends on one that isn't COMPLETE, set the affected lane(s) to BLOCKED and mirror the dependency in the brief's DEPENDENCIES section.
 
-### Step 4c: Wire the watch — transport ledger or MOTHER
+### Step 4c: Post to the transport, if one is bound
 
-Check the team root for `TRANSPORT.md`. This step forks on what it finds.
+Check the team root for `TRANSPORT.md`.
 
-**Transport bound (TRANSPORT.md exists AND its tools are available this session):**
-
-Post one one-line TASK per lane to the team channel — mission ID + lane + one-line goal + the HANDOFF path:
+**Transport bound (TRANSPORT.md exists AND its tools are available this session):** post one one-line TASK per lane to the team channel — mission ID + lane + one-line goal + the HANDOFF path:
 
 ```
 TASK M-017 / alex — score the Q3 backlog — HANDOFF: Product Owner/HANDOFF.md
@@ -187,78 +185,20 @@ TASK M-017 / alex — score the Q3 backlog — HANDOFF: Product Owner/HANDOFF.md
 
 (One TASK naming several members with lane assignments is also fine. Every post carries the shared mission ID.) Never put a secret, token, or passphrase in a post, ever.
 
-That is the entire watch: the channel ledger replaces file-scraping watchers. Do NOT create a scheduled watcher or poll task — check the ledger at each turn and on `/status` instead. Skip Steps 4d, 4e, and 5; they are the file-only path. (Naming note: the file-only watcher below is called MOTHER; in transport mode "MOTHER" names the membership reflex instead — the watcher is sunset wherever a ledger exists.)
+**No transport:** skip this step. Nothing else changes.
 
-**Transport absent, or its tools unavailable this session (file-only install):**
+### Step 4d: Confirm TARS is watching
 
-Nothing changes from the file-only flow you know. Run Steps 4d, 4e, and 5 below exactly as written.
+Nothing to launch. In Claude Code, TARS — the plugin's turn hook — reports a lane's delivery the moment its `mission-complete.md` appears, and cues you to run the watch rules when a mission's check-in window lapses. At session start, your BOOT.md **MISSION WATCH** step runs the same rules. Line formats, the watch rules, and lite-mode behavior live in the firmware (TARS — THE TURN HOOK, and DISPATCH Step 5).
 
-### Step 4d: Launch MOTHER (the mission watcher) — file-only installs
+So this step is a check, not a launch:
 
-MOTHER is a headless scheduled task that repaints the live mission-board artifact while work is in flight. She never speaks to the human. Create her **already enabled** — never stage a task and ask the human to switch it on.
+- Your BOOT.md carries the **MISSION WATCH** step → nothing to do.
+- It doesn't, or it's still titled **MOTHER — MISSION WATCH** → replace it with the canonical step, and honor the dual-runtime law: the edit isn't done until re-pasted into every paste-based runtime.
 
-- `taskId`: `mother-watch-[mission-id-lowercase]` (e.g. `mother-watch-m006`)
-- `cronExpression` by tier: **CRITICAL `* * * * *`** (1 min) · **STANDARD `*/15 * * * *`** · **LOW `*/30 * * * *`**
-- `description`: `MOTHER — watching [mission ID] ([tier])`
+**Never create a scheduled task for a dispatched mission** — no `mother-watch-*`, no `dispatch-poll-*`, and no approval to prime. If an older install still has either kind of task, list them for the human and have them removed, so a mission is never watched twice.
 
-Her prompt must instruct her to: read the board, registry, and named deliverables in one shell call; rewrite ONLY the `const DATA = {...};` line of the `mission-board` artifact with fresh JSON and call `update_artifact`; detect completion from the deliverables; and when complete, append a stand-down request to `[team-root]/Overmind/INBOX.md` marked UNREAD. She must also check that inbox marker at the top of every run and exit immediately if it's already there, so she idles cheaply.
-
-**She cannot disable herself** — that call requires a human click and offers no "allow for all" option. She pings; the Overmind reaps. Never write a self-disable step into her prompt.
-
-### Step 4e: Prime her approvals in the same breath — file-only installs
-
-MOTHER's first artifact write triggers one approval dialog. Collect it now, while the human is present:
-
-> Click **Run now** on MOTHER's task, then **"Allow for all scheduled runs"** on the dialog. She goes silent after that.
-
-Never let this dialog find the human later — a permission prompt that arrives after they've context-switched reads as a bug, not a feature. Same for the specialists: warn that the first `/go` in each session may ask for folder or web access.
-
-**Do not edit MOTHER's prompt after her approvals are granted** — editing a task's prompt appears to invalidate its stored grants, and she'll start prompting again. Finalize the prompt, then prime.
-
-### Step 5: Create the deadline escalation task (optional) — file-only installs
-
-After writing HANDOFF.md, create a scheduled task to monitor mission completion. This runs in the background — silent unless something needs attention.
-
-Call `mcp__scheduled-tasks__create_scheduled_task` with:
-- `taskId`: `dispatch-poll-[specialist-name-lowercase]-[YYYYMMDD]`
-- `cronExpression`: by priority tier — CRITICAL `* * * * *` (every minute) / STANDARD `*/5 * * * *` (every 5 minutes) / LOW `0 * * * *` (hourly)
-- `description`: `Mission poll — [specialist name] — [one-line mission summary]`
-- `prompt`: Use the template below, filling in all bracketed values (escalation windows [W1]/[W2] by tier: CRITICAL 30 min / 4 h · STANDARD 6 h / 24 h · LOW 24 h / 72 h):
-
-```
-You are monitoring a dispatched mission.
-
-Specialist: [specialist name]
-Specialist folder: [absolute path to specialist's folder]
-Mission complete signal: [specialist-folder]/mission-complete.md
-Mission board: [team-root]/MISSION_BOARD.md — this mission's row: [mission ID]
-Gopher registry: [team-root]/GOPHER_REGISTRY.md
-Human operator: [human's first name]
-Priority: [CRITICAL / STANDARD / LOW] — escalation windows: not activated after [W1], overdue after [W2]
-Deadline: [YYYY-MM-DD HH:MM, or "none"]
-Task ID (to disable on completion): dispatch-poll-[specialist-name-lowercase]-[YYYYMMDD]
-
-Your job each run:
-
-1. Check if [specialist-folder]/mission-complete.md exists.
-   - If YES: Read it. Report to the human: "[Specialist] has completed their mission. [summary from file]. See [deliverables path]." Reconcile the mission board: if this specialist's lane on row [mission ID] is not already done, mark it done with today's date; if every lane on the row is done, note in your report that the mission is ready for the dispatcher to converge; if any BLOCKED row or lane lists [mission ID] in Depends On, note in your report that it is now clear to start. Then call mcp__scheduled-tasks__update_scheduled_task with enabled: false to stop this task.
-   - If NO: continue.
-
-2. Check [team-root]/MISSION_BOARD.md row [mission ID] and [team-root]/GOPHER_REGISTRY.md for [specialist name] — board first (claimed state), registry second (proof of boot):
-   - Lane ACTIVE + registry refreshed after dispatch: online and working. No action this cycle.
-   - Lane ACTIVE but registry predates the dispatch: phantom flip — unverified. Write a GOPHER PING to [specialist-folder]/INBOX.md if one isn't already waiting.
-   - Registry refreshed after dispatch but lane still PENDING past [W1]: silent boot — booted, never took the brief. Ping and notify the human the boot layer may need attention.
-   - No registry refresh, lane PENDING: not yet activated. No action until [W1] past dispatch, then notify the human: "[Specialist] hasn't activated yet. Open their session and type /go."
-   - Activated but no mission-complete past [W2]: notify the human: "[Specialist] activated but mission is not yet complete. May need your attention."
-
-3. Deadline rules (skip if Deadline is "none"): halfway to the deadline with the lane still PENDING → notify the human now. Deadline passed without the lane done → escalate immediately, regardless of tier.
-
-4. Only surface to the human when: mission complete, not activated past [W1], silent boot detected, overdue past [W2], or a deadline rule fires.
-```
-
-Fill in all bracketed values before creating the task. The specialist folder path comes from Step 2. The team root is the connected folder.
-
-### Step 6: Report back — the human scoreboard
+### Step 5: Report back — the human scoreboard
 
 Report to whoever initiated the dispatch — the human directly, or a specialist reporting upstream. **The human never reads wire format.** Whatever went to a channel or a HANDOFF header, the close is a translated, human-readable scoreboard — a first-class deliverable, not decoration. One row per lane:
 
@@ -276,11 +216,10 @@ Then close with the human's entire job, in plain lines:
 
 If multiple specialists were dispatched in one shot, one scoreboard row per lane, and the middle line names them all: "Open each of their sessions and type `/go` in each." If dispatching laterally (specialist to specialist), also note which session should be opened and in what order if sequencing matters. Keep it tight — the human knows what to do from here.
 
-On a **file-only install**, swap the ledger line for the MOTHER beats, in this order:
+On a **file-only install**, swap the ledger line for TARS's:
 
-> **MOTHER is watching [mission ID].** Click **Run now** on her task, then **"Allow for all scheduled runs"**.
-> Then open [session names] and type **`/go`** in each. First activation may ask for folder access. Grant it while you're there.
-> I'll report back with `/status` when she signals completion.
+> **TARS is watching [mission ID].** Open [session names] and type **`/go`** in each. First activation may ask for folder access. Grant it while you're there.
+> TARS reports the moment it lands while we're working, and I'll catch anything that happened while you were away at the start of our next session. Nothing to click, nothing to switch off.
 
 ---
 

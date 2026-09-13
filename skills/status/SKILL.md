@@ -92,13 +92,17 @@ owns it. Update your own lane's state in the mission's status cell instead.
 
 ## Step 3 — Standing duty (both session types)
 
-`/status` is the on-demand path, but the human shouldn't have to ask to stay informed. While
-any mission is in flight, check the shared state at the start of each turn if the cadence for
-the highest-priority mission has lapsed since your last read — CRITICAL 1 min, STANDARD 5 min,
-LOW 60 min — and open your reply with a one-line delta when something changed. When a transport
-is bound, the shared state includes the channel ledger — that check replaces file-scraping
-watchers entirely. No delta, no mention; never narrate a check that found nothing.
+`/status` is the on-demand path, but the human shouldn't have to ask to stay informed.
 
-This is what replaces per-specialist polling tasks. Reserve scheduled tasks for what genuinely
-needs to reach the human while they're away from the session: a blown deadline, an asset that
-never activated, an escalation.
+**In Claude Code, that standing duty is TARS** — the plugin's turn hook. It runs before every
+message and reports facts: deliveries, inbox growth, a newly staged brief, Collective pushes, and
+turn checkpoints. Relay every `TARS:` line verbatim at the top of your reply, then act on it. In the
+Overmind's session, run the watch rules when TARS cues `mission watch due`. No TARS lines, no
+mention; never narrate a check that found nothing.
+
+**In lite mode (Cowork)**, hooks don't reliably run, so nothing checks mid-session. The boot layer's
+MISSION WATCH and COLLECTIVE SWEEP steps at session start are the whole watch, and `/status` is how
+the human checks in between.
+
+Don't create scheduled tasks to watch missions. Reaching the human while they're away is a
+scheduled task only they opt into, never a default.

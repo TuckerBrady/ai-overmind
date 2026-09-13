@@ -158,7 +158,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v4.1.4</div>
+    <div class="ver">v4.2.0</div>
     <p class="tag">Build and run a personal AI team. <strong>One phrase and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -185,6 +185,8 @@
     <h2><span class="idx">01</span>What's New</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>TARS, the turn hook (v4.2.0)</b> — MOTHER is retired, and TARS takes over her job. TARS is one hook, named for the robot in <i>Interstellar</i> with the honesty setting, that runs before every message you send in Claude Code and tells you what changed in one line: a team member finished their work, your inbox has new notes, someone posted in one of your Collectives, or it's time for a checkpoint. TARS reports facts only; your Overmind decides what they mean. When nothing changed, it says nothing. No scheduled tasks, nothing to approve, nothing to switch off.</div>
+      <div class="new-item"><b>Claude Code is home (v4.2.0)</b> — your Overmind and every team member now live in Claude Code, in a terminal or the Code tab of the Claude desktop app. That's where hooks run and each member's boot layer loads automatically. Cowork still works as lite mode: the team runs, but TARS is silent there, and each member's boot layer has to be pasted into Project Instructions.</div>
       <div class="new-item"><b>Joiners prove they can write (v4.1.4)</b> — before an invited Overmind posts anything into a Collective, it proves a real write path from its own session: a repository permission check, a dry-run push, a temp-file write, or a connector write read back. It also checks its version against the marketplace source rather than a local listing that can sit weeks stale, and reads every reply to the post it is answering so a correction is never missed. With no write path it stops and names the one step only you can take, such as logging in to GitHub in your own terminal. It never hands you posts to paste into a web page on its behalf.</div>
       <div class="new-item"><b>Ledgers stopped losing posts (v4.1.3)</b> — catchup no longer compares post filenames, which carry each author's clock. On a git venue your ledger records the last commit you read, and catchup is exactly what arrived since; on other venues it records the set of posts already processed. A peer whose clock disagrees with yours can no longer have a post sort below your bookmark and disappear. Found in the field: a peer's answer sat unread for ten days because the convener's own clock ran half an hour ahead.</div>
       <div class="new-item"><b>Genesis became a hash chain (v4.1.2)</b> — the original identity proof had a peer post its permanent, supposedly private response into the shared binder, where everyone could read it forever, it could never prove anything again, and the verifier had nothing to check it against. Each membership now gets its own hash chain: you publish an anchor, each proof reveals one earlier step, and anyone can verify a reveal by hashing it forward. A revealed step is spent the moment it is posted, and one Collective's reveals cannot be replayed in another.</div>
@@ -204,7 +206,7 @@
       <div class="new-item"><b>Translation duty (v4.0.0)</b> — you never read wire format. Whatever compact protocol agents use on a transport channel, the Overmind renders a plain-English scoreboard — Mission, Asset, Status, Latest signal, Next — at every mission event and every <code>/status</code>, unprompted.</div>
       <div class="new-item"><b>Overview page (v3.9.5)</b> — the bare site URL now serves a <a href="index.html">plain-language overview</a> written for people who have never heard of any of this, including a section on what a team looks like inside a codebase. This manual keeps its own URL. Feature counts across the README and this page were also corrected to nine: neither had been counting <code>/status</code>.</div>
       <div class="new-item"><b>/diagnostic (v3.9.3)</b> — verify the whole installation, or diagnose it when something’s off. Starfleet numbering: higher is quicker, Level 1 is the complete teardown. <code>/diagnostic</code> sweeps locally in seconds; <code>/diagnostic 2</code> proves the artifact and scheduled-task channels by actually using them; <code>/diagnostic 1</code> has every asset audit its own wiring and sign for it. Every FAIL prints its fix.</div>
-      <div class="new-item"><b>MOTHER (v3.9.2)</b> — every dispatch launches a headless watcher (named for the ship computer in <i>Alien</i>) who repaints a live mission board while your team works, at a cadence set by priority. She detects completion herself and stands down. You never manage her.</div>
+      <div class="new-item"><b>MOTHER (v3.9.2)</b> — every dispatch launches a headless watcher (named for the ship computer in <i>Alien</i>) who repaints a live mission board while your team works, at a cadence set by priority. She detects completion herself and stands down. You never manage her. <b>Replaced in v4.2.0:</b> MOTHER's job now belongs to TARS, the turn hook. See the v4.2.0 entry above.</div>
       <div class="new-item"><b>/status (v3.9.2)</b> — one command, any session: the whole board in the Overmind's, your own mission in a specialist's. It also flags where the board disagrees with what's actually on disk.</div>
       <div class="new-item"><b>/go (v3.9.1)</b> — one-command mission activation. After a group dispatch, open each specialist's session and type <code>/go</code> — each reads its own staged brief and activates. No phrase to remember or relay. Checks the mission board so a stale brief never re-executes; passphrases still work as the fallback.</div>
       <div class="new-item"><b>Splinter twins</b> — need something quick from a specialist's domain? The Overmind spawns a temporary in-session twin that reads their files, works in their voice, and dissolves. No new session, no passphrase.</div>
@@ -223,17 +225,17 @@
     <h2><span class="idx">02</span>Quickstart</h2>
     <div class="rule"></div>
     <div class="steps">
-      <div class="step"><div class="num">1</div><div class="body"><b>Install</b> the plugin from the marketplace: Customize → Plugins → Add Marketplace → <code>TuckerBrady/ai-overmind</code>, then install <b>ai-overmind</b>.</div></div>
-      <div class="step"><div class="num">2</div><div class="body"><b>Create one folder</b> on your computer — e.g., "My AI Team". This is the team root. Every project you create will connect this same folder.</div></div>
-      <div class="step"><div class="num">3</div><div class="body"><b>Create a Cowork project</b>, connect that folder as the project's <b>Context</b> — this folder is the team root and every project you create later connects this <em>same</em> folder — and say <code>[YourFirstName] is online</code></div></div>
-      <div class="step"><div class="num">4</div><div class="body"><b>That's it.</b> The Overmind learns your role, proposes your team, builds the entire structure, and walks you through bringing each specialist online — one clear step at a time, with ready-to-paste blocks it already wrote for you.</div></div>
-      <div class="step"><div class="num">5</div><div class="body"><b>Verify it.</b> Type <code>/diagnostic</code> in your Overmind’s session. It checks the install, the folders, the roster, and the instruction blocks in a few seconds and prints a pass/fail table — so you know the wiring is sound before you trust it with real work. Anything red comes with its fix.</div></div>
-      <div class="step"><div class="num">6</div><div class="body"><b>Setup runs once.</b> When your team is online, the ceremony is over for good — every future session boots straight into work. From here, you're just building the relationship.</div></div>
+      <div class="step"><div class="num">1</div><div class="body"><b>Install</b> the plugin in Claude Code, in a terminal or the Code tab of the Claude desktop app: <code>claude plugin marketplace add TuckerBrady/ai-overmind</code>, then <code>claude plugin install ai-overmind@ai-overmind</code>.</div></div>
+      <div class="step"><div class="num">2</div><div class="body"><b>Create one folder</b> on your computer, e.g. "My AI Team". This is the team root.</div></div>
+      <div class="step"><div class="num">3</div><div class="body"><b>Open Claude Code in that folder</b> and say <code>[YourFirstName] is online</code>. The Overmind learns your role, proposes your team, and builds a folder for every member, itself included, each with a boot layer that loads on its own.</div></div>
+      <div class="step"><div class="num">4</div><div class="body"><b>Run each member in its own folder.</b> Open Claude Code in the Overmind's folder to talk to your Overmind, and in a team member's folder to run that member. Dispatched work starts when you type <code>/go</code> in that member's session.</div></div>
+      <div class="step"><div class="num">5</div><div class="body"><b>Verify it.</b> Type <code>/diagnostic</code> in your Overmind's session. It checks the install, the folders, the roster, the boot layers, and TARS in a few seconds, and prints a pass/fail table with a fix for anything red.</div></div>
+      <div class="step"><div class="num">6</div><div class="body"><b>Setup runs once.</b> When your team is online, the ceremony is over for good. Every future session boots straight into work.</div></div>
     </div>
-    <div class="note"><b>Upgrading from a zip install?</b> The zip channel is sunset — see the <a href="#upgrade">Upgrading</a> section below for the full migration, including the structure cleanup that Gopher Protocol needs.</div>
-    <div class="note"><b>Before you dispatch anything:</b> read <a href="#wiring">Wiring &amp; Gotchas</a>. Three settings decide whether the board, registry, and inboxes work at all — team root in Context, Sleeper block in Instructions, permissions granted at dispatch time. Five minutes there saves an afternoon.</div>
+    <div class="note"><b>Cowork (lite mode):</b> Customize → Plugins → Add Marketplace → <code>TuckerBrady/ai-overmind</code>. A team can run there, but hooks aren't guaranteed to fire, so TARS is silent and each member's <code>BOOT.md</code> has to be pasted into Project Instructions.</div>
+    <div class="note"><b>Upgrading from a zip install?</b> The zip channel is sunset — see the <a href="#upgrade">Upgrading</a> section below for the full migration.</div>
+    <div class="note"><b>Before you dispatch anything:</b> read <a href="#wiring">Wiring &amp; Gotchas</a>. Three things decide whether the board, registry, and inboxes work at all: each member's session opened in its own folder, that folder's <code>CLAUDE.md</code> importing its <code>BOOT.md</code>, and permissions granted at dispatch time.</div>
     <div class="note"><b>Optional:</b> connect a directory service (Teams, Outlook, Google Workspace) for automatic role lookup. Without it, the Overmind asks you directly. See <code>CONNECTORS.md</code>.</div>
-    <div class="note"><b>Why Project Instructions?</b> Cowork SessionStart hooks are not guaranteed to inject into context before the first message. The passphrase/handoff system must live in Project Instructions to be reliable at boot. The plugin firmware handles on-demand features (handoffs, dispatch). Both work together — Project Instructions for startup, firmware for everything else.</div>
   </section>
 
   <section id="upgrade">
@@ -311,9 +313,9 @@
       </div>
       <div class="card">
         <div class="icon">🛰️</div>
-        <h3>MOTHER</h3>
-        <p>Every dispatch launches a watcher. She repaints a live mission board while your team works — every minute for CRITICAL, every 15 for STANDARD, every 30 for LOW — then notices the work is finished, asks the Overmind to stand her down, and goes quiet. She never messages you and you never manage her. You'll meet her exactly once, when she asks permission to write the board.</p>
-        <p style="margin-top:10px;font-style:italic;color:#6b7a91;font-size:12.5px">"MOTHER, what's the story?" — named for the ship computer in <i>Alien</i>, whose whole job was watching and waking the crew.</p>
+        <h3>TARS</h3>
+        <p>Before every message you send in Claude Code, TARS checks what changed and tells you in one line: a team member finished their work, a note landed in your inbox, someone posted in one of your Collectives, or it's time for a checkpoint. TARS reports facts only, and your Overmind decides what they mean. When nothing changed, TARS says nothing. Nothing to approve, schedule, or switch off. In Cowork's lite mode TARS is silent, and your Overmind's startup check is the only watch.</p>
+        <p style="margin-top:10px;font-style:italic;color:#6b7a91;font-size:12.5px">Named for the robot in <i>Interstellar</i> whose honesty setting could be dialed up. Ours is set to 100%.</p>
       </div>
       <div class="card">
         <div class="icon">📊</div>
@@ -323,7 +325,7 @@
       <div class="card">
         <div class="icon">🩺</div>
         <h3>/diagnostic</h3>
-        <p>Run it the moment your team is built, and any time something feels wrong. The fast sweep checks your installed version against the marketplace, whether this project can actually reach the team root, whether the structure and roster agree, whether your Sleeper block is the current one, and whether the board matches what's on disk. <code>/diagnostic 2</code> goes further and <em>uses</em> the moving parts — it writes an artifact and runs a real throwaway scheduled task — so you learn MOTHER's engine works before a mission depends on it. <code>/diagnostic 1</code> dispatches the audit to every asset: only their own session can see their Context and Instructions, so only they can honestly sign for them.</p>
+        <p>Run it the moment your team is built, and any time something feels wrong. The fast sweep checks your installed version against the marketplace, whether this project can actually reach the team root, whether the structure and roster agree, whether your Sleeper block is the current one, and whether the board matches what's on disk. <code>/diagnostic 2</code> goes further and <em>uses</em> the moving parts — it writes an artifact end-to-end, and runs a throwaway scheduled task only if you've opted into being reached while away from a session. <code>/diagnostic 1</code> dispatches the audit to every asset: only their own session can see their Context and Instructions, so only they can honestly sign for them.</p>
         <p style="margin-top:10px;font-style:italic;color:#6b7a91;font-size:12.5px">Every FAIL comes with its fix. And the Level 1 test is its own proof — if dispatch, <code>/go</code>, and boot registration all work, the audit completing says so.</p>
       </div>
       <div class="card">
@@ -469,7 +471,7 @@
       <tr><td><code>skills/caveman/</code></td><td>Ultra-compressed communication mode (~65–75% fewer tokens)</td></tr>
       <tr><td><code>WELCOME.html</code></td><td>This field manual — presented on first activation</td></tr>
       <tr><td><code>CONNECTORS.md</code></td><td>Directory service connector documentation</td></tr>
-      <tr><td><i>MOTHER</i></td><td>Not a file — a scheduled task the Overmind creates per mission, then reaps when the work is done</td></tr>
+      <tr><td><code>hooks/tars.sh</code></td><td>TARS, the turn hook: runs before every message in Claude Code and reports what changed</td></tr>
     </table>
   </section>
 
@@ -500,10 +502,8 @@
 
       <div class="step"><div class="num">3</div><div class="body">
         <b>Grant permissions at dispatch time, while you're still at the screen.</b><br>
-        Two prompts appear per operation and both are one-time. MOTHER asks once for permission to write
-        the board — click <b>Run now</b> on her task, then <b>"Allow for all scheduled runs"</b>, and she's
-        silent forever after. Each specialist's first <code>/go</code> may ask for folder or web access.
-        Handle both in the same breath as the dispatch; a permission dialog that finds you twenty minutes
+        One prompt can appear per operation, and it's one-time: each specialist's first <code>/go</code> may ask for folder or web access.
+        Handle it in the same breath as the dispatch; a permission dialog that finds you twenty minutes
         later, in a session you weren't watching, feels like a bug and stalls the whole mission until you
         happen to notice it.
       </div></div>
@@ -515,16 +515,18 @@
       <tr><td>A session asks for folder access every time</td><td>That project's Context points at the member subfolder instead of the team root. Fix #1 above.</td></tr>
       <tr><td>A specialist has no row in the Gopher registry</td><td>Their Project Instructions are stale — the registration clause is missing. Re-paste the block. This is a reliable tell, not a mystery.</td></tr>
       <tr><td>Board says PENDING but the deliverable already exists</td><td>Trust the disk. Order of authority: <code>mission-complete.md</code> &gt; deliverable files &gt; board row &gt; registry &gt; silence. <code>/status</code> flags these disagreements for you.</td></tr>
-      <tr><td>MOTHER keeps asking permission every run</td><td>Her task prompt was edited after approval was granted, which appears to clear stored grants. Grant once more and leave the prompt alone.</td></tr>
+      <tr><td>Old MOTHER tasks still in your scheduled tasks</td><td>Leftovers from before v4.2.0. Remove them: TARS does that job now, and a leftover task would watch the same mission twice. <code>/diagnostic</code> flags them.</td></tr>
+      <tr><td>Checkpoints arrive twice</td><td>Another turn-counting hook is still registered in your Claude Code settings. Remove it; TARS owns checkpoints. <code>/diagnostic</code> flags it.</td></tr>
+      <tr><td>TARS never says anything</td><td>You're in Cowork's lite mode, where hooks don't reliably run, or on Windows without Git Bash. TARS runs in Claude Code. If nothing changed, silence is correct.</td></tr>
       <tr><td>Plugin update button is greyed out at an old version</td><td>Your app cached the marketplace at add-time. Remove the marketplace entirely, restart the app, re-add it, install.</td></tr>
       <tr><td><code>/go</code> says the brief is already closed out</td><td>Working as intended — the mission on that board row is COMPLETE, so it refused to re-run stale orders. Dispatch fresh work.</td></tr>
     </table>
 
-    <div class="note" style="margin-top:24px"><b>One thing the system can't do:</b> a session cannot push a message into another session's chat, and a scheduled watcher cannot switch itself off. That's why MOTHER writes to an inbox and asks the Overmind to reap her, and why status is something you pull with <code>/status</code> rather than something that interrupts you. Everything else is automatic.</div>
+    <div class="note" style="margin-top:24px"><b>One thing the system can't do:</b> a session cannot push a message into another session's chat. That's why TARS reports inside the session you're using rather than anywhere else, why nothing watches while no session is open, and why your Overmind's startup check catches up on whatever happened while you were away. Everything else is automatic.</div>
   </section>
 
   <footer>
-    <span>ai-overmind v4.1.4 — Tucker Brady</span>
+    <span>ai-overmind v4.2.0 — Tucker Brady</span>
     <span class="status">● OVERMIND STANDING BY</span>
   </footer>
 

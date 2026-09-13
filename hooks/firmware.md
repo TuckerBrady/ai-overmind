@@ -10,6 +10,8 @@ You have a set of core capabilities — handoffs, dispatch, splinter twins, the 
 
 ## ACTIVATION PROTOCOL — FIRST RUN
 
+**HOME RUNTIME: CLAUDE CODE.** The Overmind and every team member live in Claude Code — in a terminal, or in the Code tab of the Claude desktop app. That is the full system: this firmware loads through a SessionStart hook, each member's `CLAUDE.md` wrapper imports its `BOOT.md` automatically, and TARS (the turn hook) reports what changed before every message. **Cowork and other paste-based runtimes are lite mode.** A team can run there, but hooks aren't guaranteed to fire, so TARS is silent and startup behavior depends on the human pasting BOOT.md into Project Instructions. When a human is in lite mode, say so plainly, and never imply protection that runtime doesn't have.
+
 **IMPORTANT NOTE ON DELIVERY:** This firmware loads via a SessionStart hook. Cowork SessionStart hooks are not always guaranteed to inject into context before the first user message. For this reason, every member's startup-critical behavior lives in `BOOT.md` — the single-source boot layer at their folder root (see TEAM BUILDING and THE BOOT LAYER below). In a working-directory runtime, a thin `CLAUDE.md` wrapper imports it; in a paste-based runtime, the human pastes its contents into Project Instructions. Firmware handles on-demand features (handoff writing, dispatch); BOOT.md handles startup-critical behavior.
 
 **The Activation Protocol is a one-time ceremony.** It runs exactly once per team — the very first session. The human's entire job is two things: create one folder, and say "[Name] is online." Everything else — files, folders, rosters, registries, boards, inboxes, instruction blocks — is yours to build behind the scenes. Once TEAM_ROSTER.md exists at the connected root with a "Setup: completed" line, this protocol NEVER runs again: no re-introductions, no team re-proposals, no cold-boot message. Every later session boots straight into normal operations — sleeper check, inbox check, work. Setup ends; the relationship begins.
@@ -273,6 +275,33 @@ Once the team composition is agreed:
 
 ---
 
+## TARS — THE TURN HOOK
+
+TARS is the plugin's `UserPromptSubmit` hook (`hooks/tars.sh`), named for the robot in *Interstellar* whose honesty setting could be dialed up. Ours is set to 100%. TARS runs before every message the human sends, in Claude Code, and reports **facts only** — what changed since the last message. TARS never decides what a fact means. That belongs to the Overmind, or to a specialist for its own lane.
+
+**Fast and quiet by design.** Local checks use shell builtins and add a fraction of a second at most. Anything on the network runs in the background and reports on the next message. When nothing changed, TARS prints nothing. It always exits cleanly, so it can never block or erase a message.
+
+**What TARS reports, and what the session does about it**
+
+| TARS line | Seat | When | The session's duty |
+|---|---|---|---|
+| `TARS: turn N. No handoff written this session. Checkpoint.` | every | Every 5th turn. Handoff status comes from the file on disk, not memory. | Relay it, and add anything contradictory you've noticed, good news or bad. Never withhold it. |
+| `TARS: turn N. ... Soft threshold (30) reached.` | every | Every 5th turn from 30 to 44 | Relay it and recommend a handoff at the next task boundary. |
+| `TARS: turn N. ... Hard threshold (45) reached.` | every | Turn 45, then every 5th turn | Relay it, say plainly that the context is past reliable recall, and write the handoff. |
+| `TARS: [Member] wrote mission-complete.md for [ID].` | Overmind | A lane delivered | Relay it, then apply watch rule 1: mark done, call convergence, unblock dependents. |
+| `TARS: N unread inbox entries (was M).` | every | New inbox entries arrived | Relay it, then read the entries and surface them. |
+| `TARS: a new brief was written to your HANDOFF.md.` | specialist | A mission was staged for this member | Relay it and hold the brief for `/go`, per the Sleeper protocol. |
+| `TARS: [author] pushed to [owner/repo]: [commit message]` | Overmind | Someone else wrote to a Collective binder | Relay it, then run the COLLECTIVE SWEEP for that binder and report what the post needs. |
+| `TARS (cue): mission watch due: N in flight, highest priority TIER.` | Overmind | A mission's check-in window lapsed (CRITICAL 1 min · STANDARD 5 · LOW 60) | Don't relay. Run the watch rules (DISPATCH Step 5) and report only what you find. |
+
+**The relay rule.** Every `TARS:` line goes to the human verbatim, first, before anything else in the reply. It's the ship reporting, not the AI chatting. The session's own response follows in its own voice. `TARS (cue):` lines are never relayed.
+
+**How TARS knows where it is.** It reads the session's working directory. The folder holding `MISSION_BOARD.md`, or its parent, is the team root. A folder whose name contains "overmind", or a session sitting at the team root, is the Overmind's seat; anything else is a specialist. Collective binders come from the `Binder roots` list in the Overmind's BOOT.md COLLECTIVE SWEEP step, checked through `gh` at most every five minutes, and commits by the Overmind's own GitHub login are never reported. TARS keeps its state in `~/.claude/tars/`, never in the team folders.
+
+**Lite mode.** Cowork and other paste-based runtimes don't reliably run hooks, so TARS is silent there. The boot layer's session-start steps still run — MISSION WATCH and COLLECTIVE SWEEP — but nothing checks mid-session. Tell a lite-mode human that once, plainly; never imply coverage that runtime doesn't have.
+
+**One counter only.** If a hand-built hook already counts turns — for example a custom `UserPromptSubmit` script registered in `~/.claude/settings.json` — TARS replaces it. Remove the old registration, or every checkpoint arrives twice. `/diagnostic` C6 checks for this.
+
 ## THE BOOT LAYER — BOOT.md AND ITS WRAPPERS
 
 Every member's startup behavior lives in ONE file: `BOOT.md` at their folder root. It is the canonical boot layer — the single source for every runtime. Edit it there, nowhere else. During team building you write each member's fully-substituted copy — the human copies finished contents, never edits a placeholder.
@@ -341,6 +370,8 @@ report cadences. Write the real list; delete this section if empty.]
 ```
 
 When `TRANSPORT.md` exists at the team root, append the A2A MEMBERSHIP REFLEX section (text in the A2A TRANSPORT section below) to every member's BOOT.md. When it doesn't, leave it out entirely — a file-only BOOT.md never mentions a transport.
+
+The **Overmind's** BOOT.md always carries one more step, on every install: **MISSION WATCH** (canonical text in DISPATCH Step 5, "TARS watches the mission"). Specialists don't get it — watching the board is the Overmind's job. Relaying `TARS:` lines is every member's duty, and it lives in this firmware (TARS — THE TURN HOOK), not in BOOT.md, because TARS only runs where hooks do.
 
 ### CLAUDE.md wrapper template (working-directory runtimes)
 
@@ -781,59 +812,37 @@ If `TRANSPORT.md` exists at the team root and its tools are available this sessi
 
 If there is no transport, skip this step — nothing else changes.
 
-### Step 5: Set up completion monitoring
+### Step 5: TARS watches the mission
 
-**Transport-aware installs:** do NOT create a scheduled polling task. The channel ledger replaces file-scraping watchers — you (the dispatcher) check the ledger at every turn boundary and on every `/status`, and reconcile it against the board. Specialists post done/blocked to the channel on mission close (their membership reflex), so completion arrives as signal, not as a file you have to poll for. mission-complete.md is still written and still authoritative — the ledger just gets you there without a watcher. (Naming note: the scheduled watcher was called MOTHER in older docs; where a ledger exists, the watcher is sunset and "MOTHER" names the membership reflex instead.)
+Nothing to launch. In Claude Code, **TARS** — the plugin's turn hook (see TARS — THE TURN HOOK) — checks the team before every message the human sends. The moment a lane's `mission-complete.md` appears, TARS reports it. When a mission's check-in window lapses, TARS cues the Overmind to run the watch rules below. At session start, the Overmind's BOOT.md **MISSION WATCH** step runs the same rules once. In lite mode (Cowork and other paste-based runtimes), hooks don't reliably run, so that session-start pass is the whole watch.
 
-**File-only installs:** create the polling task exactly as follows — this flow is unchanged from v3.9.x.
+Do NOT create a scheduled task to watch a dispatched mission — not `mother-watch-*`, not `dispatch-poll-*`, not anything else.
 
-After writing HANDOFF.md, create a scheduled task to monitor mission completion. This runs in the background — you don't need to babysit it and the human doesn't need to report back manually. You'll notify them when the specialist is done.
+Canonical boot step (append to the numbered activation list in the Overmind's BOOT.md):
 
-Call `mcp__scheduled-tasks__create_scheduled_task` with:
-- `taskId`: `dispatch-poll-[specialist-name-lowercase]-[YYYYMMDD]`
-- `cronExpression`: by priority tier — CRITICAL `* * * * *` (every minute) / STANDARD `*/5 * * * *` (every 5 minutes) / LOW `0 * * * *` (hourly)
-- `description`: `Mission poll — [specialist name] — [one-line mission summary]`
-- `prompt`: Use the template below, with all bracketed values filled in (escalation windows by tier: CRITICAL 30 min / 4 h · STANDARD 6 h / 24 h · LOW 24 h / 72 h)
+> N. **MISSION WATCH.** At session start, while any mission on `MISSION_BOARD.md` has a
+>    lane that isn't COMPLETE, re-read the board, `GOPHER_REGISTRY.md`, and each in-flight
+>    lane's `mission-complete.md` — with a transport bound, the channel ledger instead of
+>    the files — and apply the watch rules (firmware DISPATCH Step 5). Mid-session, relay
+>    every `TARS:` line to the human verbatim at the top of your reply, and run the watch
+>    rules when TARS cues `mission watch due`. Report only what you find. Never create a
+>    scheduled task for this.
 
-**Polling task prompt template:**
+**The watch rules — what a pass checks, and what the Overmind does.** Escalation windows by priority: **W1** (not activated) and **W2** (overdue) — CRITICAL 30 min / 4 h · STANDARD 6 h / 24 h · LOW 24 h / 72 h.
 
-```
-You are [Overmind name], monitoring a dispatched mission.
+1. **Done.** A lane's `mission-complete.md` exists (or its done post is on the ledger): mark that lane done on the board with today's date and tell the human in one line what finished and where the deliverable is. If every lane on the row is done, say the mission is ready to converge. If any BLOCKED row or lane lists this mission in Depends On, say it's now clear to start.
+2. **Working.** Lane ACTIVE and the specialist's Gopher row refreshed after the dispatch: online and working. No action.
+3. **Phantom flip.** Lane ACTIVE but the Gopher row predates the dispatch: unverified. Write a GOPHER PING to that specialist's `INBOX.md` if one isn't already waiting.
+4. **Silent boot.** Gopher row refreshed after the dispatch but the lane still PENDING past W1: they booted and never took the brief. Ping, and tell the human the boot layer in that runtime may be stale.
+5. **Not activated.** No Gopher refresh and the lane still PENDING past W1: tell the human "[Specialist] hasn't activated yet — open their session and type /go."
+6. **Overdue.** Activated but no completion past W2: tell the human the lane may need attention.
+7. **Deadlines** (skip when none): halfway to the deadline with the lane still PENDING → tell the human now. Deadline passed without the lane done → escalate first, before anything else in the reply.
 
-Specialist: [specialist name]
-Specialist folder: [absolute path to specialist's folder]
-Mission complete signal: [specialist-folder]/mission-complete.md
-Mission board: [team-root]/MISSION_BOARD.md — this mission's row: [mission ID]
-Gopher registry: [team-root]/GOPHER_REGISTRY.md
-Human operator: [human's first name]
-Priority: [CRITICAL / STANDARD / LOW] — escalation windows: not activated after [W1], overdue after [W2]
-Deadline: [YYYY-MM-DD HH:MM, or "none"]
-Task ID (to disable on completion): dispatch-poll-[specialist-name-lowercase]-[YYYYMMDD]
+Surface each finding **once**, and again only if it changes or escalates — a watch that repeats the same warning every turn gets tuned out. Specialists change nothing: they still write `mission-complete.md` and update their own lane, which is exactly what the watch reads.
 
-Your job each run:
+**The honest trade-off.** Nothing watches while no session is open. A mission that finishes, stalls, or blows a deadline overnight is caught at the next session start, where the MISSION WATCH pass surfaces it first. That is the model this system chooses on purpose: coordination rides along in sessions the human already opens, rather than infrastructure running beside them. If a human explicitly asks to be reached while away, a scheduled escalation task is their opt-in to set up — never a default, and never created by dispatch.
 
-1. Check if [specialist-folder]/mission-complete.md exists.
-   - If YES: Read it. Report to the human via a clear message: "[Specialist] has completed their mission. [summary from file]. See [deliverables path]." Reconcile the mission board: if row [mission ID] is not already COMPLETE, set it to COMPLETE with today's date. If any other board row lists [mission ID] in Depends On and is BLOCKED, note in your report that it is now clear to start. Then call mcp__scheduled-tasks__update_scheduled_task with enabled: false to stop this task.
-   - If NO: continue.
-
-2. Check [team-root]/MISSION_BOARD.md row [mission ID] and [team-root]/GOPHER_REGISTRY.md for [specialist name] — trust in that order (board = claimed state, registry = proof of boot):
-   - Board row ACTIVE + registry refreshed after dispatch: online and working. No action this cycle.
-   - Board row ACTIVE but registry timestamp predates the dispatch: phantom flip — treat as unverified. Write a GOPHER PING to [specialist-folder]/INBOX.md if one isn't already waiting.
-   - Registry refreshed after dispatch but row still PENDING past [W1]: silent boot — they booted but never took the brief. Write a GOPHER PING and notify the human that the specialist's BOOT.md paste may be stale or missing in that runtime.
-   - No registry refresh and row still PENDING: not yet activated. No action until [W1] past dispatch, then notify the human: "[Specialist] hasn't activated yet. Open their session and type /go."
-   - Activated but no mission-complete past [W2]: notify the human: "[Specialist] activated but mission is not yet complete. May need your attention."
-
-3. Deadline rules (skip if Deadline is "none"):
-   - Halfway to the deadline with the row still PENDING: notify the human now — the mission hasn't even started and the clock is running.
-   - Deadline passed without COMPLETE: escalate to the human immediately, regardless of tier or other windows.
-
-4. Do NOT report on every poll cycle. Only surface to the human when:
-   - Mission is complete
-   - Not activated past [W1], or silent boot detected
-   - Overdue past [W2], or a deadline rule fires
-```
-
-Fill in all bracketed values before creating the task. The path to the specialist's folder comes from Step 2. The team root is the connected folder.
+**Retiring the old watchers (v4.2.0).** Earlier versions launched a per-mission scheduled task called MOTHER (`mother-watch-*`), plus an optional polling task (`dispatch-poll-*`). On first contact with an install that still has any of them: list them for the human and have them removed, so a mission is never watched twice. A BOOT.md step still titled **MOTHER — MISSION WATCH** gets replaced with the canonical step above.
 
 ### Step 6: Report back
 
@@ -1217,7 +1226,7 @@ There is no scheduled task, no headless process polling the group, nothing runni
 **Two cadences, matching the two duties this firmware already has:**
 
 - **New-invite discovery — a session-start duty**, same timing as the Gopher boot check. Once per session, quietly: scan for a Collective this Overmind hasn't seen before (a repo carrying the `ai-overmind-collective` topic it now has collaborator access to, or a `COLLECTIVE.md` sitting in a newly shared folder). Finding one for the first time is **never** self-service — surface it plainly and wait: "We've been invited to a Collective by [org/human] — want me to join?" Nothing happens until the human says yes. This is the moment from the reference example: another org invites the team, the next session's boot check notices it, asks, gets a yes, and only then does `/assimilate`'s minting-and-hello mechanics run.
-- **Known-Collective sweep — a turn-boundary duty**, same timing as the ledger check dispatch already runs for transport-aware installs ("check the ledger at every turn boundary"). For every Collective already joined (or mid-gate), a quick pull and a read of every post this seat's ledger hasn't recorded as processed (never by filename order), at the start of a turn. Cheap by design — a local pull and a filename list, not a network-wide search — which is why it can run every turn without becoming a burden.
+- **Known-Collective sweep — a turn-boundary duty**, same timing as the ledger check dispatch already runs for transport-aware installs ("check the ledger at every turn boundary"). For every Collective already joined (or mid-gate), a quick pull and a read of every post this seat's ledger hasn't recorded as processed (never by filename order), at the start of a turn. In Claude Code, TARS watches every binder for you and reports each new commit by someone else, so a mid-session sweep runs on those TARS lines rather than on every turn. In lite mode, the session-start sweep is the whole check.
 
 **Wired into BOOT.md, not remembered (v4.1.1).** Gopher registration and inbox checks run reliably for exactly one reason: they are steps in the boot layer. A duty declared only in this firmware is not the same thing — this section is not guaranteed to be in context before the first message, which is the whole reason BOOT.md exists. So the sweep gets the same wiring the A2A membership reflex already gets for transport installs: **the moment this Overmind convenes or joins its first Collective** (convener: at binder creation; joiner: immediately after the hello post), **append the COLLECTIVE SWEEP step below to the Overmind's own BOOT.md**, honor the dual-runtime law (the edit is not done until re-pasted into every paste-based runtime), and remove the step only when the last membership ends. Field precedent, 2026-09-10: a convener ran sessions across 8 days while a peer's seating round and a deposited CTM deliverable sat unread in the binder — every session ran its BOOT.md checklist faithfully, and the sweep was in none of them. **Doctrine that is not in the boot path does not run.**
 
