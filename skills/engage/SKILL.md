@@ -3,8 +3,9 @@ name: engage
 description: >
   Activate a brand-new Overmind and build its team. Use when the human types /engage,
   optionally with their first name ("/engage Sarah"), says "engage", or uses the legacy
-  phrase "[FirstName] is online". One time per team: if a team already exists here
-  (TEAM_ROSTER.md with a "Setup: completed" line), never rebuild it; report status instead.
+  phrase "[FirstName] is online". One time per team: if there is any sign of a team here
+  (a TEAM_ROSTER.md, member BOOT.md files, or a session that already has an identity),
+  never rebuild it; report status instead.
 ---
 
 # /engage — Overmind Activation
