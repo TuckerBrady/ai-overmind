@@ -77,10 +77,15 @@ member folder maps to a roster entry. Orphans in either direction → FAIL, *fix
 skill's sync pass (`/overmind` → roster → sync), which reconciles roster, folders, bootstraps,
 and dispatch roster in one pass.
 
-**B4 — Member files at folder root.** For each member folder: persona file present, `INBOX.md`
+**B4 — Member files at folder root.** For each member folder: persona in the boot layer, `INBOX.md`
 present. All cross-session files live at the **folder root** — never under `.auto-memory/`,
 which is not the project folder. Missing `INBOX.md` → create it, then PASS with a note.
-Missing persona → FAIL, *fix:* regenerate via the roster skill.
+Persona: `BOOT.md` has a `## Persona` section → PASS. No Persona section, but a legacy
+`feedback_[name]_persona.md` exists → WARN, *fix:* fold the file's content into BOOT.md verbatim
+as a `## Persona` section right after `## Identity`, stub the old file to a one-line pointer
+(never delete it without asking), and re-paste BOOT.md into any paste-based runtime — the
+firmware's legacy persona migration. Neither → FAIL, *fix:* regenerate the Persona section via
+the roster skill.
 
 **B5 — Boot layer per member.** Each member folder must be in one of two recognizable states:
 
@@ -225,10 +230,10 @@ dispatch, and grade accordingly.
 
 ### Report — Level 3
 
-A single table, one row per check, `PASS / FAIL / SKIP`. Then:
+A single table, one row per check, `PASS / WARN / FAIL / SKIP`. Then:
 
-- **Verdict** — one line. `ALL SYSTEMS NOMINAL — n checks passed` or `n FAIL, m SKIP`.
-- **Fixes** — only the failed checks, each with its remedy, ordered by what to do first.
+- **Verdict** — one line. `ALL SYSTEMS NOMINAL — n checks passed` or `n FAIL, m WARN, k SKIP`.
+- **Fixes** — only the failed and warned checks, each with its remedy, ordered by what to do first.
 - Nothing else. No narration of checks that passed.
 
 ---
@@ -270,7 +275,7 @@ mystery.
 
 1. **Write the audit file** at the team root: `SETUP_AUDIT_[YYYY-MM-DD].md` — one row per roster
    member, columns: Asset · Role · Team root reachable · Board readable · Own INBOX exists ·
-   Persona present · Gopher row at boot · Signed (HH:MM). Then a **Notes** section, one line per
+   Persona in BOOT.md · Gopher row at boot · Signed (HH:MM). Then a **Notes** section, one line per
    asset, "be specific."
 2. **Sign your own row first** as the Overmind, so the format is unambiguous.
 3. **Dispatch the audit** to every specialist via the dispatch skill — CRITICAL, one shared

@@ -158,7 +158,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v4.3.2</div>
+    <div class="ver">v4.4.0</div>
     <p class="tag">Build and run a personal AI team. <strong>One command and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -185,6 +185,7 @@
     <h2><span class="idx">01</span>What's New</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>The persona lives inside BOOT.md (v4.4.0)</b> — Each member's voice now lives in a <code>## Persona</code> section of their BOOT.md instead of a separate persona file, so it stays loaded all session and survives compaction. Existing persona files are copied in verbatim and left as a one-line pointer.</div>
       <div class="new-item"><b>TARS speaks in italics (v4.3.2)</b> — The Overmind relays every <code>TARS:</code> line in italics, so the ship's report reads apart from the session's own voice.</div>
       <div class="new-item"><b>Sessions name themselves (v4.3.1)</b> — <code>/go</code> now renames the session to the mission it's running, such as <code>OPS-025 — TARS live test</code>, and every handoff and brief opens with that title in a code block you can copy with one click. TARS also stops reporting a new handoff when <code>/go</code> has only stamped the old one.</div>
       <div class="new-item"><b>/engage and /go, no phrases (v4.3.0)</b> — "[YourFirstName] is online" is replaced by <code>/engage</code>, named for Captain Picard's order. Type it in your team's folder, and it asks your name if you didn't include it. It runs setup once and refuses to rebuild if it sees any sign of an existing team. Handoffs now activate on <code>/go</code>, the same as dispatched missions, so there's no passphrase to remember. Before activating, <code>/go</code> shows which handoff it is and when it was written, refuses one meant for another seat, asks before running one over a week old, and stamps it so it can't silently run twice. Old handoffs with a passphrase activate on <code>/go</code> too.</div>
@@ -270,7 +271,7 @@
 &#9474;    &#9492;&#9472; (deliverables)
 &#9492;&#9472; [Role]/                        one folder per specialist
       &#9500;&#9472; [Role] Bootstrap Prompt.docx   identity — written once
-      &#9500;&#9472; feedback_[name]_persona.md     voice — twins hydrate from these
+      &#9500;&#9472; BOOT.md                        boot layer + persona — twins hydrate from it
       &#9500;&#9472; Project Instructions.md        ready-to-paste block
       &#9500;&#9472; HANDOFF.md                     mission brief — dispatcher writes
       &#9500;&#9472; INBOX.md                       lateral notes — anyone appends
@@ -286,7 +287,7 @@
       <div class="card">
         <div class="icon">🧠</div>
         <h3>Team Building</h3>
-        <p>The Overmind interviews you about your role and proposes 5–8 AI specialists tailored to your actual work. Each gets a human name, a defined domain, a bootstrap file, a persona file, and an inbox. Approve the team and it builds one team-root folder with shared state at the top and a subfolder per specialist. Every project — Overmind and specialists — connects that same root; identity comes from Project Instructions.</p>
+        <p>The Overmind interviews you about your role and proposes 5–8 AI specialists tailored to your actual work. Each gets a human name, a defined domain, a bootstrap file, a boot layer (BOOT.md) that carries their persona, and an inbox. Approve the team and it builds one team-root folder with shared state at the top and a subfolder per specialist. Every project — Overmind and specialists — connects that same root; identity comes from Project Instructions.</p>
       </div>
       <div class="card">
         <div class="icon">📡</div>
@@ -528,7 +529,7 @@
   </section>
 
   <footer>
-    <span>ai-overmind v4.3.2 — Tucker Brady</span>
+    <span>ai-overmind v4.4.0 — Tucker Brady</span>
     <span class="status">● OVERMIND STANDING BY</span>
   </footer>
 

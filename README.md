@@ -1,4 +1,4 @@
-# ai-overmind v4.3.2
+# ai-overmind v4.4.0
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,13 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.4.0
+
+**The persona lives inside BOOT.md.**
+
+- **No more voice slippage mid-session.** Each member's full voice now lives in a `## Persona` section of their BOOT.md, right after `## Identity`. In Claude Code, BOOT.md stays in system context all session and survives compaction; a separate persona file read by a tool call got summarized away. A voice edit is now a BOOT.md edit.
+- **Existing installs migrate on offer.** The Overmind copies each `feedback_[name]_persona.md` into BOOT.md verbatim and leaves the old file as a one-line pointer. `/diagnostic` warns about any member still on a separate persona file, and splinter twins hydrate from the Persona section.
 
 ## What's New in v4.3.2
 
@@ -206,7 +213,7 @@ Setup runs once. After that, every session boots straight into work.
 
 ### 1 — Team Building
 
-The Overmind interviews you about your role and proposes 5–8 AI specialists tailored to your actual work. Each specialist gets a human name, a defined domain, a bootstrap file, a persona file, and an inbox. Once you approve the team, it builds the full structure on your machine: one team-root folder holding the shared state files and one subfolder per specialist. Every Cowork project — the Overmind's and each specialist's — connects that same root folder; each session's identity comes from its Project Instructions.
+The Overmind interviews you about your role and proposes 5–8 AI specialists tailored to your actual work. Each specialist gets a human name, a defined domain, a bootstrap file, a boot layer (BOOT.md) that carries their persona, and an inbox. Once you approve the team, it builds the full structure on your machine: one team-root folder holding the shared state files and one subfolder per specialist. Every Cowork project — the Overmind's and each specialist's — connects that same root folder; each session's identity comes from its Project Instructions.
 
 After the build, the Overmind walks you through how to deploy each session and how to use handoffs and dispatch.
 
@@ -241,7 +248,7 @@ Any session can dispatch, not just the Overmind. Specialists can brief each othe
 
 ### 4 — Splinter Twins
 
-Not everything deserves a mission brief. When you need something quick from a specialist's domain — a question answered, a file reviewed, a small draft — the Overmind spawns a **twin**: a temporary in-session subagent that reads the specialist's own bootstrap and persona files, does the task in their voice and to their standards, reports back signed "[Name] (twin)", and dissolves.
+Not everything deserves a mission brief. When you need something quick from a specialist's domain — a question answered, a file reviewed, a small draft — the Overmind spawns a **twin**: a temporary in-session subagent that reads the specialist's own bootstrap and the persona section of their BOOT.md, does the task in their voice and to their standards, reports back signed "[Name] (twin)", and dissolves.
 
 No new session. No passphrase. The real specialist's session, memory, and files are untouched.
 
