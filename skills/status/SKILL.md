@@ -98,7 +98,7 @@ owns it. Update your own lane's state in the mission's status cell instead.
 
 **In Claude Code, that standing duty is TARS** — the plugin's turn hook. It runs before every
 message and reports facts: deliveries, inbox growth, a newly staged brief, Collective pushes, and
-turn checkpoints. Relay every `TARS:` line verbatim at the top of your reply, then act on it. In the
+turn checkpoints. Relay every `TARS:` line verbatim, in italics, at the top of your reply, then act on it. In the
 Overmind's session, run the watch rules when TARS cues `mission watch due`. No TARS lines, no
 mention; never narrate a check that found nothing.
 
