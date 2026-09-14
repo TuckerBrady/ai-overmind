@@ -1,4 +1,4 @@
-# ai-overmind v4.3.1
+# ai-overmind v4.3.2
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,12 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.3.2
+
+**TARS speaks in italics.**
+
+- **Relayed `TARS:` lines are italicized.** The Overmind still relays every TARS line verbatim and first, now wrapped in italics (*TARS: turn 5. No handoff written this session. Checkpoint.*), so the ship's report reads apart from the session's own voice. The hook's output is unchanged.
 
 ## What's New in v4.3.1
 
@@ -35,7 +41,7 @@ Eleven capabilities work out of the box: **team building**, **handoffs**, **disp
   - a push to one of your Collective binders by someone else, checked in the background at most every five minutes
   - a cue for the Overmind to run the watch rules when a mission's check-in window lapses
 
-  The Overmind relays every `TARS:` line verbatim, then decides what it means. When nothing changed, TARS prints nothing. A quiet message costs roughly 80 ms on top of starting the shell.
+  The Overmind relays every `TARS:` line verbatim and in italics, then decides what it means. When nothing changed, TARS prints nothing. A quiet message costs roughly 80 ms on top of starting the shell.
 - **Claude Code is home.** The Overmind and every team member live in Claude Code, where hooks run and `CLAUDE.md` loads each member's boot layer automatically. Cowork still works, as **lite mode**: hooks don't reliably fire there, so TARS is silent and the boot layer's session-start checks are the whole watch.
 - **`/dispatch`:** no scheduled tasks and nothing to approve or stand down. It confirms the Overmind's BOOT.md carries the MISSION WATCH step.
 - **`/status`:** its standing duty is TARS.

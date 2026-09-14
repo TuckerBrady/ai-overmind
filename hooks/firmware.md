@@ -291,7 +291,7 @@ TARS is the plugin's `UserPromptSubmit` hook (`hooks/tars.sh`), named for the ro
 | `TARS: [author] pushed to [owner/repo]: [commit message]` | Overmind | Someone else wrote to a Collective binder | Relay it, then run the COLLECTIVE SWEEP for that binder and report what the post needs. |
 | `TARS (cue): mission watch due: N in flight, highest priority TIER.` | Overmind | A mission's check-in window lapsed (CRITICAL 1 min · STANDARD 5 · LOW 60) | Don't relay. Run the watch rules (DISPATCH Step 5) and report only what you find. |
 
-**The relay rule.** Every `TARS:` line goes to the human verbatim, first, before anything else in the reply. It's the ship reporting, not the AI chatting. The session's own response follows in its own voice. `TARS (cue):` lines are never relayed.
+**The relay rule.** Every `TARS:` line goes to the human verbatim and in italics, first, before anything else in the reply. Wrap each line in single asterisks as its own paragraph (`*TARS: turn 5. No handoff written this session. Checkpoint.*`) so the ship's report reads apart from the session's voice. It's the ship reporting, not the AI chatting. The session's own response follows in its own voice. `TARS (cue):` lines are never relayed.
 
 **How TARS knows where it is.** It reads the session's working directory. The folder holding `MISSION_BOARD.md`, or its parent, is the team root. A folder whose name contains "overmind", or a session sitting at the team root, is the Overmind's seat; anything else is a specialist. Collective binders come from the `Binder roots` list in the Overmind's BOOT.md COLLECTIVE SWEEP step, checked through `gh` at most every five minutes, and commits by the Overmind's own GitHub login are never reported. TARS keeps its state in `~/.claude/tars/`, never in the team folders.
 
@@ -831,7 +831,7 @@ Canonical boot step (append to the numbered activation list in the Overmind's BO
 >    lane that isn't COMPLETE, re-read the board, `GOPHER_REGISTRY.md`, and each in-flight
 >    lane's `mission-complete.md` — with a transport bound, the channel ledger instead of
 >    the files — and apply the watch rules (firmware DISPATCH Step 5). Mid-session, relay
->    every `TARS:` line to the human verbatim at the top of your reply, and run the watch
+>    every `TARS:` line to the human verbatim, in italics, at the top of your reply, and run the watch
 >    rules when TARS cues `mission watch due`. Report only what you find. Never create a
 >    scheduled task for this.
 
