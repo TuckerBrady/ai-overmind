@@ -1,15 +1,22 @@
 {
   "name": "ai-overmind",
-  "version": "4.4.1",
-  "description": "Build and run a personal AI team. One activation phrase and your Overmind wakes up, learns your role, proposes a custom team of AI specialists, and builds their project structure \u2014 ready to deploy.",
+  "version": "4.4.2",
+  "description": "Build and run a personal AI team in Claude Code. Type /engage and your Overmind learns your role, proposes a custom team of AI specialists, and builds a boot layer and folder for each one. Handoffs, dispatch, a mission board, and a turn hook that reports what changed before every message.",
   "author": {
-    "name": "Tucker Brady"
+    "name": "Tucker Brady",
+    "url": "https://github.com/TuckerBrady"
   },
+  "homepage": "https://tuckerbrady.github.io/ai-overmind/",
+  "repository": "https://github.com/TuckerBrady/ai-overmind",
+  "license": "MIT",
   "keywords": [
     "ai-team",
     "overmind",
     "team-builder",
     "automation",
-    "productivity"
+    "productivity",
+    "claude-code",
+    "multi-agent",
+    "handoffs"
   ]
 }
