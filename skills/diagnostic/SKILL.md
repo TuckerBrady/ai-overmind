@@ -83,7 +83,7 @@ which is not the project folder. Missing `INBOX.md` → create it, then PASS wit
 Persona: `BOOT.md` has a `## Persona` section → PASS. No Persona section, but a legacy
 `feedback_[name]_persona.md` exists → WARN, *fix:* fold the file's content into BOOT.md verbatim
 as a `## Persona` section right after `## Identity`, stub the old file to a one-line pointer
-(never delete it without asking), and re-paste BOOT.md into any paste-based runtime — the
+(never delete it without asking), and the Overmind updates any paste-based runtime — the
 firmware's legacy persona migration. Neither → FAIL, *fix:* regenerate the Persona section via
 the roster skill.
 
@@ -147,17 +147,17 @@ design, and asking implies it should.
 ### C · Identity & activation wiring
 
 **C1 — Identity resolves.** You can state your member name and folder from Project Instructions.
-If you cannot tell who you are → FAIL, *fix:* paste the Sleeper Activation block for this member
-into the project's Instructions (generate it with `/overmind`).
+If you cannot tell who you are → FAIL, *fix:* the Overmind writes this member's BOOT.md contents
+into the project's Instructions (generate it with `/overmind` if missing).
 
 **C2 — Sleeper block is current.** The block in your Instructions must contain all three boot
 duties — read `HANDOFF.md`, check `INBOX.md`, **write your row to `GOPHER_REGISTRY.md`** — and
 must accept `/go` as an activation trigger. A block missing the registration clause is the
 pre-v3.9.2 version: it registered only via the SessionStart hook, which is not guaranteed to
 arrive before the first message, making boot registration a coin flip. → FAIL, *fix:* regenerate
-and re-paste the block for every project, not just this one. In the current layout the canonical
-source is the member's `BOOT.md` — edit there, and remember the dual-runtime law: a boot edit is
-not done until it's re-pasted into every paste-based runtime.
+and the Overmind updates the block for every project, not just this one. In the current layout the
+canonical source is the member's `BOOT.md` — edit there, and remember the dual-runtime law: a boot
+edit is not done until the Overmind has updated every paste-based runtime.
 
 **C3 — Own Gopher row.** Your row exists in `GOPHER_REGISTRY.md`. Report its age: fresh (<6 h),
 stale (>6 h), dormant (>48 h), or absent. Absent or dormant → refresh it now and note that you
@@ -173,12 +173,14 @@ evidence lands, so a paper member usually means that tracking was skipped.
 membership (an `Overmind/.genesis-seed` exists AND a binder root is recorded in `COLLECTIVE.md`,
 memory, or the mission board). If so, the Overmind's `BOOT.md` must carry a COLLECTIVE SWEEP step
 naming every binder root. Membership without the boot step → FAIL, *fix:* append the canonical
-step from the firmware's THE COLLECTIVE SWEEP section, then re-paste per the dual-runtime law.
+step from the firmware's THE COLLECTIVE SWEEP section, then the Overmind updates any paste-based
+runtime per the dual-runtime law.
 This is the v4.1.1 field fix: a convener once sat 8 days deaf to its own binder because the sweep
 lived in doctrine, not in boot. Then check each ledger:
 
 - **Format.** A format-1 ledger (only `acked-through: <post-id>`) → FAIL, *fix:* migrate per the
-  collective skill's Ledgers rule and re-paste the canonical sweep step. Filename-order catchup
+  collective skill's Ledgers rule and the Overmind carries the canonical sweep step into any
+  paste-based runtime. Filename-order catchup
   permanently skips posts from any peer whose clock disagrees with yours.
 - **Skipped posts.** Any binder post whose `re:` target is at or below this seat's newest
   processed post (or its format-1 watermark), but which the ledger hasn't recorded as processed →
@@ -201,7 +203,8 @@ and say why.
   update or reinstall the plugin, then start a fresh session. On Windows, TARS needs Git Bash.
 - **Boot step.** The Overmind's `BOOT.md` carries the **MISSION WATCH** step (canonical text in the
   firmware's DISPATCH Step 5). Missing, or still titled **MOTHER — MISSION WATCH** → FAIL, *fix:*
-  replace it with the canonical step, then re-paste per the dual-runtime law.
+  replace it with the canonical step, then the Overmind updates any paste-based runtime per the
+  dual-runtime law.
 - **No duplicates.** Any other `UserPromptSubmit` hook that counts turns — in
   `~/.claude/settings.json` or the project's `.claude/settings*.json` → FAIL, *fix:* remove that
   registration; TARS owns checkpoints, and a second counter doubles them. Any `mother-watch-*` or

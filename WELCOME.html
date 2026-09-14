@@ -158,7 +158,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v4.4.0</div>
+    <div class="ver">v4.4.1</div>
     <p class="tag">Build and run a personal AI team. <strong>One command and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -185,6 +185,7 @@
     <h2><span class="idx">01</span>What's New</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>The Overmind owns boot propagation (v4.4.1)</b> — When any BOOT.md changes, the Overmind updates every place that member loads from in the same pass, including a paste-based runtime's instructions field, using whatever access it has. You never get handed a paste chore; only a genuinely blocked runtime is reported, as a blocker.</div>
       <div class="new-item"><b>The persona lives inside BOOT.md (v4.4.0)</b> — Each member's voice now lives in a <code>## Persona</code> section of their BOOT.md instead of a separate persona file, so it stays loaded all session and survives compaction. Existing persona files are copied in verbatim and left as a one-line pointer.</div>
       <div class="new-item"><b>TARS speaks in italics (v4.3.2)</b> — The Overmind relays every <code>TARS:</code> line in italics, so the ship's report reads apart from the session's own voice.</div>
       <div class="new-item"><b>Sessions name themselves (v4.3.1)</b> — <code>/go</code> now renames the session to the mission it's running, such as <code>OPS-025 — TARS live test</code>, and every handoff and brief opens with that title in a code block you can copy with one click. TARS also stops reporting a new handoff when <code>/go</code> has only stamped the old one.</div>
@@ -236,7 +237,7 @@
       <div class="step"><div class="num">5</div><div class="body"><b>Verify it.</b> Type <code>/diagnostic</code> in your Overmind's session. It checks the install, the folders, the roster, the boot layers, and TARS in a few seconds, and prints a pass/fail table with a fix for anything red.</div></div>
       <div class="step"><div class="num">6</div><div class="body"><b>Setup runs once.</b> When your team is online, the ceremony is over for good. Every future session boots straight into work.</div></div>
     </div>
-    <div class="note"><b>Cowork (lite mode):</b> Customize → Plugins → Add Marketplace → <code>TuckerBrady/ai-overmind</code>. A team can run there, but hooks aren't guaranteed to fire, so TARS is silent and each member's <code>BOOT.md</code> has to be pasted into Project Instructions.</div>
+    <div class="note"><b>Cowork (lite mode):</b> Customize → Plugins → Add Marketplace → <code>TuckerBrady/ai-overmind</code>. A team can run there, but hooks aren't guaranteed to fire, so TARS is silent and each member's <code>BOOT.md</code> has to live in Project Instructions, which the Overmind keeps current.</div>
     <div class="note"><b>Upgrading from a zip install?</b> The zip channel is sunset — see the <a href="#upgrade">Upgrading</a> section below for the full migration.</div>
     <div class="note"><b>Before you dispatch anything:</b> read <a href="#wiring">Wiring &amp; Gotchas</a>. Three things decide whether the board, registry, and inboxes work at all: each member's session opened in its own folder, that folder's <code>CLAUDE.md</code> importing its <code>BOOT.md</code>, and permissions granted at dispatch time.</div>
     <div class="note"><b>Optional:</b> connect a directory service (Teams, Outlook, Google Workspace) for automatic role lookup. Without it, the Overmind asks you directly. See <code>CONNECTORS.md</code>.</div>
@@ -437,7 +438,7 @@
       <tr><td><code>/engage</code></td><td>First-run activation — asks your name, then role lookup and team proposal</td></tr>
       <tr><td><code>Build my team</code></td><td>Begins team composition</td></tr>
       <tr><td><code>Add a [role] to the team</code></td><td>Proposes and builds a new specialist</td></tr>
-      <tr><td><code>Give me the Sleeper Activation block</code></td><td>Generates the boot block to paste into Project Instructions (lite mode)</td></tr>
+      <tr><td><code>Give me the Sleeper Activation block</code></td><td>Generates the boot block for Project Instructions (lite mode)</td></tr>
       <tr><td><code>Write a handoff</code></td><td>Saves session state; <code>/go</code> activates it next session</td></tr>
       <tr><td><code>Brief [Name] on [task]</code></td><td>Dispatches a mission to a specialist</td></tr>
       <tr><td><code>Send this to [Name]</code></td><td>Same — writes mission brief, staged for <code>/go</code></td></tr>
@@ -495,11 +496,11 @@
       </div></div>
 
       <div class="step"><div class="num">2</div><div class="body">
-        <b>Paste the Sleeper Activation block into each project's Instructions — and re-paste it after an upgrade.</b><br>
+        <b>The Sleeper Activation block belongs in each project's Instructions — and must be refreshed after an upgrade.</b><br>
         <b>Context</b> is the folder list; <b>Instructions</b> is the text box above it. They are different
         settings and it's easy to do one and think you've done both. Boot duties live in the Instructions
         block: read the handoff, check the inbox, <em>and register in the Gopher registry</em>. Ask your
-        Overmind for a fresh block per member any time you update the plugin.
+        Overmind writes and refreshes each member's block itself, including after a plugin update.
         <div class="note" style="margin-top:14px"><b>Why this matters more than it looks:</b> registration used to live only in the plugin firmware, which loads through a startup hook that isn't guaranteed to arrive before your first message. Whether a specialist registered was effectively a coin flip — one of ours went three whole missions with no registry row while the other two were fine, and it looked like that specialist was ignoring instructions. It wasn't. Anything that must happen at boot belongs in Instructions, the one channel that always arrives.</div>
       </div></div>
 
@@ -516,7 +517,7 @@
     <table>
       <tr><th>Symptom</th><th>What it actually means</th></tr>
       <tr><td>A session asks for folder access every time</td><td>That project's Context points at the member subfolder instead of the team root. Fix #1 above.</td></tr>
-      <tr><td>A specialist has no row in the Gopher registry</td><td>Their Project Instructions are stale — the registration clause is missing. Re-paste the block. This is a reliable tell, not a mystery.</td></tr>
+      <tr><td>A specialist has no row in the Gopher registry</td><td>Their Project Instructions are stale — the registration clause is missing. Have the Overmind update the block. This is a reliable tell, not a mystery.</td></tr>
       <tr><td>Board says PENDING but the deliverable already exists</td><td>Trust the disk. Order of authority: <code>mission-complete.md</code> &gt; deliverable files &gt; board row &gt; registry &gt; silence. <code>/status</code> flags these disagreements for you.</td></tr>
       <tr><td>Old MOTHER tasks still in your scheduled tasks</td><td>Leftovers from before v4.2.0. Remove them: TARS does that job now, and a leftover task would watch the same mission twice. <code>/diagnostic</code> flags them.</td></tr>
       <tr><td>Checkpoints arrive twice</td><td>Another turn-counting hook is still registered in your Claude Code settings. Remove it; TARS owns checkpoints. <code>/diagnostic</code> flags it.</td></tr>
@@ -529,7 +530,7 @@
   </section>
 
   <footer>
-    <span>ai-overmind v4.4.0 — Tucker Brady</span>
+    <span>ai-overmind v4.4.1 — Tucker Brady</span>
     <span class="status">● OVERMIND STANDING BY</span>
   </footer>
 

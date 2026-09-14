@@ -200,7 +200,7 @@ Nothing to launch. In Claude Code, TARS — the plugin's turn hook — reports a
 So this step is a check, not a launch:
 
 - Your BOOT.md carries the **MISSION WATCH** step → nothing to do.
-- It doesn't, or it's still titled **MOTHER — MISSION WATCH** → replace it with the canonical step, and honor the dual-runtime law: the edit isn't done until re-pasted into every paste-based runtime.
+- It doesn't, or it's still titled **MOTHER — MISSION WATCH** → replace it with the canonical step, and honor the dual-runtime law: the edit isn't done until you've updated every paste-based runtime yourself.
 
 **Never create a scheduled task for a dispatched mission** — no `mother-watch-*`, no `dispatch-poll-*`, and no approval to prime. If an older install still has either kind of task, list them for the human and have them removed, so a mission is never watched twice.
 
