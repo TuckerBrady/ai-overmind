@@ -1,12 +1,19 @@
-# ai-overmind v4.4.1
+# ai-overmind v4.4.2
 
-**Build and run a personal AI team. One phrase and your Overmind wakes up.**
+**Build and run a personal AI team. One command and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.4.2
+
+**Ready for the Claude plugin directory.**
+
+- **MIT licensed**, with full plugin metadata (homepage, repository, license) and a refreshed description.
+- **A Security and data section** below spells out exactly what the hooks run, what TARS reads, and when it touches the network.
 
 ## What's New in v4.4.1
 
@@ -206,6 +213,24 @@ Claude Code runs in a terminal, or in the Code tab of the Claude desktop app. St
 
 > **Upgrading from a zip install?** Delete your current instance of the plugin FIRST, then add the marketplace and install. Running both copies double-injects the firmware and duplicates every skill.
 
+## Security and data
+
+Everything this plugin does runs on your machine, inside the Claude Code permission model you already use. It ships no MCP servers, no binaries, and no telemetry. Here is exactly what it runs and touches.
+
+**Hooks**
+- **SessionStart** runs `cat` on `hooks/firmware.md` to load the Overmind's instructions into context. It reads one file inside the plugin and nothing else.
+- **UserPromptSubmit** runs `hooks/tars.sh` (bash) before each message. It reads files in your team folder, such as `MISSION_BOARD.md`, `HANDOFF.md`, `INBOX.md`, and `mission-complete.md`, and prints one-line facts when something changed. Its own state (turn counts, timestamps) lives in `~/.claude/tars` (override with `TARS_HOME`). It never writes into your team folders, never blocks a prompt, and always exits 0.
+
+**Network**
+- TARS makes network calls only in an Overmind session whose `BOOT.md` lists Collective binder repos, and only if the GitHub CLI (`gh`) is installed and signed in. At most once every five minutes, in the background, it calls `gh api user` (once, to learn your own login so it can skip your own pushes) and `gh api repos/<owner>/<repo>/commits` for each listed binder. It reads recent commit metadata and nothing else. Without a Collective or without `gh`, TARS is fully offline.
+
+**Files the Overmind writes**
+- Team building, handoffs, dispatch, inboxes, and the mission board are plain Markdown files in the team folder you choose. The Overmind writes them through Claude Code's normal file tools, so your permission settings apply.
+- The Collective reads and writes a venue you set up yourself: a shared folder, or a private git repository you create and invite others to.
+
+**Your own data**
+- A connected directory service (see `CONNECTORS.md`) is optional and only used to learn your role during `/engage`.
+
 ## Quickstart
 
 1. **Install** the plugin in Claude Code (above).
@@ -369,3 +394,7 @@ You never write or touch a brief. Before activating a handoff, `/go` shows you w
 | `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
 | `WELCOME.html` | Styled field manual — presented on first activation |
 | `CONNECTORS.md` | Directory service connector documentation |
+
+## License
+
+MIT. See `LICENSE`.
