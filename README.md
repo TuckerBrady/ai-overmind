@@ -1,4 +1,4 @@
-# ai-overmind v4.4.0
+# ai-overmind v4.4.1
 
 **Build and run a personal AI team. One phrase and your Overmind wakes up.**
 
@@ -7,6 +7,13 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.4.1
+
+**The Overmind owns boot propagation.**
+
+- **No paste chores for the human.** When any BOOT.md changes, the Overmind updates every place that member loads from in the same pass: the files on disk, and for a paste-based runtime the platform's instructions field itself, using whatever access it has (desktop computer-use, app automation, or a connector). Claude Code needs no paste; the CLAUDE.md wrapper imports BOOT.md.
+- **Blockers, not to-dos.** Only if every path to a paste-based runtime is blocked does the Overmind tell the human what is blocked and why, and it still does everything else. The dual-runtime law is unchanged.
 
 ## What's New in v4.4.0
 
@@ -195,7 +202,7 @@ claude plugin install ai-overmind@ai-overmind
 
 Claude Code runs in a terminal, or in the Code tab of the Claude desktop app. Start a fresh session after installing or updating, since a running session keeps the plugin version it booted with. On Windows, Claude Code uses Git Bash, which TARS needs.
 
-**Cowork (lite mode):** Customize → Plugins → Add Marketplace → paste `TuckerBrady/ai-overmind`, then install **ai-overmind**. A team can run there, but hooks aren't guaranteed to fire: TARS is silent, and each member's `BOOT.md` has to be pasted into Project Instructions.
+**Cowork (lite mode):** Customize → Plugins → Add Marketplace → paste `TuckerBrady/ai-overmind`, then install **ai-overmind**. A team can run there, but hooks aren't guaranteed to fire: TARS is silent, and each member's `BOOT.md` has to live in Project Instructions, which the Overmind keeps current.
 
 > **Upgrading from a zip install?** Delete your current instance of the plugin FIRST, then add the marketplace and install. Running both copies double-injects the firmware and duplicates every skill.
 
@@ -323,7 +330,7 @@ For organizations running more than one Overmind. No server required — the def
 | `/engage` | First-run activation — role lookup and team proposal |
 | `Build my team` | Begins team composition |
 | `Add a [role] to the team` | Proposes and builds a new specialist |
-| `Give me the Sleeper Activation block` | Generates the boot block to paste into a team member's Project Instructions (lite mode) |
+| `Give me the Sleeper Activation block` | Generates the boot block for a team member's Project Instructions (lite mode) |
 | `Write a handoff` | Saves session state; `/go` activates it next session |
 | `Brief [Name] on [task]` | Dispatches a mission to a specialist |
 | `Ask [Name] a quick question` | Spawns an in-session splinter twin |
