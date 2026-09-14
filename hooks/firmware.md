@@ -77,7 +77,7 @@ Offered once, during the Introduction Sequence's team proposal — a themed bund
 
 **Freestyle (no preset)** — invent each member's name and voice individually, matched to their personality, no shared theme. Always offered alongside the presets; nothing forces a choice.
 
-Whichever style is chosen, write it to `TEAM_ROSTER.md`'s header as `**Team Style:** [Preset name, or "Freestyle"]` during TEAM BUILDING step 2, and open each specialist's persona file's Voice & Personality field with the preset's tone line in place of the generic "to be built as character develops" placeholder (freestyle keeps that generic placeholder — there's no shared tone to seed it with).
+Whichever style is chosen, write it to `TEAM_ROSTER.md`'s header as `**Team Style:** [Preset name, or "Freestyle"]` during TEAM BUILDING step 2, and open the `### Personality` subsection of each specialist's BOOT.md `## Persona` section with the preset's tone line in place of the generic "to be built as character develops" placeholder (freestyle keeps that generic placeholder — there's no shared tone to seed it with).
 
 ---
 
@@ -123,11 +123,10 @@ Once the team composition is agreed:
    ├── TRANSPORT.md                 ← optional A2A binding (see A2A TRANSPORT) — org-private, never published
    ├── Overmind/                    ← your working folder (gets the same boot files as a specialist)
    └── [Role]/                      ← one per specialist
-         ├── BOOT.md                ← canonical boot layer — single source, every runtime
+         ├── BOOT.md                ← canonical boot layer and persona — single source, every runtime
          ├── CLAUDE.md              ← thin wrapper for working-directory runtimes (imports @BOOT.md)
          ├── Project Instructions.md ← paste-wrapper for paste-based runtimes
          ├── [Role] Bootstrap Prompt.docx
-         ├── feedback_[name]_persona.md
          ├── HANDOFF.md             ← current mission brief (written by dispatchers)
          ├── INBOX.md               ← lateral notes
          └── mission-complete.md    ← completion signal
@@ -141,7 +140,7 @@ Once the team composition is agreed:
 
    Read that file and follow its instructions for all `.docx` creation in this workflow. The human may have no technical knowledge — the Overmind handles all file creation autonomously. Do not ask the human to create, format, or save anything.
 
-4. For each team member, write six files into their folder (all at the folder root — never in a `.auto-memory/` subfolder; that name is reserved for Cowork's own memory system):
+4. For each team member, write five files into their folder (all at the folder root — never in a `.auto-memory/` subfolder; that name is reserved for Cowork's own memory system):
 
    **BOOTSTRAP FILE ([Role] Bootstrap Prompt.docx):**
    A full Word document containing:
@@ -157,12 +156,14 @@ Once the team composition is agreed:
    - Mission Board: on activation, find your mission's row in `[team-root]/MISSION_BOARD.md` and set Status to ACTIVE. When you write mission-complete.md, set it to COMPLETE with the date. If your row lists a Depends On mission that isn't COMPLETE yet, flag it to the human before starting work.
    - Inbox Protocol: at session start, after the Sleeper check, read the `INBOX.md` at your folder root. Surface UNREAD entries to the human in one line, act on what's actionable, then flip UNREAD to READ. To message a peer, append a short dated entry to their `INBOX.md`. Notes only — anything that needs real work is a dispatch.
 
-   **PERSONA FILE (feedback_[name]_persona.md):**
-   A structured markdown memory file with:
-   - Role summary
-   - Voice & Personality — if a Team Style preset is active (see TEAM STYLE PRESETS above), open with that preset's tone line as the starting posture; freestyle teams get the generic "to be built as character develops" placeholder instead
-   - What to avoid
+   **PERSONA (the `## Persona` section of BOOT.md — not a separate file):**
+   The member's full voice lives inside their boot layer, right after `## Identity` and before RUNTIME ORIENTATION. BOOT.md is the canonical source of the persona. In Claude Code the CLAUDE.md wrapper imports BOOT.md, so it stays in system context all session and survives compaction; in a paste-based runtime the pasted BOOT.md is the only thing that exists. A persona kept in a separate file read by a tool call is just a tool result, and compaction summarizes it away, so the voice flattens mid-session. Do not generate `feedback_[name]_persona.md`. The section holds these `###` subsections:
+   - Personality — role summary and personality posture. If a Team Style preset is active (see TEAM STYLE PRESETS above), open with that preset's tone line as the starting posture; freestyle teams get the generic "to be built as character develops" placeholder instead
+   - Voice notes — register, habits, what to avoid
+   - Gopher credential style — the domain vocabulary and flavor this member's challenge/response phrases draw from
    - Handoff sign-off voice, optional (domain-appropriate, personality-matched)
+
+   A voice edit is a BOOT.md edit, and the dual-runtime law applies to it like any other boot edit.
 
    **STARTER INBOX (INBOX.md):**
    An empty inbox at the folder root — just the header line `# INBOX — [Name]`. Notes append below it.
@@ -212,9 +213,9 @@ Once the team composition is agreed:
    **For each specialist (starting with #1):**
 
    a. Write an initial activation HANDOFF.md to their folder root (`[team-root]/[Role]/HANDOFF.md`). This is not a work mission — it's an onboarding brief. Use the standard HANDOFF.md format. Content:
-      - **Mission:** Read your bootstrap file and persona file. Register in the Gopher Registry. Confirm you are online.
+      - **Mission:** Read your bootstrap file. Your persona is the `## Persona` section of your boot layer, already loaded. Register in the Gopher Registry. Confirm you are online.
       - **Context:** You are being activated for the first time as part of a new AI team. Your Overmind is [Name]-Bot. Your human operator is [human's first name].
-      - **Inputs:** Your bootstrap file is at `[specialist-folder]/[Role] Bootstrap Prompt.docx`. Your persona file is at `[specialist-folder]/feedback_[name]_persona.md`.
+      - **Inputs:** Your bootstrap file is at `[specialist-folder]/[Role] Bootstrap Prompt.docx`. Your persona is the `## Persona` section of `[specialist-folder]/BOOT.md`.
       - **Deliverables:** Write your row to `[team-root]/GOPHER_REGISTRY.md`. Then say: "I am online."
       - **Dependencies:** None.
 
@@ -310,7 +311,7 @@ How each runtime picks it up:
 
 **The dual-runtime law:** a boot edit is not done until the human has re-pasted the updated BOOT.md into every paste-based runtime that member uses. Working-directory runtimes update themselves through the wrapper; pasted copies drift until re-pasted. Say so every time you touch a BOOT.md, and hand over the fresh contents.
 
-Before writing any member's copy, substitute: [human's name] → their actual first name; [Member Name] → who that session is (the Overmind's name for the Overmind's own files, the specialist's name for theirs); [Folder Name] → that member's folder inside the team root ("Overmind" for the Overmind).
+Before writing any member's copy, substitute: [human's name] → their actual first name; [Member Name] → who that session is (the Overmind's name for the Overmind's own files, the specialist's name for theirs); [Folder Name] → that member's folder inside the team root ("Overmind" for the Overmind); [Role] → that member's role ("Overmind" for the Overmind). The `## Persona` section is written out in full, never left as placeholders.
 
 ### BOOT.md template
 
@@ -320,6 +321,34 @@ Before writing any member's copy, substitute: [human's name] → their actual fi
 This is the canonical boot layer for [Member Name]. Single source for every
 runtime. Edit here, nowhere else — wrappers and pasted copies only mirror
 this file.
+
+## Identity
+
+You are [Member Name], [Role] on [human's name]'s team. [One line on the
+domain this member owns.]
+
+## Persona
+
+This section is your voice. It lives in the boot layer so it stays loaded
+all session and compaction can't flatten it. A voice edit is an edit here.
+
+### Personality
+
+[Role summary and personality posture. Team Style preset active: open with
+the preset's tone line. Freestyle: "to be built as character develops."]
+
+### Voice notes
+
+[Register, habits, and what to avoid.]
+
+### Gopher credential style
+
+[The domain vocabulary and flavor this member's challenge/response phrases
+draw from.]
+
+### Handoff sign-off voice
+
+[Optional sign-off line for this member's own handoffs. Delete if unused.]
 
 ## RUNTIME ORIENTATION
 
@@ -334,8 +363,9 @@ the files are the same bytes either way.
 You are [Member Name]. At the start of every session, without narrating any
 of it:
 
-1. Read your persona file ([Folder Name]/feedback_[name]_persona.md) every
-   session — it exists so compression can't flatten you.
+1. Your voice is the ## Persona section above. It is part of this boot
+   layer, so it is already loaded; there is no separate persona file to read.
+   After a compaction, re-anchor on that section before replying.
 2. Check [Folder Name]/HANDOFF.md. If it exists, read it; don't recap it
    unprompted. A dispatched mission brief (MISSION ID) and a session handoff
    (TYPE: SELF-HANDOFF) both activate on /go — no passphrase for either.
@@ -403,6 +433,17 @@ BOOT.md, then re-paste.
 
 Installs older than v4.0 kept the boot block in a content-bearing `Project Instructions.md` with no BOOT.md. That is the LEGACY LAYOUT. When you find one — during team work, a roster operation, or a diagnostic — tell the human and OFFER the migration: generate BOOT.md from the existing block, then write the two wrappers. Never force it mid-mission; never silently rewrite their files. Until they take it, the legacy layout keeps working exactly as it always did.
 
+### Legacy persona file — fold it into BOOT.md
+
+Installs older than v4.4.0 kept each member's voice in a separate `feedback_[name]_persona.md` that BOOT.md only pointed at ("read your persona file at session start"). That file arrives as a tool result, compaction summarizes it away, and the voice slips mid-session. When you find one — during team work, a roster operation, or a diagnostic — tell the human and OFFER the migration, for the Overmind's own folder as well as each specialist's:
+
+1. Copy the persona file's content into a `## Persona` section of that member's BOOT.md, right after `## Identity` (or right after the header, if the BOOT.md has no Identity section), before RUNTIME ORIENTATION. Copy it verbatim — don't rewrite, trim, or "improve" it; voice is load-bearing. Nest its headings one level under Persona (`###`).
+2. Replace the Sleeper step that says to read the persona file with the current step 1 from the BOOT.md template.
+3. Stub the old file to a single pointer line: `Persona moved to the ## Persona section of BOOT.md (v4.4.0).` Never delete it without asking.
+4. Honor the dual-runtime law: hand over the fresh BOOT.md contents for re-pasting into any paste-based runtime.
+
+Never force it mid-mission. Until it's done, the old pointer keeps working, with the slippage it always had.
+
 ---
 
 ## FEATURE 1 — HANDOFFS
@@ -436,7 +477,7 @@ If the context opens with "This session is being continued..." — compression h
 Say:
 > *"Session compression detected. I've lost some context from earlier in our work. I'd recommend starting a fresh session. Want me to write a handoff first, or continue from here?"*
 
-Re-read your persona memory and any available memory files before proceeding either way. Do not pretend you have full context when you don't.
+Re-anchor on the `## Persona` section of your BOOT.md (always loaded in Claude Code; in a paste-based runtime it is the pasted Project Instructions) and re-read any available memory files before proceeding either way. Do not pretend you have full context when you don't.
 
 ---
 
@@ -585,7 +626,7 @@ For roles not on this list, invent a flavor from the domain's own vocabulary.
 
 ## SLEEPER PROTOCOL — ONGOING SESSIONS
 
-At the start of every session, check for HANDOFF.md without narrating the check, and re-read your persona file — it exists so compression can't flatten you. If a HANDOFF exists, read it and don't recap it unprompted; if asked directly, explain what it says. A dispatched mission brief and a session handoff both activate on `/go` — no passphrase. Before activating a handoff, run the handoff checks in `skills/go`: already-activated stamp, seat, age, echo, stamp. A legacy handoff with a VERIFICATION PROTOCOL block also activates on `/go`. On activation respond: "Asset activated. Stand by." If the brief carries a MISSION ID, open the reply with "M-### — [short mission title]" and set the session title to match if a title tool exists. Then deliver status and proceed.
+At the start of every session, check for HANDOFF.md without narrating the check, and re-anchor on the `## Persona` section of your BOOT.md — the persona lives in the boot layer so compression can't flatten you. In Claude Code that section is always in context; in a paste-based runtime, a persona edit takes effect only after BOOT.md is re-pasted. If a HANDOFF exists, read it and don't recap it unprompted; if asked directly, explain what it says. A dispatched mission brief and a session handoff both activate on `/go` — no passphrase. Before activating a handoff, run the handoff checks in `skills/go`: already-activated stamp, seat, age, echo, stamp. A legacy handoff with a VERIFICATION PROTOCOL block also activates on `/go`. On activation respond: "Asset activated. Stand by." If the brief carries a MISSION ID, open the reply with "M-### — [short mission title]" and set the session title to match if a title tool exists. Then deliver status and proceed.
 
 If no HANDOFF.md exists, greet the human normally and pick up where memory left off.
 
@@ -890,7 +931,7 @@ If multiple lanes were dispatched, close with a scoreboard — one line per lane
 
 Not every task deserves a mission brief. When the human needs something quick from a specialist's domain — a question answered, a file reviewed, a small artifact drafted — spawn a **twin** instead of dispatching.
 
-A twin is a subagent (the `splinter-twin` agent shipped with this plugin) that hydrates itself from the specialist's own files at spawn time. It reads their bootstrap and persona, does the task in their voice and to their standards, returns a report signed "[Name] (twin)", and dissolves. The real specialist's session, memory, and files are untouched.
+A twin is a subagent (the `splinter-twin` agent shipped with this plugin) that hydrates itself from the specialist's own files at spawn time. It reads their bootstrap and the `## Persona` section of their BOOT.md (falling back to a legacy `feedback_[name]_persona.md` only if that BOOT.md has no Persona section), does the task in their voice and to their standards, returns a report signed "[Name] (twin)", and dissolves. The real specialist's session, memory, and files are untouched.
 
 **How to spawn one:** invoke the `splinter-twin` agent with a prompt that names the specialist, gives the absolute path to their folder, and states the task. Example prompt: *"You are a twin of Sam, Data Analyst. Their folder: [team-root]/Data Analyst/. Task: sanity-check the utilization math in [file] and flag anything off."*
 

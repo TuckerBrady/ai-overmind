@@ -19,6 +19,8 @@ Typing `/go` activates the staged mission. One command, any session, any mission
 
 Your identity comes from your boot layer — `BOOT.md`, or the pasted Project Instructions in a paste-based runtime ([Member Name] + [Folder Name]). Your folder is `[team-root]/[Folder Name]/` in the connected team folder.
 
+Your voice is the `## Persona` section of that boot layer. It is already in context, so re-anchor on it before activating; there is no separate persona file to read. In a paste-based runtime, a persona edit takes effect only after BOOT.md is re-pasted.
+
 ### 2. Read the brief
 
 Read `[your folder]/HANDOFF.md`.
