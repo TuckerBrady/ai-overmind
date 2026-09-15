@@ -1,12 +1,21 @@
-# ai-overmind v4.4.2
+# ai-overmind v4.5.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
+Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.5.0
+
+**The initiative setting, and the team learns how you work.**
+
+- **`/initiative` sets how much the team does on its own.** The setting is a dial named for TARS's settings in *Interstellar*: 25%, 50%, 75%, 90%, or 100%. At 25% members propose and wait. At 90% they find everything themselves, act on anything reversible, and check in once, at the final submit or send. Setup asks you where to set it, and you can change it any time. The platform's hard limits and required confirmations apply at every setting.
+- **One working-style file for the whole team.** `WORKING_WITH_[YOURNAME].md` sits at the team root, and every member's BOOT.md imports it. It holds the setting, the standing rules (do the task, don't hand you the steps; never make you the courier), and every correction you've given. When you correct a member, it reports the correction to the Overmind, which adds it to the file. When the file changes, TARS tells every running session to re-read it. Existing teams get the file on offer the next time the Overmind boots.
+- **TARS keeps track of your handoff.** A handoff a session wrote now still counts as written after another session runs `/go` on it. Before, the writer's next checkpoint went back to "No handoff written."
+- **Every member relays TARS.** Each BOOT.md now carries a short relay line, because specialist seats with only the firmware rule let checkpoints pass without showing them to you.
 
 ## What's New in v4.4.2
 
@@ -219,7 +228,7 @@ Everything this plugin does runs on your machine, inside the Claude Code permiss
 
 **Hooks**
 - **SessionStart** runs `cat` on `hooks/firmware.md` to load the Overmind's instructions into context. It reads one file inside the plugin and nothing else.
-- **UserPromptSubmit** runs `hooks/tars.sh` (bash) before each message. It reads files in your team folder, such as `MISSION_BOARD.md`, `HANDOFF.md`, `INBOX.md`, and `mission-complete.md`, and prints one-line facts when something changed. Its own state (turn counts, timestamps) lives in `~/.claude/tars` (override with `TARS_HOME`). It never writes into your team folders, never blocks a prompt, and always exits 0.
+- **UserPromptSubmit** runs `hooks/tars.sh` (bash) before each message. It reads files in your team folder, such as `MISSION_BOARD.md`, `HANDOFF.md`, `INBOX.md`, `mission-complete.md`, and `WORKING_WITH_*.md`, and prints one-line facts when something changed. Its own state (turn counts, timestamps) lives in `~/.claude/tars` (override with `TARS_HOME`). It never writes into your team folders, never blocks a prompt, and always exits 0.
 
 **Network**
 - TARS makes network calls only in an Overmind session whose `BOOT.md` lists Collective binder repos, and only if the GitHub CLI (`gh`) is installed and signed in. At most once every five minutes, in the background, it calls `gh api user` (once, to learn your own login so it can skip your own pushes) and `gh api repos/<owner>/<repo>/commits` for each listed binder. It reads recent commit metadata and nothing else. Without a Collective or without `gh`, TARS is fully offline.
@@ -391,6 +400,7 @@ You never write or touch a brief. Before activating a handoff, `/go` shows you w
 | `skills/diagnostic/` | `/diagnostic` — three-level system verification; every failure prints its own fix |
 | `skills/collective/` | Collective operations — find a venue, seat other Overminds, run cross-team missions (no server required) |
 | `skills/assimilate/` | `/assimilate` — an invited Overmind's one command to join: capability sweep, Genesis Seed identity, invite discovery |
+| `skills/initiative/` | `/initiative` — show or set the team's initiative setting (25/50/75/90/100%) |
 | `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
 | `WELCOME.html` | Styled field manual — presented on first activation |
 | `CONNECTORS.md` | Directory service connector documentation |

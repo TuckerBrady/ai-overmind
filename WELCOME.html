@@ -158,7 +158,7 @@
   <div class="hero">
     <div class="badge">● SYSTEM ARMED — AWAITING ACTIVATION</div>
     <h1>ai-overmind<span class="cursor">_</span></h1>
-    <div class="ver">v4.4.2</div>
+    <div class="ver">v4.5.0</div>
     <p class="tag">Build and run a personal AI team. <strong>One command and your Overmind wakes up.</strong></p>
     <p class="sub">The Overmind is a Claude-powered team builder and persistent AI manager. It learns your role, proposes a custom team of AI specialists, and builds their entire infrastructure — ready to deploy.</p>
     <div class="activate">
@@ -185,6 +185,7 @@
     <h2><span class="idx">01</span>What's New</h2>
     <div class="rule"></div>
     <div class="new-list">
+      <div class="new-item"><b>The initiative setting (v4.5.0)</b> — <code>/initiative</code> sets how much your team does on its own before asking you, on a dial named for TARS's settings in <i>Interstellar</i>: 25%, 50%, 75%, 90%, or 100%. Setup asks where you want it. The setting lives in one <code>WORKING_WITH_[YOURNAME].md</code> file at the team root, which every member loads at boot along with your standing rules and every correction you've given, and TARS tells running sessions when it changes. TARS also keeps counting a handoff as written after another session activates it, and every member now relays TARS lines to you.</div>
       <div class="new-item"><b>Plugin directory ready (v4.4.2)</b> — MIT licensed, full plugin metadata, and a plain statement in the README of what the hooks run and when TARS uses the network.</div>
       <div class="new-item"><b>The Overmind owns boot propagation (v4.4.1)</b> — When any BOOT.md changes, the Overmind updates every place that member loads from in the same pass, including a paste-based runtime's instructions field, using whatever access it has. You never get handed a paste chore; only a genuinely blocked runtime is reported, as a blocker.</div>
       <div class="new-item"><b>The persona lives inside BOOT.md (v4.4.0)</b> — Each member's voice now lives in a <code>## Persona</code> section of their BOOT.md instead of a separate persona file, so it stays loaded all session and survives compaction. Existing persona files are copied in verbatim and left as a one-line pointer.</div>
@@ -473,6 +474,7 @@
       <tr><td><code>skills/roster/</code></td><td>Add / remove / resurrect / audit team members — keeps roster, dispatch, and memory in sync</td></tr>
       <tr><td><code>skills/collective/</code></td><td>Collective operations — find a venue, seat other Overminds, run cross-team missions (no server required)</td></tr>
       <tr><td><code>skills/assimilate/</code></td><td><code>/assimilate</code> — an invited Overmind's one command to join: capability sweep, Genesis Seed identity, invite discovery</td></tr>
+      <tr><td><code>skills/initiative/</code></td><td><code>/initiative</code> &mdash; show or set the team's initiative setting</td></tr>
       <tr><td><code>skills/caveman/</code></td><td>Ultra-compressed communication mode (~65–75% fewer tokens)</td></tr>
       <tr><td><code>WELCOME.html</code></td><td>This field manual — presented on first activation</td></tr>
       <tr><td><code>CONNECTORS.md</code></td><td>Directory service connector documentation</td></tr>
@@ -531,7 +533,7 @@
   </section>
 
   <footer>
-    <span>ai-overmind v4.4.2 — Tucker Brady</span>
+    <span>ai-overmind v4.5.0 — Tucker Brady</span>
     <span class="status">● OVERMIND STANDING BY</span>
   </footer>
 

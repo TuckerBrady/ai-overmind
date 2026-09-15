@@ -144,6 +144,17 @@ here yet; note it only if the human is actively trying to join a Collective. Nev
 check from a specialist session — a specialist has no `Overmind/.genesis-seed` to check, by
 design, and asking implies it should.
 
+**B9 — Working-style file and initiative setting.** At the team root, exactly one
+`WORKING_WITH_*.md` whose `## Initiative setting: N%` heading holds one of 25, 50, 75, 90, 100, and
+every member's `BOOT.md` imports it (`@../WORKING_WITH_[FIRSTNAME].md` under
+`## How to work with [name]`). No file → WARN, *fix:* the Overmind runs the firmware's WORKING WITH
+YOUR HUMAN upgrade (asks the initiative question once, writes the file, adds the import to every
+BOOT.md). Setting missing or not one of the five values → FAIL, *fix:* run `/initiative` and set it.
+A BOOT.md without the import, or a member file carrying a pasted copy of the rules instead of the
+import → FAIL, *fix:* replace it with the import section from the firmware's BOOT.md template; the
+file is single-source. Unread `WORKING-STYLE` entries in the Overmind's INBOX.md → WARN, *fix:* fold
+them into the file's `## Corrections`.
+
 ### C · Identity & activation wiring
 
 **C1 — Identity resolves.** You can state your member name and folder from Project Instructions.
