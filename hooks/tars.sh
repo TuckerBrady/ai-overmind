@@ -63,10 +63,31 @@ fresh() {
   return 0
 }
 
+# written_here FILE: this session wrote FILE, even if another session has
+# since run /go on it and stamped it ACTIVATED. Unstamped and newer than the
+# session start counts. A stamped file counts only when its WRITTEN: header is
+# at or after this session's start minute (string compare, no date calls).
+written_here() {
+  local line n=0 since="" w re='WRITTEN:[^0-9]*([0-9]{4}-[0-9]{2}-[0-9]{2})[ T]([0-9]{2}:[0-9]{2})'
+  [ "$1" -nt "$st/started" ] || return 1
+  fresh "$1" "$st/started" && return 0
+  [ -f "$st/started_at" ] && read -r since < "$st/started_at"
+  [ -n "$since" ] || return 1
+  while (( n++ < 40 )) && IFS= read -r line; do
+    if [[ $line =~ $re ]]; then
+      w="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
+      [[ $w < $since ]] && return 1
+      return 0
+    fi
+  done < "$1"
+  return 1
+}
+
 first=""
 if [ ! -f "$st/started" ]; then
   first=1
   : > "$st/started"
+  printf '%(%Y-%m-%d %H:%M)T' -1 > "$st/started_at" 2>/dev/null
   : > "$st/marker"
   put "$st/lastwatch" "$now"
   find "$home/sessions" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} + 2>/dev/null
@@ -79,7 +100,7 @@ put "$st/turns" "$turns"
 if (( turns % 5 == 0 )); then
   handoff="No handoff written this session."
   for h in "$cwd/HANDOFF.md" "$cwd/.auto-memory/HANDOFF.md"; do
-    fresh "$h" "$st/started" && { handoff="Handoff written this session."; break; }
+    written_here "$h" && { handoff="Handoff written this session."; break; }
   done
   if (( turns >= 45 )); then say "turn $turns. $handoff Hard threshold (45) reached."
   elif (( turns >= 30 )); then say "turn $turns. $handoff Soft threshold (30) reached."
@@ -164,6 +185,22 @@ if [ -n "$root" ]; then
     fresh "$cwd/HANDOFF.md" "$st/marker" && say "a new brief was written to your HANDOFF.md."
     inbox_growth "$cwd"
   fi
+fi
+
+# ---------------------------------------------------------------- working style
+# The team-wide WORKING_WITH_[name].md changed: every seat hears it, so a
+# session that booted on the old initiative setting knows to re-read it.
+if [ -n "$root" ] && [ -z "$first" ]; then
+  shopt -s nullglob
+  for f in "$root"/WORKING_WITH_*.md; do
+    [ "$f" -nt "$st/marker" ] || continue
+    pct="" n=0
+    while (( n++ < 40 )) && IFS= read -r line; do
+      [[ $line =~ ^#+[[:space:]]*Initiative\ setting:[[:space:]]*([0-9]{1,3})% ]] && { pct=${BASH_REMATCH[1]}; break; }
+    done < "$f"
+    say "${f##*/} was updated${pct:+ (initiative setting $pct%)}. Re-read it before your next action."
+  done
+  shopt -u nullglob
 fi
 
 # ---------------------------------------------------------------- collective

@@ -18,6 +18,8 @@ Two structural notes for v4. Team building now generates each member's boot laye
 
 New in v4.1: orgs running more than one Overmind can form **the Collective** — no A2A server needed, just a shared folder (git repo by default, synced drive or connector as fallback). Team building's closing ceremony runs a one-time capability check for this (firmware TEAM BUILDING, soft gate — never blocks setup); full convene/seating mechanics live in `skills/collective/SKILL.md`. Seating is Overmind-only and gated by a permanent Genesis Seed (firmware GENESIS SEED section) — an invited human's Overmind joins with one command, `/assimilate` (`skills/assimilate/SKILL.md`), which mints that Overmind's identity on first run and never activates for a specialist session.
 
+New in v4.5: every team has one `WORKING_WITH_[FIRSTNAME].md` at the team root, imported by every member's BOOT.md. It holds the human's working-style rules and the **initiative setting** (25/50/75/90/100%), which the Introduction Sequence asks for before building and `/initiative` (`skills/initiative/SKILL.md`) changes later. Teams built before v4.5 get the file on offer the next time the Overmind boots. Details are in the firmware's WORKING WITH YOUR HUMAN section.
+
 Quick reference for the most common triggers:
 
 **`/engage`** (optionally `/engage [FirstName]`; the legacy "[FirstName] is online" still works) → Activation, per `skills/engage/SKILL.md`. Respond "Asset activated. Stand by." then execute the Introduction Sequence from the firmware.
