@@ -1,4 +1,4 @@
-# ai-overmind v4.5.0
+# ai-overmind v4.6.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,13 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.6.0
+
+**TARS stops nagging short sessions.**
+
+- **Silent until turn 20.** The turn-5, 10, and 15 checkpoints are gone. A handoff is suggested at turn 20, then every 5th turn, and insisted on at 45. The soft threshold used to be 30, with checkpoints every 5 turns before it.
+- **Tunable.** Set `TARS_SOFT` and `TARS_HARD` in the `env` block of `settings.json` to move either threshold.
 
 ## What's New in v4.5.0
 
@@ -65,7 +72,7 @@ Twelve capabilities work out of the box: **team building**, **handoffs**, **disp
 **TARS, the turn hook — and the Overmind moves home to Claude Code.**
 
 - **TARS replaces MOTHER.** MOTHER was a scheduled task per dispatched mission, plus an optional polling task, each needing a one-time approval and a stand-down. Meanwhile `/status` described a turn-based check, and firmware still carried its own polling template: three overlapping watchers, and in the field a team ran over a month of active missions with none of them running. TARS is one `UserPromptSubmit` hook, named for the robot in *Interstellar* with the honesty setting. Before every message you send, it reports **facts only**:
-  - turn checkpoints (every 5th turn, soft at 30, hard at 45), with handoff status read from disk
+  - turn checkpoints (silent until turn 20, then every 5th turn: handoff suggested from 20, insisted at 45; tune with `TARS_SOFT` / `TARS_HARD`), with handoff status read from disk
   - a team member's `mission-complete.md` appearing, and your unread inbox growing
   - a new brief staged in a team member's folder, in that member's own session
   - a push to one of your Collective binders by someone else, checked in the background at most every five minutes
