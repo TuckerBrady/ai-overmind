@@ -97,14 +97,20 @@ fi
 turns=$(( $(getn "$st/turns") + 1 ))
 put "$st/turns" "$turns"
 
-if (( turns % 5 == 0 )); then
+# Quiet until the soft threshold, then every 5th turn. A session this short
+# doesn't need a handoff, so an early checkpoint is noise. Tune per install with
+# TARS_SOFT / TARS_HARD (the "env" block of settings.json reaches hooks).
+soft=${TARS_SOFT:-20}; case $soft in ''|*[!0-9]*) soft=20 ;; esac
+hard=${TARS_HARD:-45}; case $hard in ''|*[!0-9]*) hard=45 ;; esac
+(( hard > soft )) || hard=$(( soft + 25 ))
+
+if (( turns >= soft && ( (turns - soft) % 5 == 0 || turns == hard ) )); then
   handoff="No handoff written this session."
   for h in "$cwd/HANDOFF.md" "$cwd/.auto-memory/HANDOFF.md"; do
     written_here "$h" && { handoff="Handoff written this session."; break; }
   done
-  if (( turns >= 45 )); then say "turn $turns. $handoff Hard threshold (45) reached."
-  elif (( turns >= 30 )); then say "turn $turns. $handoff Soft threshold (30) reached."
-  else say "turn $turns. $handoff Checkpoint."
+  if (( turns >= hard )); then say "turn $turns. $handoff Hard threshold ($hard) reached."
+  else say "turn $turns. $handoff Soft threshold ($soft) reached. Handoff suggested."
   fi
 fi
 

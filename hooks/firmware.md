@@ -376,9 +376,10 @@ TARS is the plugin's `UserPromptSubmit` hook (`hooks/tars.sh`), named for the ro
 
 | TARS line | Seat | When | The session's duty |
 |---|---|---|---|
-| `TARS: turn N. No handoff written this session. Checkpoint.` | every | Every 5th turn. Handoff status comes from the file on disk, not memory. A handoff this session wrote still counts after another session runs `/go` on it, judged by its `WRITTEN:` header. | Relay it, and add anything contradictory you've noticed, good news or bad. Never withhold it. |
-| `TARS: turn N. ... Soft threshold (30) reached.` | every | Every 5th turn from 30 to 44 | Relay it and recommend a handoff at the next task boundary. |
+| `TARS: turn N. No handoff written this session. Soft threshold (20) reached. Handoff suggested.` | every | Turn 20, then every 5th turn to 44. Silent before 20. Handoff status comes from the file on disk, not memory. A handoff this session wrote still counts after another session runs `/go` on it, judged by its `WRITTEN:` header. | Relay it, add anything contradictory you've noticed, good news or bad, and offer a handoff at the next task boundary. If the session has been light, say so and carry on. The human decides. Never withhold it. |
 | `TARS: turn N. ... Hard threshold (45) reached.` | every | Turn 45, then every 5th turn | Relay it, say plainly that the context is past reliable recall, and write the handoff. |
+
+Both thresholds are per-install settings: `TARS_SOFT` (default 20) and `TARS_HARD` (default 45), set in the `env` block of Claude Code's `settings.json`.
 | `TARS: [Member] wrote mission-complete.md for [ID].` | Overmind | A lane delivered | Relay it, then apply watch rule 1: mark done, call convergence, unblock dependents. |
 | `TARS: N unread inbox entries (was M).` | every | New inbox entries arrived | Relay it, then read the entries and surface them. |
 | `TARS: a new brief was written to your HANDOFF.md.` | specialist | A mission was staged for this member | Relay it and hold the brief for `/go`, per the Sleeper protocol. |
@@ -386,7 +387,7 @@ TARS is the plugin's `UserPromptSubmit` hook (`hooks/tars.sh`), named for the ro
 | `TARS: [author] pushed to [owner/repo]: [commit message]` | Overmind | Someone else wrote to a Collective binder | Relay it, then run the COLLECTIVE SWEEP for that binder and report what the post needs. |
 | `TARS (cue): mission watch due: N in flight, highest priority TIER.` | Overmind | A mission's check-in window lapsed (CRITICAL 1 min · STANDARD 5 · LOW 60) | Don't relay. Run the watch rules (DISPATCH Step 5) and report only what you find. |
 
-**The relay rule.** Every `TARS:` line goes to the human verbatim and in italics, first, before anything else in the reply. Wrap each line in single asterisks as its own paragraph (`*TARS: turn 5. No handoff written this session. Checkpoint.*`) so the ship's report reads apart from the session's voice. It's the ship reporting, not the AI chatting. The session's own response follows in its own voice. `TARS (cue):` lines are never relayed.
+**The relay rule.** Every `TARS:` line goes to the human verbatim and in italics, first, before anything else in the reply. Wrap each line in single asterisks as its own paragraph (`*TARS: turn 20. No handoff written this session. Soft threshold (20) reached. Handoff suggested.*`) so the ship's report reads apart from the session's voice. It's the ship reporting, not the AI chatting. The session's own response follows in its own voice. `TARS (cue):` lines are never relayed.
 
 **How TARS knows where it is.** It reads the session's working directory. The folder holding `MISSION_BOARD.md`, or its parent, is the team root. A folder whose name contains "overmind", or a session sitting at the team root, is the Overmind's seat; anything else is a specialist. Collective binders come from the `Binder roots` list in the Overmind's BOOT.md COLLECTIVE SWEEP step, checked through `gh` at most every five minutes, and commits by the Overmind's own GitHub login are never reported. TARS keeps its state in `~/.claude/tars/`, never in the team folders.
 
