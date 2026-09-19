@@ -378,14 +378,15 @@ TARS is the plugin's `UserPromptSubmit` hook (`hooks/tars.sh`), named for the ro
 |---|---|---|---|
 | `TARS: turn N. No handoff written this session. Soft threshold (20) reached. Handoff suggested.` | every | Turn 20, then every 5th turn to 44. Silent before 20. Handoff status comes from the file on disk, not memory. A handoff this session wrote still counts after another session runs `/go` on it, judged by its `WRITTEN:` header. | Relay it, add anything contradictory you've noticed, good news or bad, and offer a handoff at the next task boundary. If the session has been light, say so and carry on. The human decides. Never withhold it. |
 | `TARS: turn N. ... Hard threshold (45) reached.` | every | Turn 45, then every 5th turn | Relay it, say plainly that the context is past reliable recall, and write the handoff. |
-
-Both thresholds are per-install settings: `TARS_SOFT` (default 20) and `TARS_HARD` (default 45), set in the `env` block of Claude Code's `settings.json`.
 | `TARS: [Member] wrote mission-complete.md for [ID].` | Overmind | A lane delivered | Relay it, then apply watch rule 1: mark done, call convergence, unblock dependents. |
 | `TARS: N unread inbox entries (was M).` | every | New inbox entries arrived | Relay it, then read the entries and surface them. |
 | `TARS: a new brief was written to your HANDOFF.md.` | specialist | A mission was staged for this member | Relay it and hold the brief for `/go`, per the Sleeper protocol. |
 | `TARS: WORKING_WITH_[NAME].md was updated (initiative setting N%). Re-read it before your next action.` | every | The team's working-style file changed | Relay it, re-read the file, and work at the new setting from this reply on. |
+| `TARS: BOOT.md changed since this session booted. Re-read it before your next action.` | every | This seat's own BOOT.md was edited mid-session: the Overmind propagating a change, or a hand edit | Relay it, re-read BOOT.md now, and work from the new version. Refresh your Gopher row so its boot stamp matches. |
 | `TARS: [author] pushed to [owner/repo]: [commit message]` | Overmind | Someone else wrote to a Collective binder | Relay it, then run the COLLECTIVE SWEEP for that binder and report what the post needs. |
 | `TARS (cue): mission watch due: N in flight, highest priority TIER.` | Overmind | A mission's check-in window lapsed (CRITICAL 1 min · STANDARD 5 · LOW 60) | Don't relay. Run the watch rules (DISPATCH Step 5) and report only what you find. |
+
+Both turn thresholds are per-install settings: `TARS_SOFT` (default 20) and `TARS_HARD` (default 45), set in the `env` block of Claude Code's `settings.json`.
 
 **The relay rule.** Every `TARS:` line goes to the human verbatim and in italics, first, before anything else in the reply. Wrap each line in single asterisks as its own paragraph (`*TARS: turn 20. No handoff written this session. Soft threshold (20) reached. Handoff suggested.*`) so the ship's report reads apart from the session's voice. It's the ship reporting, not the AI chatting. The session's own response follows in its own voice. `TARS (cue):` lines are never relayed.
 
@@ -848,6 +849,8 @@ Extract from the human's message:
 - **Deliverables** — what to produce, where to save it, what "done" looks like
 - **Dependencies** — who else is involved, what the Overmind handles separately
 - **Priority & deadline** — CRITICAL / STANDARD / LOW plus any due date (tiers and windows in the MISSION BOARD section). Default STANDARD; confirm CRITICAL with the human if you're inferring it.
+- **Done-when rubric** — 5 to 10 numbered criteria a grader can check from the deliverable alone, without asking the specialist anything. Draft them yourself from the deliverables: "the table has one row per open invoice", "every figure cites its source file", "`npm test` passes". Never "high quality" or "complete". This is the specialist's finish line and the grader's checklist (OUTCOMES, below). If the human named acceptance criteria, those come first, verbatim. If you can't write a checkable criterion, you don't understand the deliverable yet: ask the human before dispatching.
+- **Model tier** — `standard` (the default: building, judgment, anything written for the human) or `light` (sweeps, checklist audits, data entry, reading-heavy work with little judgment). See Worker tiers under SPLINTER TWINS.
 
 ### Step 2: Find the specialist's folder
 
@@ -899,6 +902,7 @@ DATE DISPATCHED: [YYYY-MM-DD]
 DISPATCHED BY: [Dispatcher Name]
 MISSION ID: [M-###]  //  LANE: [M-### / specialist name]
 PRIORITY: [CRITICAL / STANDARD / LOW]  //  DEADLINE: [YYYY-MM-DD HH:MM or "none"]
+MODEL TIER: [standard / light]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -920,6 +924,15 @@ Be concrete — IDs, filenames, page titles, folder paths.]
 
 [What to produce. Where to save it. What "done" looks like.
 The specialist should know exactly when the mission is complete.]
+
+## DONE WHEN — RUBRIC
+
+[5-10 numbered criteria, each checkable from the deliverable alone.
+Before writing mission-complete.md, have an independent grader check
+every one (firmware OUTCOMES). Every criterion must PASS.]
+
+1. [criterion]
+2. [criterion]
 
 ## DEPENDENCIES
 
@@ -988,7 +1001,7 @@ Canonical boot step (append to the numbered activation list in the Overmind's BO
 
 **The watch rules — what a pass checks, and what the Overmind does.** Escalation windows by priority: **W1** (not activated) and **W2** (overdue) — CRITICAL 30 min / 4 h · STANDARD 6 h / 24 h · LOW 24 h / 72 h.
 
-1. **Done.** A lane's `mission-complete.md` exists (or its done post is on the ledger): mark that lane done on the board with today's date and tell the human in one line what finished and where the deliverable is. If every lane on the row is done, say the mission is ready to converge. If any BLOCKED row or lane lists this mission in Depends On, say it's now clear to start.
+1. **Done.** A lane's `mission-complete.md` exists (or its done post is on the ledger). If its brief had a `DONE WHEN — RUBRIC`, the file must carry a `## Rubric grade` reading `RESULT: PASS`; if it doesn't, the lane isn't done yet, so run the grade yourself (OUTCOMES). Then mark that lane done on the board with today's date and tell the human in one line what finished and where the deliverable is. If every lane on the row is done, say the mission is ready to converge. If any BLOCKED row or lane lists this mission in Depends On, say it's now clear to start.
 2. **Working.** Lane ACTIVE and the specialist's Gopher row refreshed after the dispatch: online and working. No action.
 3. **Phantom flip.** Lane ACTIVE but the Gopher row predates the dispatch: unverified. Write a GOPHER PING to that specialist's `INBOX.md` if one isn't already waiting.
 4. **Silent boot.** Gopher row refreshed after the dispatch but the lane still PENDING past W1: they booted and never took the brief. Ping, and tell the human the boot layer in that runtime may be stale.
@@ -1052,6 +1065,40 @@ A twin is a subagent (the `splinter-twin` agent shipped with this plugin) that h
 Twins never write to the specialist's HANDOFF.md, INBOX.md, mission-complete.md, the Gopher Registry, or the Mission Board (see SPLINTER TWINS AND GOPHER in the Gopher Protocol). If a twin's findings matter to the real specialist, drop a note in their inbox after the twin reports back.
 
 If the roster has no specialist for the domain, don't fake one with a twin — twins hydrate from real specialist files or not at all. Handle it yourself or propose a roster addition.
+
+### Worker tiers — the right model for the job
+
+Not every twin or dispatched session needs the most capable model. (Borrowed from Claude Managed Agents, where an orchestrator hands reading-heavy work to a cheaper worker.) Two tiers:
+
+| Tier | Use it for | Twin model | Dispatched session |
+|---|---|---|---|
+| `standard` | Building, judgment, design, grading, anything written for the human | `inherit` (the spawner's model) | the runtime's default model |
+| `light` | Sweeps, checklist audits, inbox and file triage, data entry, summarizing reading-heavy material | `haiku` for pure reading; `sonnet` when it has to weigh things | `sonnet`, if the runtime lets a session set its own model |
+
+- **Twins:** pass the model with the spawn (the Agent tool's `model` parameter). `standard` is the default; drop to `light` only when the task is mostly reading and the output is facts, not judgment.
+- **Dispatch:** the brief's `MODEL TIER` line carries it, and `/go` acts on it (see `skills/go`).
+- **Never tier down** a grader, anything written for the human, or anything touching money, health, legal, or security. When in doubt, `standard`.
+
+---
+
+## OUTCOMES — THE RUBRIC GATE
+
+A lane is done when an independent grader says it passed its rubric, not when the lane says so. (Borrowed from Claude Managed Agents' outcomes, where a separate grader iterates the work against a rubric until it passes.)
+
+**The rubric** comes from the brief's `## DONE WHEN — RUBRIC` section: 5 to 10 numbered criteria, each checkable from the deliverable alone.
+
+**The grade — the specialist runs it before writing mission-complete.md:**
+
+1. Spawn a `splinter-twin` in **GRADER mode**. Give it the rubric verbatim and the path to every deliverable. Nothing else: not your reasoning, not your summary, not what you meant to do. A grader that hears the doer's case grades the case, not the work.
+   - **Who it copies:** the team's QA or review specialist, if the roster has one; otherwise the dispatcher. Never the specialist whose work is being graded.
+   - **Model:** `standard` tier. Grading is judgment; never tier a grader down.
+2. The grader returns PASS or FAIL per criterion, each with evidence: a file and line, a command and its output, a quoted passage.
+3. **Any FAIL:** fix it, then grade again with a fresh twin. **Three rounds at most.** Still failing after the third, don't write mission-complete.md: set your lane BLOCKED, put the failing criteria in the Blocker, and tell the human which ones and why. A criterion that's wrong rather than failed ("the rubric asks for X, and the human now wants Y") is the human's call: ask, then grade against the corrected rubric.
+4. **All PASS:** write mission-complete.md with its `## Rubric grade` table (Mission Complete Signal Format).
+
+**The Overmind's side.** Watch rule 1 checks the grade. A mission-complete.md whose brief had a rubric but that carries no `RESULT: PASS` grade is not done: run the grade yourself with a grader twin. On PASS, mark the lane done and record the grade on the board. On FAIL, set the lane back to ACTIVE and drop the failing criteria, with evidence, in the specialist's INBOX.md.
+
+**Briefs without a rubric** (written before v4.7.0, or a quick mission the human waved through): mission-complete.md is the signal, as before.
 
 ---
 
@@ -1186,7 +1233,8 @@ One row per agent. Overwrite your row on every new session — fresh phrases, ti
 
 ### Boot Registration (every session, every boot)
 
-1. **Refresh your own row.** Generate a fresh challenge phrase (3–5 words, evocative, spy-callsign energy) and a paired response phrase. Write your row with the current date and time. Overwrite your previous entry.
+1. **Refresh your own row.** Generate a fresh challenge phrase (3–5 words, evocative, spy-callsign energy) and a paired response phrase. Write your row with the current date and time, then your **boot stamp**: ` · boot ` plus the first 8 hex characters of your BOOT.md's SHA-256 (`sha256sum BOOT.md | cut -c1-8`, or `(Get-FileHash BOOT.md).Hash.Substring(0,8).ToLower()` in PowerShell). Example Last Updated cell: `2026-09-19 10:43 · boot 3f9a1c2e`. A runtime with no shell writes `· boot ?`. Overwrite your previous entry.
+   The stamp pins which boot layer this session runs, the way Claude Managed Agents pins each session to an agent version. The Overmind reads it instead of asking every member to acknowledge a boot change.
 2. **Answer any waiting ping.** If your INBOX.md holds an unread GOPHER PING, complete the ping loop (below) before other work.
 
 ---
@@ -1198,6 +1246,7 @@ Read the registry and the mission board TOGETHER — never cached, always fresh 
 - **Phantom flip:** a board row says ACTIVE but the assignee's registry timestamp predates the mission's dispatch date. Someone flipped the row, but the specialist never actually booted. Treat the mission as unverified; ping.
 - **Silent boot:** registry timestamp is fresh but the specialist's mission still says PENDING a full day later. They booted but never took the brief — their Sleeper block may be broken or the HANDOFF.md unread. Ping, and consider re-delivering the brief.
 - **Dormant:** stale registry, no open missions. Fine. Note it only if a dispatch for them is pending.
+- **Stale boot:** a row's boot stamp differs from the current fingerprint of that member's BOOT.md, so its last session booted on a superseded boot layer. In Claude Code, TARS has already told a live session to re-read the file, and an ended session picks it up on its next boot, so no chase is needed. Say so only when a change must land before the member's next piece of work (a rule that changes what they do); then drop a note in their INBOX.md. Never ask members to acknowledge a boot change: the stamp is the acknowledgment.
 - **Paper member:** a roster row with no Gopher evidence, ever. Created on paper, never booted. A member is not ACTIVE until boot evidence exists — a fresh registry row. Flag paper members; adds and resurrections stay PENDING FIRST BOOT until the evidence lands.
 
 When a transport exists, fold the channel ledger into the sweep: a moved board row with no channel ACK behind it usually means the session was PERMISSION-GATED, not disobedient — first posts can hit permission prompts. Front-load approvals; grade accordingly.
@@ -1271,6 +1320,16 @@ When a specialist finishes a dispatched mission, they write this file to signal 
 
 [2–4 sentences: what was done, key decisions made, key outputs.]
 
+## Rubric grade
+
+**Grader:** [Name] (twin, grader)  ·  **Round:** [1-3]  ·  **RESULT: PASS**
+
+| # | Criterion | Result | Evidence |
+|---|---|---|---|
+| 1 | [criterion, verbatim from the brief] | PASS | [file:line, command output, or quote] |
+
+(Omit this section only when the brief had no rubric.)
+
 ## Deliverables
 
 [File paths, ticket IDs, links, or other concrete outputs. One per line.]
@@ -1280,7 +1339,7 @@ When a specialist finishes a dispatched mission, they write this file to signal 
 [Anything unusual. Blockers encountered. Follow-up items. Or "None."]
 ```
 
-**When to write it:** After the primary deliverables are saved and the work is in a state the Overmind can report on. Don't wait for perfection — write it when the mission as scoped is done.
+**When to write it:** After the primary deliverables are saved and the rubric grade has passed (OUTCOMES), so the work is in a state the Overmind can report on. Don't wait for perfection — write it when the mission as scoped is done.
 
 **Specialists:** The monitoring is silent. Writing this file is the signal that closes the loop and notifies the human — don't forget it. If a transport exists, also post done/blocked to the team channel per your membership reflex; the file remains the authoritative completion signal either way.
 

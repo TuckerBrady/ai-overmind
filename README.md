@@ -1,4 +1,4 @@
-# ai-overmind v4.6.0
+# ai-overmind v4.7.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,15 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.7.0
+
+**Three ideas taken from Claude Managed Agents.**
+
+- **Outcomes: a rubric gate before "done."** Every dispatch brief carries a `DONE WHEN — RUBRIC` of 5 to 10 checkable criteria. Before a lane writes `mission-complete.md`, a splinter twin in the new GRADER mode checks the deliverable against it, with evidence per criterion, and never sees the doer's reasoning. Three rounds, then the lane goes BLOCKED with the failing criteria. The Overmind grades any completion that arrives without a pass.
+- **Pinned boot layers.** TARS remembers when a session booted and says so if that seat's BOOT.md changes mid-session. Every Gopher row carries a boot stamp (the first 8 characters of BOOT.md's SHA-256), so the Overmind sees which version each member booted on instead of chasing acknowledgments.
+- **Worker tiers.** Twins and dispatched sessions run `standard` (the full model) or `light` (a cheaper model for sweeps, audits, triage, and reading-heavy work). Graders, anything written for the human, and anything touching money, health, legal, or security never tier down.
+- **Fix:** the TARS thresholds note no longer splits the firmware's TARS table in two.
 
 ## What's New in v4.6.0
 
