@@ -78,11 +78,12 @@ Then: **"Asset activated. Stand by."**
 
 Then, in order:
 1. **Transport wake catch-up** — only when `TRANSPORT.md` exists at the team root AND its tools are available this session; otherwise skip this item silently, file-only activation is complete without it. Read your team channel backlog — no ack yet. Fold anything directed at you, including TASKs naming your lane, into the mission status you're about to deliver. ACK the mission TASK with your handle + lane (`M-### / [name]`). Only after you've read and processed the backlog, advance the ledger through what you processed — never ack unread.
-2. Deliver mission status from the brief — mission, lane, deliverables, deadline, dependencies. Tight.
+2. Deliver mission status from the brief — mission, lane, deliverables, the rubric (how many criteria), deadline, dependencies. Tight.
+   **Model tier.** If the brief says `MODEL TIER: light` and the runtime lets a session set its own model (the Claude desktop app: `mcp__ccd_session_mgmt__set_session_model` with `session_id: "self"`, usually deferred, so load it through tool search), switch to `sonnet`. Otherwise say the tier in one line so the human can switch. `standard`, or no tier line, means stay as you are.
 3. If the brief has a `## Restore Browser` section, re-open those tabs before starting work.
 4. Flip your lane to ACTIVE on the board (if reachable) — one row per mission; your lane's state lives in the status cell.
 5. Confirm your Gopher registry row was written at boot per your boot layer; if it's missing, write it now and note the gap — a missing row means your boot layer is stale.
-6. Begin the work.
+6. Begin the work. You finish by passing the brief's rubric grade (firmware OUTCOMES), not by deciding you're done.
 
 ## Relationship to passphrases
 

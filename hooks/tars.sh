@@ -89,6 +89,7 @@ if [ ! -f "$st/started" ]; then
   : > "$st/started"
   printf '%(%Y-%m-%d %H:%M)T' -1 > "$st/started_at" 2>/dev/null
   : > "$st/marker"
+  : > "$st/bootref"
   put "$st/lastwatch" "$now"
   find "$home/sessions" -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} + 2>/dev/null
 fi
@@ -112,6 +113,16 @@ if (( turns >= soft && ( (turns - soft) % 5 == 0 || turns == hard ) )); then
   if (( turns >= hard )); then say "turn $turns. $handoff Hard threshold ($hard) reached."
   else say "turn $turns. $handoff Soft threshold ($soft) reached. Handoff suggested."
   fi
+fi
+
+# ---------------------------------------------------------------- boot layer
+# Pinned config: this session booted on the BOOT.md that existed when it
+# started. An edit since then (the Overmind propagating a change) means it is
+# running a superseded boot layer until it re-reads the file. Reported once
+# per edit; the reference moves forward each time.
+if [ -z "$first" ] && [ -f "$cwd/BOOT.md" ] && [ -f "$st/bootref" ] && [ "$cwd/BOOT.md" -nt "$st/bootref" ]; then
+  say "BOOT.md changed since this session booted. Re-read it before your next action."
+  : > "$st/bootref"
 fi
 
 # ---------------------------------------------------------------- which seat
