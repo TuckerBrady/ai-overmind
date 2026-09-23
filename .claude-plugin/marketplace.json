@@ -12,7 +12,7 @@
       "name": "ai-overmind",
       "source": "./",
       "description": "Build and run a personal AI team in Claude Code. Type /engage and your Overmind learns your role, proposes a custom team of AI specialists, and builds a boot layer and folder for each one. Handoffs, dispatch, a mission board, and a turn hook that reports what changed before every message.",
-      "version": "4.7.0"
+      "version": "4.8.0"
     }
   ]
 }
