@@ -1,4 +1,4 @@
-# ai-overmind v4.7.0
+# ai-overmind v4.8.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,14 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.8.0
+
+**The team engine, over MCP (preview, read-only).**
+
+- **`overmind-mcp`** ([`mcp/`](mcp/README.md)) is a single compiled program, with no Python or Node needed, that serves a team root to any MCP client. `boot(seat)` returns the seat's BOOT.md with its `@` imports inlined, so a seat boots in the Claude desktop app's chat, Cowork, or another MCP client without pasting anything, and never runs on a stale paste after a BOOT.md edit. Read tools cover the roster, the mission board, handoffs, inboxes, and the firmware by section.
+- **Honest ceiling, stated in every boot:** outside Claude Code there are no hooks, so no TARS, and nothing is injected before the first message. The boot tells the seat to declare that and to name the startup steps it could not run.
+- The plugin does not start the server; you install it yourself (see [`mcp/README.md`](mcp/README.md)). Write tools, a `/link` installer, and release binaries come next.
 
 ## What's New in v4.7.0
 
@@ -240,7 +248,7 @@ Claude Code runs in a terminal, or in the Code tab of the Claude desktop app. St
 
 ## Security and data
 
-Everything this plugin does runs on your machine, inside the Claude Code permission model you already use. It ships no MCP servers, no binaries, and no telemetry. Here is exactly what it runs and touches.
+Everything this plugin does runs on your machine, inside the Claude Code permission model you already use. The plugin registers no MCP servers, ships no binaries, and sends no telemetry. The repository also holds `mcp/`, the source of an optional MCP server that you build or download and register yourself; the plugin never starts it, and it reads only your team folder and makes no network calls. Here is exactly what it runs and touches.
 
 **Hooks**
 - **SessionStart** runs `cat` on `hooks/firmware.md` to load the Overmind's instructions into context. It reads one file inside the plugin and nothing else.
