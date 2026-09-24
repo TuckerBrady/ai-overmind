@@ -1,4 +1,4 @@
-# ai-overmind v4.8.0
+# ai-overmind v4.8.1
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,11 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.8.1
+
+- **Splinter twins boot through the team engine.** When `overmind-mcp` is connected, a twin calls `boot` with the specialist's seat name and gets their BOOT.md with every `@` import inlined, so it now carries the team's `WORKING_WITH_[name].md` rules that a plain file read skipped. It checks the specialist's board rows with `board`. Without the server it reads the files, and now follows each `@` import by hand. Twins use the engine's read tools only, and skip the boot layer's session-start steps, since a twin is not a session.
+- Spawn prompts name the seat as well as the folder: *"You are a twin of Sam. Seat: Sam. Their folder: ..."*
 
 ## What's New in v4.8.0
 
