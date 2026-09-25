@@ -6,9 +6,10 @@
 # message. The Overmind decides what those facts mean and what to do about them.
 #
 # Rules this script lives by:
-#   - Fast: bash builtins only on the common path, so a quiet message launches
-#     no extra processes. Anything on the network runs in the background and is
-#     reported on the NEXT message.
+#   - Fast: bash builtins on the common path. The one exception is the context
+#     meter, a single tail | grep over the end of the transcript (about 70 ms).
+#     Anything on the network runs in the background and is reported on the
+#     NEXT message.
 #   - Quiet: prints nothing unless something changed or a checkpoint is due.
 #   - Never blocks: every path exits 0. (Exit 2 on UserPromptSubmit would erase
 #     the human's prompt.)
@@ -98,20 +99,119 @@ fi
 turns=$(( $(getn "$st/turns") + 1 ))
 put "$st/turns" "$turns"
 
-# Quiet until the soft threshold, then every 5th turn. A session this short
-# doesn't need a handoff, so an early checkpoint is noise. Tune per install with
-# TARS_SOFT / TARS_HARD (the "env" block of settings.json reaches hooks).
-soft=${TARS_SOFT:-20}; case $soft in ''|*[!0-9]*) soft=20 ;; esac
-hard=${TARS_HARD:-45}; case $hard in ''|*[!0-9]*) hard=45 ;; esac
-(( hard > soft )) || hard=$(( soft + 25 ))
-
-if (( turns >= soft && ( (turns - soft) % 5 == 0 || turns == hard ) )); then
+handoff_status() {
   handoff="No handoff written this session."
   for h in "$cwd/HANDOFF.md" "$cwd/.auto-memory/HANDOFF.md"; do
     written_here "$h" && { handoff="Handoff written this session."; break; }
   done
-  if (( turns >= hard )); then say "turn $turns. $handoff Hard threshold ($hard) reached."
-  else say "turn $turns. $handoff Soft threshold ($soft) reached. Handoff suggested."
+}
+
+pctset() { # NAME VALUE DEFAULT: a whole percentage from 1 to 99, or the default
+  local v=$2; case $v in ''|*[!0-9]*) v=$3 ;; esac
+  (( v >= 1 && v <= 99 )) || v=$3
+  printf -v "$1" '%s' "$v"
+}
+
+# Context meter. Claude Code records each reply's token usage in the session
+# transcript. The last main-thread reply's input + cache + output tokens is how
+# full the context window is right now: the same number as the app's context
+# ring. One tail and one grep over the transcript's last 256 KB, about 70 ms.
+# A compaction after that reply replaces it with the compaction's postTokens.
+# Subagent (sidechain) and synthetic entries are skipped.
+ctx=0 model=""
+tp=$(field transcript_path); tp=${tp//\\\\//}
+if [ -n "$tp" ] && [ -f "$tp" ]; then
+  side=false m=""
+  while IFS= read -r line; do
+    case $line in
+      '"isSidechain":'*) side=${line#*:} ;;
+      '"model":'*) m=${line#*:\"}; m=${m%\"} ;;
+      '"usage":'*)
+        [ "$side" = true ] || [ "$m" = '<synthetic>' ] && continue
+        sum=0
+        for k in input_tokens cache_creation_input_tokens cache_read_input_tokens output_tokens; do
+          re="\"$k\":([0-9]+)"
+          [[ $line =~ $re ]] && sum=$(( sum + BASH_REMATCH[1] ))
+        done
+        (( sum > 0 )) && { ctx=$sum; model=$m; } ;;
+      '"postTokens":'*) [ "$side" = true ] || ctx=${line#*:} ;;
+    esac
+  done < <(tail -c 262144 "$tp" 2>/dev/null | grep -oE '"isSidechain":(true|false)|"model":"[^"]*"|"usage":\{[^}]*|"postTokens":[0-9]+')
+fi
+case $ctx in ''|*[!0-9]*) ctx=0 ;; esac
+if (( ctx > 0 )); then
+  printf '%s %s' "$ctx" "$model" > "$st/ctx"
+elif [ -f "$st/ctx" ]; then
+  read -r ctx model < "$st/ctx"; case $ctx in ''|*[!0-9]*) ctx=0 ;; esac
+fi
+
+if (( ctx > 0 )); then
+  # Window size: the transcript names the model but not its window. Claude
+  # models from generation 5 on get 1M, older ones and Haiku 200k. TARS_WINDOW
+  # overrides; a reading over the assumed window proves it's the 1M one.
+  win=${TARS_WINDOW:-}; case $win in *[!0-9]*) win="" ;; esac
+  if [ -z "$win" ] || (( win < 1000 )); then
+    win=200000
+    re='^claude-([a-z]+)-([0-9]+)'
+    [[ $model =~ $re ]] && [ "${BASH_REMATCH[1]}" != haiku ] && (( BASH_REMATCH[2] >= 5 )) && win=1000000
+  fi
+  (( ctx > win )) && win=1000000
+  pctset csoft "${TARS_CTX_SOFT:-}" 50
+  pctset chard "${TARS_CTX_HARD:-}" 75
+  pctset cboot "${TARS_CTX_BOOT:-}" 15
+  (( chard > csoft )) || chard=$(( csoft + 25 > 95 ? 95 : csoft + 25 ))
+  pct=$(( ctx * 100 / win ))
+  step=$(( pct / 5 * 5 ))
+
+  # Burn rate over the last few turns. Auto-compact fires near 95% of the
+  # window (observed at 96.7%). A drop means a compaction: start the log over.
+  log=() lt="" lc=""
+  if [ -f "$st/ctxlog" ]; then
+    while read -r lt lc; do log+=("$lt $lc"); done < "$st/ctxlog"
+  fi
+  (( ${#log[@]} )) && read -r lt lc <<< "${log[${#log[@]}-1]}"
+  if [ -n "$lc" ] && (( ctx < lc )); then log=(); lt=""; fi
+  [ "$lt" = "$turns" ] || log+=("$turns $ctx")
+  (( ${#log[@]} > 6 )) && log=("${log[@]: -6}")
+  printf '%s\n' "${log[@]}" > "$st/ctxlog"
+  read -r lt lc <<< "${log[0]}"
+  eta="" compact=$(( win * 95 / 100 ))
+  if (( turns > lt && ctx > lc && compact > ctx )); then
+    rate=$(( (ctx - lc) / (turns - lt) ))
+    if (( rate > 0 )); then
+      n=$(( (compact - ctx + rate - 1) / rate ))
+      (( n == 1 )) && eta=", about 1 turn to auto-compact at this rate" || eta=", about $n turns to auto-compact at this rate"
+    fi
+  fi
+
+  (( win % 1000000 == 0 )) && ws="$(( win / 1000000 ))M" || ws="$(( win / 1000 ))k"
+  meter="turn $turns, context $pct% ($(( (ctx + 500) / 1000 ))k/$ws)$eta."
+
+  # Speak on crossing the soft threshold, then once per 5 points above it.
+  last=$(getn "$st/ctxstep")
+  if (( step < last )); then put "$st/ctxstep" "$step"; last=$step; fi
+  if (( pct >= csoft && step > last )); then
+    put "$st/ctxstep" "$step"
+    handoff_status
+    if (( pct >= chard )); then say "$meter $handoff Hard threshold ($chard%) reached."
+    else say "$meter $handoff Soft threshold ($csoft%) reached. Handoff suggested."
+    fi
+  elif [ ! -f "$st/ctxfirst" ] && (( pct >= cboot )); then
+    say "context is already $pct% ($(( (ctx + 500) / 1000 ))k/$ws) after the first exchange. The boot layer is heavy."
+  fi
+  : > "$st/ctxfirst"
+else
+  # No transcript to read: fall back to counting turns. Quiet until the soft
+  # threshold, then every 5th turn. Tune with TARS_SOFT / TARS_HARD.
+  soft=${TARS_SOFT:-20}; case $soft in ''|*[!0-9]*) soft=20 ;; esac
+  hard=${TARS_HARD:-45}; case $hard in ''|*[!0-9]*) hard=45 ;; esac
+  (( hard > soft )) || hard=$(( soft + 25 ))
+
+  if (( turns >= soft && ( (turns - soft) % 5 == 0 || turns == hard ) )); then
+    handoff_status
+    if (( turns >= hard )); then say "turn $turns. $handoff Hard threshold ($hard) reached."
+    else say "turn $turns. $handoff Soft threshold ($soft) reached. Handoff suggested."
+    fi
   fi
 fi
 
