@@ -1,4 +1,4 @@
-# ai-overmind v4.8.1
+# ai-overmind v4.9.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,15 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.9.0
+
+**TARS reads the context meter.**
+
+- **Checkpoints follow the context window, not the turn count.** TARS reads token usage from the session transcript, the same figure as the context ring in the Claude desktop app. It suggests a handoff when the window is 50% full and insists at 75%, speaking once per 5 points in between. Twenty light turns no longer trigger a nag; five heavy ones can.
+- **A countdown.** Once the fill rate is known, each checkpoint estimates how many turns remain before auto-compact.
+- **Heavy-boot warning.** If a session is already 15% full after its first exchange, TARS says so once.
+- **Tunable.** `TARS_CTX_SOFT`, `TARS_CTX_HARD`, `TARS_CTX_BOOT`, and `TARS_WINDOW` in the `env` block of `settings.json`. When no transcript can be read, TARS falls back to the turn thresholds (`TARS_SOFT` / `TARS_HARD`).
 
 ## What's New in v4.8.1
 
@@ -94,7 +103,7 @@ Twelve capabilities work out of the box: **team building**, **handoffs**, **disp
 **TARS, the turn hook — and the Overmind moves home to Claude Code.**
 
 - **TARS replaces MOTHER.** MOTHER was a scheduled task per dispatched mission, plus an optional polling task, each needing a one-time approval and a stand-down. Meanwhile `/status` described a turn-based check, and firmware still carried its own polling template: three overlapping watchers, and in the field a team ran over a month of active missions with none of them running. TARS is one `UserPromptSubmit` hook, named for the robot in *Interstellar* with the honesty setting. Before every message you send, it reports **facts only**:
-  - turn checkpoints (silent until turn 20, then every 5th turn: handoff suggested from 20, insisted at 45; tune with `TARS_SOFT` / `TARS_HARD`), with handoff status read from disk
+  - context checkpoints (since v4.9.0: handoff suggested when the context window is 50% full, insisted at 75%, with a turns-to-auto-compact estimate; turn counting is the fallback), with handoff status read from disk
   - a team member's `mission-complete.md` appearing, and your unread inbox growing
   - a new brief staged in a team member's folder, in that member's own session
   - a push to one of your Collective binders by someone else, checked in the background at most every five minutes
