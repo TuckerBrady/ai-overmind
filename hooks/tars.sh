@@ -196,7 +196,7 @@ if (( ctx > 0 )); then
     if (( pct >= chard )); then say "$meter $handoff Hard threshold ($chard%) reached."
     else say "$meter $handoff Soft threshold ($csoft%) reached. Handoff suggested."
     fi
-  elif [ ! -f "$st/ctxfirst" ] && (( pct >= cboot )); then
+  elif [ ! -f "$st/ctxfirst" ] && (( turns <= 3 && pct >= cboot )); then
     say "context is already $pct% ($(( (ctx + 500) / 1000 ))k/$ws) after the first exchange. The boot layer is heavy."
   fi
   : > "$st/ctxfirst"
