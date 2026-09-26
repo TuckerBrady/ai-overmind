@@ -1,4 +1,4 @@
-# ai-overmind v4.9.0
+# ai-overmind v4.10.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,17 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.10.0
+
+**The right model and effort for every job, picked automatically.**
+
+- **Three worker tiers.** `light` (Sonnet, low effort) for sweeps, triage, and reading. `standard` (the session as opened) for building and anything written for you. `deep` (the most capable model, extra-high effort) for design decisions, root-cause hunts, security review, and any task where a previous attempt failed.
+- **The Overmind picks the tier itself.** Five rules in order, first match wins, and ties go to the higher tier. Every brief records the tier and a one-line reason. You're never asked.
+- **Applied from outside.** The Claude desktop app won't let a session change its own model or effort, so v4.7.0's "switch yourself to Sonnet" step never worked. Now the Overmind sets the model and effort on the specialist's session when the lane goes active. Your only part is one approval click. Without the session tools, it tells you in one line what to pick.
+- **Twins** get the tier's model on spawn. A third-round rubric grade uses a `deep` grader.
+- **Fix:** TARS's heavy-boot line fires only in a session's first three turns. A plugin upgraded mid-session no longer mistakes its first late reading for a boot.
+- **Fix:** TARS reads only `claude-*` model IDs. A subagent call's `"model": "sonnet"` parameter, stored in the same transcript line, made 4.9.0 assume a 200k window on a 1M session and report 95% when the context was at 19%.
 
 ## What's New in v4.9.0
 
@@ -36,7 +47,7 @@ Twelve capabilities work out of the box: **team building**, **handoffs**, **disp
 
 - **Outcomes: a rubric gate before "done."** Every dispatch brief carries a `DONE WHEN — RUBRIC` of 5 to 10 checkable criteria. Before a lane writes `mission-complete.md`, a splinter twin in the new GRADER mode checks the deliverable against it, with evidence per criterion, and never sees the doer's reasoning. Three rounds, then the lane goes BLOCKED with the failing criteria. The Overmind grades any completion that arrives without a pass.
 - **Pinned boot layers.** TARS remembers when a session booted and says so if that seat's BOOT.md changes mid-session. Every Gopher row carries a boot stamp (the first 8 characters of BOOT.md's SHA-256), so the Overmind sees which version each member booted on instead of chasing acknowledgments.
-- **Worker tiers.** Twins and dispatched sessions run `standard` (the full model) or `light` (a cheaper model for sweeps, audits, triage, and reading-heavy work). Graders, anything written for the human, and anything touching money, health, legal, or security never tier down.
+- **Worker tiers.** Twins and dispatched sessions run `standard` (the full model) or `light` (a cheaper model for sweeps, audits, triage, and reading-heavy work). Graders, anything written for the human, and anything touching money, health, legal, or security never tier down. (Three tiers with effort since v4.10.0.)
 - **Fix:** the TARS thresholds note no longer splits the firmware's TARS table in two.
 
 ## What's New in v4.6.0

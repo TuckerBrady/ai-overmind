@@ -54,7 +54,7 @@ Extract from the human's message:
 - **Dependencies** — who else is involved, what the Overmind handles separately
 - **Priority & deadline** — CRITICAL / STANDARD / LOW plus any due date (tiers and escalation windows in the firmware's MISSION BOARD section). Default STANDARD; confirm CRITICAL with the human if you're inferring it.
 - **Done-when rubric** — 5 to 10 numbered criteria a grader can check from the deliverable alone, without asking the specialist anything. Draft them yourself from the deliverables: "the table has one row per open invoice", "every figure cites its source file", "`npm test` passes". Never "high quality" or "complete". This is the specialist's finish line and the grader's checklist (firmware OUTCOMES). If the human named acceptance criteria, those come first, verbatim. If you can't write a checkable criterion, you don't understand the deliverable yet: ask the human before dispatching.
-- **Model tier** — `standard` (the default: building, judgment, anything written for the human) or `light` (sweeps, checklist audits, data entry, reading-heavy work with little judgment). See WORKER TIERS in the firmware.
+- **Model tier** — `light`, `standard` (the default), or `deep`, with a one-line reason. Pick it yourself; never ask the human. First match wins: a previous attempt failed → `deep`; security review, a design decision others will build on, or a bug of unknown cause → `deep`; a grader, anything written for the human, or money, health, legal, or security work → at least `standard`; reading and reporting facts with no judgment → `light`; anything else → `standard`. Torn between two, take the higher. Full table: Worker tiers in the firmware.
 
 If the target specialist isn't named explicitly, map the task to the right person by domain. When a task spans multiple specialists, dispatch to each with tailored briefs.
 
@@ -112,7 +112,7 @@ DATE DISPATCHED: [YYYY-MM-DD]
 DISPATCHED BY: [Overmind Name]
 MISSION ID: [M-###]  //  LANE: [M-###] / [specialist name]
 PRIORITY: [CRITICAL / STANDARD / LOW]  //  DEADLINE: [YYYY-MM-DD HH:MM or "none"]
-MODEL TIER: [standard / light]
+MODEL TIER: [light / standard / deep] — [one-line reason]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

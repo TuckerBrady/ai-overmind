@@ -117,7 +117,9 @@ pctset() { # NAME VALUE DEFAULT: a whole percentage from 1 to 99, or the default
 # full the context window is right now: the same number as the app's context
 # ring. One tail and one grep over the transcript's last 256 KB, about 70 ms.
 # A compaction after that reply replaces it with the compaction's postTokens.
-# Subagent (sidechain) and synthetic entries are skipped.
+# Subagent (sidechain) and synthetic entries are skipped. Only claude-* model
+# IDs count: a tool call's own "model" parameter (the Agent tool's "sonnet")
+# sits in the same transcript line and must not be taken for the session's.
 ctx=0 model=""
 tp=$(field transcript_path); tp=${tp//\\\\//}
 if [ -n "$tp" ] && [ -f "$tp" ]; then
@@ -136,7 +138,7 @@ if [ -n "$tp" ] && [ -f "$tp" ]; then
         (( sum > 0 )) && { ctx=$sum; model=$m; } ;;
       '"postTokens":'*) [ "$side" = true ] || ctx=${line#*:} ;;
     esac
-  done < <(tail -c 262144 "$tp" 2>/dev/null | grep -oE '"isSidechain":(true|false)|"model":"[^"]*"|"usage":\{[^}]*|"postTokens":[0-9]+')
+  done < <(tail -c 262144 "$tp" 2>/dev/null | grep -oE '"isSidechain":(true|false)|"model":"(claude-[^"]*|<synthetic>)"|"usage":\{[^}]*|"postTokens":[0-9]+')
 fi
 case $ctx in ''|*[!0-9]*) ctx=0 ;; esac
 if (( ctx > 0 )); then
@@ -196,7 +198,7 @@ if (( ctx > 0 )); then
     if (( pct >= chard )); then say "$meter $handoff Hard threshold ($chard%) reached."
     else say "$meter $handoff Soft threshold ($csoft%) reached. Handoff suggested."
     fi
-  elif [ ! -f "$st/ctxfirst" ] && (( pct >= cboot )); then
+  elif [ ! -f "$st/ctxfirst" ] && (( turns <= 3 && pct >= cboot )); then
     say "context is already $pct% ($(( (ctx + 500) / 1000 ))k/$ws) after the first exchange. The boot layer is heavy."
   fi
   : > "$st/ctxfirst"

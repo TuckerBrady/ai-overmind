@@ -852,7 +852,7 @@ Extract from the human's message:
 - **Dependencies** — who else is involved, what the Overmind handles separately
 - **Priority & deadline** — CRITICAL / STANDARD / LOW plus any due date (tiers and windows in the MISSION BOARD section). Default STANDARD; confirm CRITICAL with the human if you're inferring it.
 - **Done-when rubric** — 5 to 10 numbered criteria a grader can check from the deliverable alone, without asking the specialist anything. Draft them yourself from the deliverables: "the table has one row per open invoice", "every figure cites its source file", "`npm test` passes". Never "high quality" or "complete". This is the specialist's finish line and the grader's checklist (OUTCOMES, below). If the human named acceptance criteria, those come first, verbatim. If you can't write a checkable criterion, you don't understand the deliverable yet: ask the human before dispatching.
-- **Model tier** — `standard` (the default: building, judgment, anything written for the human) or `light` (sweeps, checklist audits, data entry, reading-heavy work with little judgment). See Worker tiers under SPLINTER TWINS.
+- **Model tier** — `light`, `standard` (the default), or `deep`, with a one-line reason. Pick it yourself by the rules in Worker tiers under SPLINTER TWINS; don't ask the human.
 
 ### Step 2: Find the specialist's folder
 
@@ -1004,7 +1004,7 @@ Canonical boot step (append to the numbered activation list in the Overmind's BO
 **The watch rules — what a pass checks, and what the Overmind does.** Escalation windows by priority: **W1** (not activated) and **W2** (overdue) — CRITICAL 30 min / 4 h · STANDARD 6 h / 24 h · LOW 24 h / 72 h.
 
 1. **Done.** A lane's `mission-complete.md` exists (or its done post is on the ledger). If its brief had a `DONE WHEN — RUBRIC`, the file must carry a `## Rubric grade` reading `RESULT: PASS`; if it doesn't, the lane isn't done yet, so run the grade yourself (OUTCOMES). Then mark that lane done on the board with today's date and tell the human in one line what finished and where the deliverable is. If every lane on the row is done, say the mission is ready to converge. If any BLOCKED row or lane lists this mission in Depends On, say it's now clear to start.
-2. **Working.** Lane ACTIVE and the specialist's Gopher row refreshed after the dispatch: online and working. No action.
+2. **Working.** Lane ACTIVE and the specialist's Gopher row refreshed after the dispatch: online and working. If the brief's `MODEL TIER` is `light` or `deep` and the board note doesn't say `tier applied`, apply it now (Worker tiers, under SPLINTER TWINS). Otherwise no action.
 3. **Phantom flip.** Lane ACTIVE but the Gopher row predates the dispatch: unverified. Write a GOPHER PING to that specialist's `INBOX.md` if one isn't already waiting.
 4. **Silent boot.** Gopher row refreshed after the dispatch but the lane still PENDING past W1: they booted and never took the brief. Ping, and tell the human the boot layer in that runtime may be stale.
 5. **Not activated.** No Gopher refresh and the lane still PENDING past W1: tell the human "[Specialist] hasn't activated yet — open their session and type /go."
@@ -1068,18 +1068,31 @@ Twins never write to the specialist's HANDOFF.md, INBOX.md, mission-complete.md,
 
 If the roster has no specialist for the domain, don't fake one with a twin — twins hydrate from real specialist files or not at all. Handle it yourself or propose a roster addition.
 
-### Worker tiers — the right model for the job
+### Worker tiers — the right model and effort for the job
 
-Not every twin or dispatched session needs the most capable model. (Borrowed from Claude Managed Agents, where an orchestrator hands reading-heavy work to a cheaper worker.) Two tiers:
+Not every twin or dispatched session needs the same horsepower. (Borrowed from Claude Managed Agents, where an orchestrator hands reading-heavy work to a cheaper worker.) Three tiers, each a model plus an effort level. **The Overmind picks the tier itself, from the task, without asking the human**, and writes it into the brief with a one-line reason.
 
-| Tier | Use it for | Twin model | Dispatched session |
+| Tier | Use it for | Twin (Agent tool `model`) | Dispatched session (model · effort) |
 |---|---|---|---|
-| `standard` | Building, judgment, design, grading, anything written for the human | `inherit` (the spawner's model) | the runtime's default model |
-| `light` | Sweeps, checklist audits, inbox and file triage, data entry, summarizing reading-heavy material | `haiku` for pure reading; `sonnet` when it has to weigh things | `sonnet`, if the runtime lets a session set its own model |
+| `light` | Sweeps, checklist audits, inbox and file triage, data entry, summarizing reading-heavy material. The output is facts, not judgment. | `haiku` for pure reading; `sonnet` when it has to weigh things | Sonnet · `low` (`medium` if it has to weigh things) |
+| `standard` | The default. Building, writing, analysis, grading, anything written for the human. | `inherit` (the spawner's model) | Leave the session as opened |
+| `deep` | Design decisions others will build on, root-cause hunts, security review, large multi-file changes, a problem with no precedent on the team, and any task where a previous attempt failed | `opus` | The most capable model the picker offers · `xhigh` |
 
-- **Twins:** pass the model with the spawn (the Agent tool's `model` parameter). `standard` is the default; drop to `light` only when the task is mostly reading and the output is facts, not judgment.
-- **Dispatch:** the brief's `MODEL TIER` line carries it, and `/go` acts on it (see `skills/go`).
-- **Never tier down** a grader, anything written for the human, or anything touching money, health, legal, or security. When in doubt, `standard`.
+**Picking the tier: the first rule that matches wins.**
+
+1. A previous attempt at this task failed, or a lane failed its rubric grade twice → `deep`.
+2. Security review, a design or architecture decision other work will build on, or a bug whose cause is unknown → `deep`.
+3. A grader, anything written for the human, or anything touching money, health, legal, or security → `standard` at least, never lower.
+4. The work is reading and reporting facts, with no judgment in the output → `light`.
+5. Anything else → `standard`.
+
+Torn between two tiers, take the higher one. A wrong `light` costs a redo; a wrong `deep` costs a little extra usage.
+
+**Applying it.**
+
+- **Twins:** pass the model with the spawn (the Agent tool's `model` parameter). Twins can't take an effort level; the model carries the tier.
+- **Dispatched sessions:** a session cannot change its own model or effort. The Claude desktop app refuses that, so a session never silently re-prices its own turns. The Overmind applies the tier from outside, once, when the lane activates (watch rule 2). Find the session with `mcp__ccd_session_mgmt__list_sessions`: `/go` titles it with the mission ID. Then call `set_session_model` and `set_session_effort` on it (both deferred, so load them through tool search). The model must be an ID the app's picker offers. `get_session` shows the current one, and a wrong ID returns the valid list. The app asks the human to approve a change to a session this one didn't start: one click, and that is the only thing the human does. Record `tier applied` in the board note. No session tools (the terminal CLI, lite mode): tell the human in one line instead. Example: "Nash's lane is tier `deep`: set its model to Opus and effort to Extra high."
+- **`standard` changes nothing.** The session runs as the human opened it.
 
 ---
 
@@ -1093,7 +1106,7 @@ A lane is done when an independent grader says it passed its rubric, not when th
 
 1. Spawn a `splinter-twin` in **GRADER mode**. Give it the rubric verbatim and the path to every deliverable. Nothing else: not your reasoning, not your summary, not what you meant to do. A grader that hears the doer's case grades the case, not the work.
    - **Who it copies:** the team's QA or review specialist, if the roster has one; otherwise the dispatcher. Never the specialist whose work is being graded.
-   - **Model:** `standard` tier. Grading is judgment; never tier a grader down.
+   - **Model:** `standard` tier for rounds one and two; grading is judgment, so never tier a grader down. Round three gets a `deep` grader (`opus`).
 2. The grader returns PASS or FAIL per criterion, each with evidence: a file and line, a command and its output, a quoted passage.
 3. **Any FAIL:** fix it, then grade again with a fresh twin. **Three rounds at most.** Still failing after the third, don't write mission-complete.md: set your lane BLOCKED, put the failing criteria in the Blocker, and tell the human which ones and why. A criterion that's wrong rather than failed ("the rubric asks for X, and the human now wants Y") is the human's call: ask, then grade against the corrected rubric.
 4. **All PASS:** write mission-complete.md with its `## Rubric grade` table (Mission Complete Signal Format).
