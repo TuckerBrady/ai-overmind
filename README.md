@@ -17,6 +17,7 @@ Twelve capabilities work out of the box: **team building**, **handoffs**, **disp
 - **Applied from outside.** The Claude desktop app won't let a session change its own model or effort, so v4.7.0's "switch yourself to Sonnet" step never worked. Now the Overmind sets the model and effort on the specialist's session when the lane goes active. Your only part is one approval click. Without the session tools, it tells you in one line what to pick.
 - **Twins** get the tier's model on spawn. A third-round rubric grade uses a `deep` grader.
 - **Fix:** TARS's heavy-boot line fires only in a session's first three turns. A plugin upgraded mid-session no longer mistakes its first late reading for a boot.
+- **Fix:** TARS reads only `claude-*` model IDs. A subagent call's `"model": "sonnet"` parameter, stored in the same transcript line, made 4.9.0 assume a 200k window on a 1M session and report 95% when the context was at 19%.
 
 ## What's New in v4.9.0
 
