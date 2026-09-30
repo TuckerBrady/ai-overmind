@@ -1,172 +1,174 @@
 ---
 name: morph
 description: >
-  High-velocity multi-specialist review protocol for independent, verifiable work.
-  Use when the human needs 1-2 builders to ship code fast with confidence, backed by
-  an independent inspector who grades only the rubric. Architects lock requirements first,
-  domain reviewers gate economics. Merges only on inspector PASS. Designed for greenfield,
-  clean-seam, no-device work (libraries, services, data pipelines). Not for UI/device work
-  or seat-memory tasks.
+  Morph: build a whole package of code in one Overmind session with splinter twins. An architect
+  twin locks the contract and rubric, builder twins work in parallel in their own git worktrees,
+  a fresh grader twin inspects every pull request against the rubric alone, and a domain twin
+  gates anything that computes money. Merges only on a PASS. Use when the human says "/morph",
+  "morph this", "run a morph", "build this with twins", or hands over greenfield, clean-seam work
+  (a library, a service, a data pipeline, a CLI) with clear acceptance criteria. Not for UI or
+  device work without an emulator, and not for work that needs a specialist's live session memory.
+  No MCP server required.
 ---
 
-# MORPH — Parallel Building + Independent Inspection
+# MORPH — build with twins, merge on evidence
 
-The MORPH protocol runs builders in parallel across isolated worktrees while a fresh inspector grades each PR against ONLY the rubric and contract. No builder opinions in the inspection. No resume on inspector failure. Every merge is human-gated.
+Morph turns one Overmind session into a small engineering org. The Overmind is the orchestrator.
+Everyone else is a **splinter twin** (`agents/splinter-twin.md`) spawned in this session: no
+dispatch, no extra sessions for the human to open, no human courier between steps.
 
-**Use MORPH when:**
-- Building a library, service, data pipeline, or API (greenfield, clean seams)
-- You want 2-3 PRs shipped in one session with independent verification
-- You have a clear contract and acceptance criteria
-- The work doesn't need device testing or a specialist's session memory
+The one idea that makes it work: **independence is a property of the inputs, not of the model.**
+A grader that never sees the builder's summary, the orchestrator's opinion, or an earlier verdict
+catches what the builder missed, even when it's the same model.
 
-**Do NOT use MORPH for:**
-- UI/device work (needs emulator verification; see AXM-036 addendum)
-- Anything that requires the Architect or builder to hold session state across runs
-- Work that spans fuzzy domain boundaries
+## Does Morph need the MCP server?
 
----
+No. Morph runs on splinter twins, and twins work with or without `overmind-mcp`. When the server is
+connected, a twin boots through its `boot` tool and reads the board with `board`. When it isn't, the
+twin reads the seat's `BOOT.md` and its `@` imports from disk. Same behavior either way. The server
+is an optional convenience (see `mcp/README.md`), never a prerequisite.
 
-## Workflow
+What Morph does need:
+- Claude Code with the Agent tool (twins are subagents).
+- `git`, and a repository the builders can branch from.
+- A code host for pull requests (GitHub with the `gh` CLI is the tested path; plain branches work
+  if the human reviews locally).
 
-1. **Architect Phase** — Define contract, rubric, test strategy
-2. **Build Phase** — Multiple builders work in parallel, each in its own worktree/branch
-3. **Inspect Phase** — Fresh inspector per PR; grades ONLY against rubric + contract
-4. **Merge Gate** — Human approves only PASS verdicts; FAIL = builder regroups or task reframes
+## When to use it
 
----
+**Use Morph for:** greenfield or clean-seam code with checkable outcomes. Libraries, services, data
+pipelines, CLIs, API clients. Work that splits into two or more lanes with a clear boundary.
 
-## Step 1: Brief the Architect
+**Don't use Morph for:**
+- **UI or device work, unless inspections carry device evidence.** A grader reading a diff can't
+  see a clipped footer at 360dp or a crash on level entry. If you must, every UI criterion needs
+  emulator screenshots in the inspection, and the orchestrator smokes the build before a human does.
+- **Work that needs a specialist's live session memory** (an open browser flow, a half-finished
+  conversation). Twins know only what's on disk. Dispatch instead.
+- **Fuzzy domains** where nobody can write a checkable rubric yet. Explore first, then Morph.
 
-Dispatch to an Architect specialist (e.g., Pierce) with:
-- **Problem statement** — what needs to be built
-- **Inputs** — designs, specs, existing code to reference
-- **Deliverables** — list of services/modules/features
-- **Constraints** — tech stack, APIs, external dependencies
+## Roles
 
-The Architect locks:
-- **Contract** — one file naming all functions/classes and their signatures
-- **Rubric** — 5-10 checkable criteria; no "high quality", only measurable outcomes
-- **Test strategy** — unit test structure, coverage targets, integration test scope
-- **Domain gates** — if this involves money, security, or compliance: list what Ledger (or equivalent) must verify before merge
+Pick each role from your roster by lane. A team without a matching seat uses a generic twin with a
+role description instead.
 
-Architect delivers: `CONTRACT.md`, `RUBRIC.md`, `TEST_STRATEGY.md`, and one sample test so builders know the pattern.
+| Role | Usually | Tier | Job |
+|---|---|---|---|
+| Orchestrator | the Overmind | the session | Carves lanes, briefs twins, keeps the board, merges on PASS |
+| Architect | your systems or requirements seat | `deep` | Locks contract, rubric, test strategy |
+| Builders | your developer seat | `standard` | One lane each, own worktree, own branch, one PR |
+| Grader | your QA seat, in GRADE mode | `standard`, `deep` on a third round | Grades one PR against the rubric only |
+| Domain reviewer | your finance, security, or compliance seat | `deep` | Gates anything that computes money or touches secrets |
 
----
+Tiers follow the firmware (Worker tiers, under SPLINTER TWINS): graders and anything touching money
+or security never tier down.
 
-## Step 2: Spawn Builders in Parallel
+## The run
 
-Once the Architect's contract ships, dispatch to 2-3 builder specialists (Nash, Wyatt, etc.) with:
-- **Lane** — which services/modules this builder owns (carve the work cleanly)
-- **Contract** — the signed contract from Step 1 (verbatim file)
-- **Rubric** — the signed rubric (verbatim file)
-- **Test strategy** — the test structure (verbatim file)
-- **Clear instruction** — "Ship this lane. Every function in the contract must exist. Every test in the rubric must pass. No scope creep."
+### Wave 0 — frame it (orchestrator)
 
-Each builder:
-- Works in its own git worktree (`git worktree add builders/[name] -b [lane-branch]`)
-- Runs `npm ci` locally (never through a shared junction; see AXM-036 lessons)
-- Ships one PR per lane
-- Includes test titles **verbatim from the rubric** so the inspector can match
+1. Write down the deliverable in one line and decide what kind it is: a **library** (graded by its
+   tests) or something **runnable** (graded by running it on real input). Runnable deliverables
+   need a criterion that runs them end to end, or a CLI that silently falls back to fixtures will
+   pass every test.
+2. Open one row on the board for the run. Record the human's merge go for this mission on the
+   board, so later merges don't stall waiting for a fresh approval.
+3. Make a scratch folder per twin (`morph/<mission>/<twin-name>/`). A shared scratch folder
+   collides mid-round.
 
----
+### Wave 1 — the architect locks the contract
 
-## Step 3: Fresh Inspector per PR
+Spawn the architect twin with the problem, the inputs, and the constraints. It delivers, as files:
 
-Do NOT resume an inspector. For each PR:
+- **`CONTRACT.md`** — every module, function, and type with signatures, lane ownership, and the
+  **clauses** below.
+- **`RUBRIC.md`** — 5 to 10 numbered criteria per lane, each checkable from the deliverable alone.
+  Never "high quality". Each criterion names the test that proves it.
+- **`TEST_STRATEGY.md`** — structure, coverage floor, and one sample test so builders copy the
+  pattern.
 
-1. Create a new session (or session context) with a fresh inspector (Vaughn, or another QA specialist)
-2. Pass the inspector:
-   - **ONLY:** the rubric, contract, PR diff, and repo path
-   - **NEVER:** builder summary, T-Bot opinion, prior verdicts, or builder's intention
-3. Inspector grades PR against rubric **only**
-4. Verdict: PASS (merge) or FAIL (specific gap + retry)
+Contract clauses every Morph carries:
+- **No gaming the checks.** A builder may not rename, obfuscate, or split a string to get past a
+  grep, skip or weaken a test, or special-case a fixture. Any of these is an automatic FAIL.
+- **No scope without a clause.** A builder who thinks the contract is wrong stops and says so. The
+  orchestrator may not approve new scope in chat; only a new contract version can.
+- **Outcome invariants over case rules** wherever inputs can be adversarial. A property that must
+  hold for every input (with a seeded fuzzer and a positive control that proves the fuzzer can
+  fail) beats a growing list of per-case rules, which never converge.
 
-Inspector output: `INSPECTION_VERDICT.md` — checkmark per rubric item or callout of unmet criteria.
+Before any builder spawns, run two checks:
+- **Gap pass.** A second, fresh architect twin reads the contract cold and lists what a builder
+  would have to guess. Fix those first.
+- **Rubric dry run.** For every criterion, ask: could a grader check this with only the rubric, the
+  diff, and the repo? If not, rewrite it. Repeat this at every contract version.
 
----
+### Wave 2 — builders, in parallel
 
-## Step 4: Domain Gate (If Economics/Security/Compliance)
+Spawn one builder twin per lane, two or three at a time. Each brief carries the contract, the
+rubric, and the test strategy **verbatim as files**, plus:
 
-Before merging anything that touches:
-- Money (pricing, fees, budgets, transfers)
-- Security (auth, encryption, keys)
-- Compliance (legal, regulatory, audit)
+- its lane and nothing else
+- its own git worktree and branch: `git worktree add ../<repo>-<lane> -b morph/<lane>`
+- **its own dependency install in that worktree** (`npm ci`, `pip install`, whatever the stack uses).
+  Never link or junction a shared `node_modules`; an install through a junction wipes the shared
+  copy.
+- test titles copied **verbatim** from the rubric, so the grader can match them
+- every finding a grader has made on an earlier lane, so the same mistake isn't made twice
+- "Ship one PR. Every contract item exists. Every rubric test passes. No scope creep. If the
+  contract is wrong, stop and say so."
 
-Dispatch to Ledger (or domain reviewer) with the merged code + the rubric. Ledger verifies:
-- No optimistic assumptions in calculations
-- No silent failures on edge cases
-- Audit trail completeness
+On Windows, have every text check force UTF-8. A default-encoding read can pass a check it should
+fail.
 
-Ledger verdict gates merge.
+### Wave 3 — a fresh grader per PR
 
----
+For every PR, spawn a **new** grader twin in GRADE mode. Never resume one. Its prompt carries only:
 
-## Step 5: Merge Only on PASS
+- the rubric
+- the contract
+- the PR (or branch) and the repo path
 
-Human (you) reviews inspector PASS verdicts and merges. If FAIL:
-- Builder fixes the gap
-- New PR on same branch (rebase-only re-inspection to avoid rebuild)
-- New inspector for the revised PR
-- Repeat until PASS
+Never the builder's summary, the orchestrator's opinion, or a previous verdict. The grader checks
+every criterion against the code itself, one line each (`N. PASS|FAIL — evidence`), and ends with
+`RESULT: PASS` or `RESULT: FAIL (n of m failed)`. A criterion with no evidence is UNVERIFIED, which
+is a FAIL. The orchestrator never grades its own fix.
 
----
+Grade coverage as well as correctness. A run can pass every test while silently dropping part of
+the input; a criterion should count what went in against what came out.
 
-## Real-World Example
+### Wave 4 — domain gate
 
-**Task:** Ship a subscription service (API + database schema + tests)
+Anything that computes money, fees, prices, budgets, or balances, or touches keys, auth, or
+compliance, goes to the domain reviewer twin after the grader passes it. It looks for optimistic
+defaults, silent failures on edge cases, and missing audit trail. In field runs this gate caught
+most of the high-severity economic flaws that code graders had passed. For money, it is not
+optional.
 
-**Architect (Pierce):**
-- Contract: `POST /subscriptions`, `GET /subscriptions/{id}`, `PATCH /subscriptions/{id}/cancel`, `GET /billing/invoices`
-- Rubric: 10 items (each endpoint exists, cancellation idempotent, invoices include tax, refund logic handles prorations, etc.)
-- Test strategy: Jest unit tests for business logic + integration tests hitting a test database
-- Domain gate: Ledger must verify refund math and proration logic
+### Wave 5 — merge
 
-**Builders (Nash, Wyatt):**
-- Nash → API (endpoints + auth)
-- Wyatt → Database schema + invoice generation
-- Each ships a PR
+Merge only on a grader PASS (and a domain PASS where it applies). On a FAIL:
 
-**Inspector (Vaughn):**
-- Gets rubric, contract, Nash's PR diff
-- Checks: ✓ POST endpoint exists, ✓ returns 201, ✓ validates input, ✗ no refund endpoint (FAIL)
-- Nash fixes, re-inspect (fresh inspector), PASS
-- Vaughn inspects Wyatt's PR (database + invoices)
-- Ledger verifies refund math before merge
+1. The builder fixes the gap on the same branch, with an outcome test for the fix. Fixes open new
+   boundary holes if they don't.
+2. If branch protection needs the branch up to date, rebase first. When `git range-diff` shows the
+   patch unchanged (`=`), a cheap re-inspection of the gates is enough; otherwise a fresh grader
+   grades it again.
+3. Merge one PR at a time, rebasing the next onto the new base.
 
-**Result:** Two PRs, verified independently, merged in one session.
+A twin nearing the end of its context gets replaced by a fresh one that reads the state from
+files on disk. Keep the contract, rubric, and verdicts in files for exactly this reason.
 
----
+## Reporting
 
-## Anti-Patterns (From Field Tests MIR-001 through MIR-004, AXM-036)
+At the end, write one verdict file for the run: PRs merged, inspection rounds, what the graders
+and the domain gate caught that builders missed, and what to change in the next contract. Tell the
+human in three or four lines, with the link to the merged work.
 
-**Don't:**
-- Share a single worktree across builders (npm ci gets wiped)
-- Resume an inspector (start fresh every time; evidence is all you have)
-- Pass builder commentary to the inspector (inspector grades rubric only)
-- Use MORPH for UI work without emulator smoke tests in inspections
-- Approve scope changes mid-build without Architect sign-off (Q-2 clause)
+## Anti-patterns
 
-**Do:**
-- Spell out test titles **verbatim from rubric** in code
-- Pre-rebase before re-inspection (range-diff `=` means no rebuild needed)
-- Have Ledger gate anything involving money
-- Snapshot builder context (files, working state) before dispatch
-- Carry earlier findings into later briefs (if an inspector caught a gap in PR 1, tell the next builder about it)
-
----
-
-## When MORPH Pays Off
-
-- **Speed:** 3 builders + inspector per PR = 2 clean merges in 2-3 hours
-- **Independence:** Inspector never sees builder opinions; catches what builders miss
-- **Audit trail:** Every verdict is checkable; every merge is gated
-- **Learning:** Rubric becomes a living spec; next run is faster
-
----
-
-## Resources
-
-- `MORPH Protocol Verdict — MIR-001`: Early trial (MIRROR Phase 0, 8 PRs, 15 inspections, all clean by round 2)
-- `MORPH Protocol Verdict — MIR-003`: Data validation (33 builders, outcome invariants beat rule lists)
-- `MORPH Protocol Verdict — AXM-036`: UI lessons (requires emulator smoke; device-only bugs hid in proxy grades)
-- `MORPH Protocol — Lessons from Axiom Twins`: Hard-won UI rules (node_modules junctions, UTF-8 checks, footer clipping at 360dp)
+- Resuming a grader, or telling it what the builder intended.
+- One worktree or one scratch folder shared between twins.
+- Approving scope mid-build without a new contract version.
+- Fixing a text defect sentence by sentence instead of sweeping for the figure.
+- Grading UI by reading code, then handing the build to a human untested.
+- Skipping the domain gate because "the math looked fine".

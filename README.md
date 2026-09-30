@@ -10,16 +10,13 @@ Twelve capabilities work out of the box: **team building**, **handoffs**, **disp
 
 ## What's New in v4.11.0
 
-**MORPH — high-velocity parallel building with independent inspection.**
+**Morph: build a package of code with splinter twins, merge on evidence.**
 
-- **Architects lock requirements.** One specialist defines the contract, rubric, and test strategy. Builders work against it, not opinions.
-- **Builders work in parallel.** Multiple specialists ship in isolated worktrees, each in its own branch. No shared state, no junction conflicts.
-- **Fresh inspectors per PR.** Each PR gets a new inspector who grades ONLY against the rubric and contract. No builder commentary. No resume on failure — start fresh next time.
-- **Domain gates for economics.** Anything touching money, security, or compliance goes through a domain reviewer (Ledger) before merge.
-- **Merge only on PASS.** Human gates every merge. FAIL = builder fixes the gap and goes back through inspection.
-- **Field-tested.** MIR-001 through MIR-004 (MIRROR project, data validation, economics). AXM-036 (Axiom UI, device-only bugs caught). All lessons in the skill.
-- **For greenfield, clean-seam work.** Libraries, services, data pipelines. Not UI/device work or anything needing seat memory.
-- **Usage:** `skills/morph/SKILL.md` — dispatch to Architect, spawn builders in parallel, fresh inspector per PR, domain gate before merge.
+- **One session, a small engineering org.** The Overmind orchestrates. An architect twin locks the contract, rubric, and test strategy; builder twins work in parallel, each in its own git worktree and branch; a fresh grader twin inspects every PR; a domain twin gates anything that computes money. No dispatch, no extra sessions to open.
+- **Independent grading.** Each grader gets only the rubric, the contract, and the PR. Never the builder's summary, the Overmind's opinion, or an earlier verdict, and never a resumed grader. Merges happen only on a PASS.
+- **Field lessons built in.** Outcome invariants and seeded fuzzers instead of per-case rules, a gap pass and rubric dry run before building, a no-gaming-the-checks clause, one worktree and scratch folder per twin, coverage graded alongside correctness, and the money gate on by default.
+- **No MCP server needed.** Morph runs on splinter twins, which boot through `overmind-mcp` when it's connected and read files when it isn't.
+- **For clean-seam code:** libraries, services, data pipelines, CLIs. UI and device work only with emulator evidence in every inspection. See `skills/morph/SKILL.md`.
 
 ## What's New in v4.10.0
 
@@ -462,6 +459,7 @@ You never write or touch a brief. Before activating a handoff, `/go` shows you w
 | `skills/diagnostic/` | `/diagnostic` — three-level system verification; every failure prints its own fix |
 | `skills/collective/` | Collective operations — find a venue, seat other Overminds, run cross-team missions (no server required) |
 | `skills/assimilate/` | `/assimilate` — an invited Overmind's one command to join: capability sweep, Genesis Seed identity, invite discovery |
+| `skills/morph/` | Morph: an architect, parallel builders, fresh graders, and a domain gate, all as splinter twins in one session; merges only on PASS |
 | `skills/initiative/` | `/initiative` — show or set the team's initiative setting (25/50/75/90/100%) |
 | `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
 | `WELCOME.html` | Styled field manual — presented on first activation |
