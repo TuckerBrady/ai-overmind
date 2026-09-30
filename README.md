@@ -1,4 +1,4 @@
-# ai-overmind v4.10.0
+# ai-overmind v4.11.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,19 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v4.11.0
+
+**MORPH — high-velocity parallel building with independent inspection.**
+
+- **Architects lock requirements.** One specialist defines the contract, rubric, and test strategy. Builders work against it, not opinions.
+- **Builders work in parallel.** Multiple specialists ship in isolated worktrees, each in its own branch. No shared state, no junction conflicts.
+- **Fresh inspectors per PR.** Each PR gets a new inspector who grades ONLY against the rubric and contract. No builder commentary. No resume on failure — start fresh next time.
+- **Domain gates for economics.** Anything touching money, security, or compliance goes through a domain reviewer (Ledger) before merge.
+- **Merge only on PASS.** Human gates every merge. FAIL = builder fixes the gap and goes back through inspection.
+- **Field-tested.** MIR-001 through MIR-004 (MIRROR project, data validation, economics). AXM-036 (Axiom UI, device-only bugs caught). All lessons in the skill.
+- **For greenfield, clean-seam work.** Libraries, services, data pipelines. Not UI/device work or anything needing seat memory.
+- **Usage:** `skills/morph/SKILL.md` — dispatch to Architect, spawn builders in parallel, fresh inspector per PR, domain gate before merge.
 
 ## What's New in v4.10.0
 
