@@ -108,11 +108,18 @@ mode report SKIP and say why. Two scripts ship beside this skill; run them with 
   `~/.claude/projects/<cwd-slug>/`, where `<cwd-slug>` is the session's working directory with
   every character outside `A-Z`, `a-z` and `0-9` replaced by `-` (for example
   `C:\Users\sam\Team\Overmind` becomes `C--Users-sam-Team-Overmind`). Run
-  `bash "${CLAUDE_PLUGIN_ROOT}/skills/diagnostic/too-large.sh" <newest *.jsonl in that folder>`.
-  Exit 0 → PASS. Exit 1 → **FAIL: the SessionStart output was too large and only a preview
-  reached the session.** *Fix:* the plugin is older than 5.0.0, or something else injects a large
-  SessionStart output; update the plugin (A2), and remove any other SessionStart hook that prints a
-  big file. No transcript folder → SKIP.
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/diagnostic/too-large.sh" "<newest .jsonl in that folder>" --expect-kernel`,
+  with the placeholder replaced by the full path, kept in quotes (paths have spaces). Pass
+  `--expect-kernel` only when this session runs in a team folder (its working directory, or that
+  directory's parent, holds `BOOT.md` or `MISSION_BOARD.md`); leave it off anywhere else.
+  Exit 0 → PASS. Exit 1 → **FAIL**, and the script's message says which:
+  - *the SessionStart output was too large and only a preview reached the session.* *Fix:* the
+    plugin is older than 5.0.0, or something else injects a large SessionStart output; update the
+    plugin (A2), and remove any other SessionStart hook that prints a big file.
+  - *no SessionStart record carries the kernel header* (`# AI OVERMIND KERNEL v5`) in a team-folder
+    transcript. *Fix:* check C6's kernel-hook registration, update the plugin to 5.0.0 or later,
+    and open the session in the seat folder itself (two levels below a seat gets no kernel).
+  No transcript folder → SKIP.
 - **Engine matches the plugin.** Run
   `bash "${CLAUDE_PLUGIN_ROOT}/skills/diagnostic/fwhash.sh" "${CLAUDE_PLUGIN_ROOT}"`; it prints
   the 64-hex firmware hash of this install (the kernel plus every reference file). When the

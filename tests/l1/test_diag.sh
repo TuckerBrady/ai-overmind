@@ -38,6 +38,32 @@ printf '%s\n' '{"type":"attachment","attachment":{"type":"hook_success","hookNam
 t "a missing transcript exits 0"
 [ "$(rc "$tmp/none.jsonl")" = 0 ] && pass || fail "expected 0"
 
+t "the phrases in a plain message field do not count (field match, not substring)"
+printf '%s\n' '{"type":"user","message":{"role":"user","content":"SessionStart said Output too large (123.7KB)"}}' > "$tmp/plain.jsonl"
+[ "$(rc "$tmp/plain.jsonl")" = 0 ] && pass || fail "expected 0"
+
+t "an escaped copy of the attachment's fields inside a tool_result does not count"
+printf '%s\n' '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t9","content":"{\"type\":\"attachment\",\"attachment\":{\"hookEvent\":\"SessionStart\",\"content\":\"<persisted-output>\\nOutput too large (9KB)\"}}"}]}}' > "$tmp/esc.jsonl"
+[ "$(rc "$tmp/esc.jsonl")" = 0 ] && pass || fail "expected 0"
+
+rck() { bash "$tl" "$1" --expect-kernel >/dev/null 2>&1; echo $?; }
+t "--expect-kernel: a team-folder transcript with the kernel header exits 0"
+printf '%s\n' '{"parentUuid":null,"attachment":{"type":"hook_success","hookName":"SessionStart:startup","hookEvent":"SessionStart","content":"# AI OVERMIND KERNEL v5\n\nYou are in","stdout":"# AI OVERMIND KERNEL v5\n"},"type":"attachment"}' > "$tmp/kern.jsonl"
+[ "$(rck "$tmp/kern.jsonl")" = 0 ] && pass || fail "expected 0"
+
+t "--expect-kernel: a team-folder transcript without the kernel header exits 1"
+[ "$(rck "$tmp/plain.jsonl")" = 1 ] && pass || fail "expected 1"
+
+t "--expect-kernel: the header only quoted in a message does not count"
+printf '%s\n' '{"type":"user","message":{"content":"paste: # AI OVERMIND KERNEL v5"}}' > "$tmp/quoted.jsonl"
+[ "$(rck "$tmp/quoted.jsonl")" = 1 ] && pass || fail "expected 1"
+
+t "--expect-kernel: a truncated record still exits 1"
+[ "$(rck "$here/fixtures/sessionstart-too-large.jsonl")" = 1 ] && pass || fail "expected 1"
+
+t "without --expect-kernel, a transcript with no SessionStart record exits 0"
+[ "$(rc "$tmp/plain.jsonl")" = 0 ] && pass || fail "expected 0"
+
 # Fixture tree, built at runtime: CRLF, a missing final newline, and two
 # reference files whose names sort differently from their creation order.
 mkdir -p "$tmp/plug/hooks" "$tmp/plug/reference"
@@ -62,6 +88,25 @@ got2=$(bash "$fh" "$tmp/plug")
 
 t "fwhash.sh on a tree with no kernel exits non-zero and prints no hash"
 out=$(bash "$fh" "$tmp/none" 2>/dev/null); r=$?
+[ $r -ne 0 ] && [ -z "$out" ] && pass || fail "rc=$r out=$out"
+
+t "fwhash.sh walks reference files by glob: a name with a space is hashed whole"
+mkdir -p "$tmp/sp/hooks" "$tmp/sp/reference"
+printf 'K\n' > "$tmp/sp/hooks/kernel.md"
+printf 'x\n' > "$tmp/sp/reference/a b.md"
+printf 'y\n' > "$tmp/sp/reference/a.md"
+ind=$(printf '=== hooks/kernel.md\nK\n=== reference/a b.md\nx\n=== reference/a.md\ny\n' | sha | cut -c1-64)
+got=$(bash "$fh" "$tmp/sp")
+[ "$got" = "$ind" ] && pass || fail "got $got want $ind"
+
+t "fwhash.sh exits non-zero and prints nothing when no sha256 tool exists"
+mkdir -p "$tmp/bin"
+for tool in awk sed tr cut; do
+  p=$(command -v "$tool")
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$p" > "$tmp/bin/$tool"; chmod +x "$tmp/bin/$tool"
+done
+bashbin=$(command -v bash)
+out=$(PATH="$tmp/bin" "$bashbin" "$fh" "$tmp/sp" 2>/dev/null); r=$?
 [ $r -ne 0 ] && [ -z "$out" ] && pass || fail "rc=$r out=$out"
 
 t "fwhash.sh on this repo matches the Go concatenation's shape (64 hex)"

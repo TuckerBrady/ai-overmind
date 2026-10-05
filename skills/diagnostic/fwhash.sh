@@ -27,10 +27,25 @@ emit() { # relpath file
   LC_ALL=C awk '{ sub(/\r$/, ""); print }' "$2"
 }
 
-{
-  emit hooks/kernel.md "$root/hooks/kernel.md"
-  for f in $(cd "$root" && LC_ALL=C ls reference/*.md 2>/dev/null | LC_ALL=C sort); do
-    emit "$f" "$root/$f"
-  done
-} | sha | LC_ALL=C sed 's/[^0-9a-f].*//' | tr -d '\n'
-echo
+# Byte order of relative path: a glob expands in collation order, so set the
+# C locale for it. No ls, no word splitting on file names.
+LC_ALL=C
+export LC_ALL
+hash=$(
+  {
+    emit hooks/kernel.md "$root/hooks/kernel.md"
+    for f in "$root"/reference/*.md; do
+      [ -f "$f" ] || continue
+      emit "reference/${f##*/}" "$f"
+    done
+  } | sha | sed 's/[^0-9a-f].*//' | tr -d '\n'
+)
+case $hash in
+  [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;;
+  *) echo "fwhash: no sha256 tool produced a hash (need sha256sum, shasum or openssl)" >&2; exit 3 ;;
+esac
+if [ ${#hash} -ne 64 ]; then
+  echo "fwhash: hash has ${#hash} characters, expected 64" >&2
+  exit 3
+fi
+printf '%s\n' "$hash"
