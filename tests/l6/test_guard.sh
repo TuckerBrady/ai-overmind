@@ -256,10 +256,22 @@ mkrepo "$tmp/ig2"; echo 'cowork-prompts/' > "$tmp/ig2/.gitignore"; git -C "$tmp/
 mkdir "$tmp/ig2/cowork-prompts"; echo prompt > "$tmp/ig2/cowork-prompts/PROMPT_99.md"
 expect_rc 11 --worktree "$tmp/ig2"
 t "ignored rebuildable dirs pass and are listed"
-mkrepo "$tmp/rb"; printf 'node_modules/\ndist/\npkg/.venv/\n' > "$tmp/rb/.gitignore"; git -C "$tmp/rb" add .gitignore; git -C "$tmp/rb" commit -qm gi; git -C "$tmp/rb" push -q 2>/dev/null
+mkrepo "$tmp/rb"; printf 'node_modules/\ndist/\npkg/.venv/\n' > "$tmp/rb/.gitignore"
+echo '{}' > "$tmp/rb/package.json"; mkdir -p "$tmp/rb/pkg"; : > "$tmp/rb/pkg/pyproject.toml"
+git -C "$tmp/rb" add .gitignore package.json pkg/pyproject.toml; git -C "$tmp/rb" commit -qm gi; git -C "$tmp/rb" push -q 2>/dev/null
 mkdir -p "$tmp/rb/node_modules/x" "$tmp/rb/dist" "$tmp/rb/pkg/.venv"; : > "$tmp/rb/node_modules/x/i.js"; : > "$tmp/rb/dist/o.js"; : > "$tmp/rb/pkg/.venv/p"
 rc=$(G --worktree "$tmp/rb")
 [ "$rc" = 0 ] && LC_ALL=C grep -q 'ignored (rebuildable) node_modules/' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
+t "r3 P2: an allow-listed name with no manifest beside it -> 11"
+mkrepo "$tmp/rb2"; printf 'node_modules/\nbuild/\n' > "$tmp/rb2/.gitignore"; git -C "$tmp/rb2" add .gitignore; git -C "$tmp/rb2" commit -qm gi; git -C "$tmp/rb2" push -q 2>/dev/null
+mkdir -p "$tmp/rb2/node_modules" "$tmp/rb2/build"; echo notes > "$tmp/rb2/node_modules/my-notes.md"; echo work > "$tmp/rb2/build/draft.txt"
+expect_rc 11 --worktree "$tmp/rb2"
+t "r3 P2: an ignored path whose last component is not the allow-listed name -> 11"
+mkrepo "$tmp/rb3"; echo 'node_modules/*.local' > "$tmp/rb3/.gitignore"; echo '{}' > "$tmp/rb3/package.json"
+git -C "$tmp/rb3" add .gitignore package.json; git -C "$tmp/rb3" commit -qm gi; git -C "$tmp/rb3" push -q 2>/dev/null
+mkdir -p "$tmp/rb3/node_modules"; echo draft > "$tmp/rb3/node_modules/notes.local"
+rc=$(G --worktree "$tmp/rb3")
+[ "$rc" = 11 ] && LC_ALL=C grep -q 'not rebuildable.*node_modules/notes.local' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
 t "2c unpushed tag-only commit -> 12"
 mkrepo "$tmp/tg"; git -C "$tmp/tg" checkout -q --detach; echo b > "$tmp/tg/b"; git -C "$tmp/tg" add b; git -C "$tmp/tg" commit -qm tagonly; git -C "$tmp/tg" tag v-local; git -C "$tmp/tg" checkout -q main
 expect_rc 12 --worktree "$tmp/tg"
@@ -355,6 +367,56 @@ done
 t "positive control: the includeIf filters are live for git itself"
 live=0; for kind in onbranch gitdir hasconfig; do [ -n "$(git -C "$tmp/f_$kind" config --get filter.z.clean)" ] && live=$((live+1)); done
 [ $live = 3 ] && pass || fail "$live of 3 includeIf filters are active"
+
+# --- r3 grader findings -------------------------------------------------------------
+# A gitlink staged with no .gitmodules entry: git status recurses into the
+# nested repo, whose own filter would run. The guard refuses it (15) before
+# any status, and the payload never runs (g1 repro).
+mklink() { # $1 dir, $2 "filter" to give the nested repo a filter payload
+  mkrepo "$1"; git init -q "$1/sub"; echo s > "$1/sub/s.txt"
+  git -C "$1/sub" add s.txt; git -C "$1/sub" commit -qm s
+  if [ "${2:-}" = filter ]; then
+    mkpay "link$$"; git -C "$1/sub" config filter.evil.clean "$tmp/pay_link$$.sh"
+    echo '* filter=evil' > "$1/sub/.gitattributes"
+  fi
+  git -C "$1" add sub 2> /dev/null; git -C "$1" commit -qm link; git -C "$1" push -q 2>/dev/null
+  [ "${2:-}" = filter ] && touch -t 202901010000 "$1/sub/s.txt"
+  return 0
+}
+t "r3 MUST: gitlink without .gitmodules, nested filter -> 15, payload never runs"
+mklink "$tmp/gl1" filter
+rc=$(G --worktree "$tmp/gl1")
+[ "$rc" = 15 ] && ! LC_ALL=C grep -q "^link$$\$" "$pwn" 2>/dev/null && LC_ALL=C grep -q 'no .gitmodules entry' "$tmp/out" && pass ||
+  fail "rc=$rc ran=$(cat "$pwn" 2>/dev/null | tr '\n' ' ') $(head -c 300 "$tmp/out")"
+t "r3 MUST: positive control: plain git status runs that nested filter"
+( cd "$tmp/gl1" && git status --porcelain > /dev/null 2>&1 )
+LC_ALL=C grep -q "^link$$\$" "$pwn" 2>/dev/null && pass || fail "the fixture filter never fires"
+: > "$pwn"
+t "r3 MUST: gitlink without .gitmodules, no filter -> 15 (nothing vouches for it)"
+mklink "$tmp/gl2"
+expect_rc 15 --worktree "$tmp/gl2"
+t "r3 MUST: a declared submodule whose own config has a filter -> 15, never runs"
+addsub sf; mkpay sf; git -C "$tmp/sf/sub" config filter.q.clean "$tmp/pay_sf.sh"; echo '* filter=q' > "$tmp/sf/sub/.gitattributes"; touch -t 202901010000 "$tmp/sf/sub/a.txt"
+rc=$(G --worktree "$tmp/sf")
+[ "$rc" = 15 ] && ! LC_ALL=C grep -q '^sf$' "$pwn" 2>/dev/null && pass || fail "rc=$rc ran=$(cat "$pwn" 2>/dev/null | tr '\n' ' ')"
+# Inside submodules: ignored files, every branch, and the stash.
+t "r3 MUST: an ignored, non-rebuildable file inside a submodule -> 11"
+addsub si; echo '*.secret' >> "$(git -C "$tmp/si/sub" rev-parse --path-format=absolute --git-path info/exclude)"; echo k > "$tmp/si/sub/key.secret"
+rc=$(G --worktree "$tmp/si")
+[ "$rc" = 11 ] && LC_ALL=C grep -q 'not rebuildable.*key.secret' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
+t "r3 MUST: an unpushed commit on a submodule branch that is not its HEAD -> 12"
+addsub sb; git -C "$tmp/sb/sub" checkout -q -b side; echo b > "$tmp/sb/sub/b"; git -C "$tmp/sb/sub" add b; git -C "$tmp/sb/sub" commit -qm side; git -C "$tmp/sb/sub" checkout -q main
+expect_rc 12 --worktree "$tmp/sb"
+t "r3 MUST: a stash inside a submodule -> 11"
+addsub ss2; echo d >> "$tmp/ss2/sub/a.txt"; git -C "$tmp/ss2/sub" stash -q
+expect_rc 11 --worktree "$tmp/ss2"
+t "r3 P3: no upstream: the PR check falls back to origin and the branch -> 13"
+mkrepo "$tmp/nu2"; git -C "$tmp/nu2" checkout -q -b feat; echo f > "$tmp/nu2/f"; git -C "$tmp/nu2" add f; git -C "$tmp/nu2" commit -qm f
+git -C "$tmp/nu2" push -q origin feat 2>/dev/null; git -C "$tmp/nu2" remote set-url origin https://github.com/acme/widgets.git
+echo 0 > "$FAKEGH/auth_rc"; echo 77 > "$FAKEGH/prs"; echo 'nothing here' > "$FAKEGH/comments"
+rc=$(PATH="$fake:$PATH" G --worktree "$tmp/nu2")
+[ "$rc" = 13 ] && pass || fail "rc=$rc $(cat "$tmp/out")"
+: > "$FAKEGH/prs"
 
 t "2 on bad usage"
 r1=$(run --session "$SID" --running maybe --fold "$fold")
