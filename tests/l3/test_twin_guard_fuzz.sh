@@ -12,7 +12,7 @@
 # Corpus: the L3 r1 grader's bypasses (hard link, cp/ln sources, split names,
 # eval, interpreters, xargs, find -exec, for-loops, sqlite3, the 512 KiB cap)
 # plus FUZZ_N seeded mutations (default 24; seed FUZZ_SEED, default 20261005).
-# Positive control: the b9be2ea guard (pre-check only) must show at least one
+# Positive control: the b9be2ea guard (pre-check only, read by blob id) must show at least one
 # silent modification over the same corpus, or the harness is blind.
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
@@ -20,7 +20,12 @@ seed=${FUZZ_SEED:-20261005}; N=${FUZZ_N:-24}
 RANDOM=$seed
 
 old="$tmp/old-guard.sh"
-git -C "$repo" show b9be2ea:hooks/twin-guard.sh > "$old" 2>/dev/null || { echo "  cannot read b9be2ea:hooks/twin-guard.sh (needs fetch-depth: 0)"; fail "control source"; finish; exit 1; }
+# The control is the round-2 guard by its blob id (b9be2ea:hooks/twin-guard.sh), which
+# survives rebases of the commit that holds it.
+ctl_blob=3e1f75dcaa198c395bce2f9579f80430ab017cb5
+t "the control guard is readable from git history"
+if git -C "$repo" cat-file blob "$ctl_blob" > "$old" 2>/dev/null && [ -s "$old" ]; then pass
+else echo "  cannot read blob $ctl_blob (needs fetch-depth: 0)"; fail "control source"; finish; exit 1; fi
 
 # ---- the pristine team
 pr="$tmp/pristine"; seatn="Nash - Developer"
