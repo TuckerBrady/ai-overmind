@@ -165,6 +165,14 @@ for tg in "${targets2[@]}"; do
 done
 [ $bad -eq 0 ] && pass
 
+t "round 4 #5: 8.3 short names (MISSIO~1.MD) are denied for Write, Edit and Bash"
+bad=0
+expect deny "$(hook "$TWIN" Write "$(write_in 'C:\Users\sam\AI Team\MISSIO~1.MD')")" "Write MISSIO~1.MD" || bad=1
+expect deny "$(hook "$TWIN" Edit "$(edit_in "$work/HANDOF~2.MD")")" "Edit HANDOF~2.MD" || bad=1
+expect deny "$(hook "$TWIN" Bash "$(bash_in "echo x >> INBOX~1.MD")")" "Bash INBOX~1.MD" || bad=1
+expect allow "$(hook "" Write "$(write_in "$work/MISSIO~1.MD")")" "main session" || bad=1
+[ $bad -eq 0 ] && pass
+
 t "A-25.2: every argument of cp, mv, ln, install and rsync is checked, sources included"
 bad=0
 for c in "ln HANDOFF.md h.txt" "cp HANDOFF.md /tmp/brief.md" "ln -s ../INBOX.md x" "install -m644 BOOT.md /tmp/b" "rsync -a CLAUDE.md /tmp/c" "mv INBOX.md /tmp/i"; do

@@ -131,6 +131,16 @@ for w in "The twin guard is a seatbelt, not a sandbox" "Residual risks, stated p
 done
 [ -z "$miss" ] && pass || fail "missing:$miss"
 
+t "round 4 #5/#7/#2/#3: twins.md is honest about scope, the log, the budget and the root"
+miss=""
+tw=$(tr -d '\r' < reference/twins.md)
+for w in "Write and Edit calls are not snapshotted" "never relies on the twin's own report" "detector over budget" \
+         "up to three folders above it" "the detector is off and only the pre-check runs" "TWIN-GUARD ALERT: snapshot missing" "MISSIO~1.MD"; do
+  case $tw in *"$w"*) ;; *) miss="$miss [$w]" ;; esac
+done
+case $tw in *"however it was made"*) miss="$miss [still claims any change however made]" ;; esac
+[ -z "$miss" ] && pass || fail "missing:$miss"
+
 t "A-26: dispatch, morph and twins.md spawn twins as ai-overmind:splinter-twin"
 bad=""
 for f in skills/dispatch/SKILL.md skills/morph/SKILL.md reference/twins.md; do

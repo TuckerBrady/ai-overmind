@@ -164,6 +164,76 @@ printf 'changed\n' > "$tmp/team/$seatn/BOOT.md"
 out=$(printf '%s' "${j/PreToolUse/PostToolUseFailure}" | TMPDIR="$tmp/snaps" bash "$GUARD")
 case $out in '{"hookSpecificOutput":{"hookEventName":"PostToolUseFailure","additionalContext":"TWIN-GUARD ALERT: protected file changed during twin command: Nash - Developer/BOOT.md'*) pass ;; *) fail "got: ${out:0:160}" ;; esac
 
+# ---------------------------------------------------------------- round 4
+# hk EVENT CWD COMMAND TUID [GUARD] -> the guard's output for one event
+hk() {
+  local g=${5:-$GUARD}
+  printf '{"session_id":"s1","cwd":"%s","hook_event_name":"%s","agent_id":"agent4","agent_type":"ai-overmind:splinter-twin","tool_name":"Bash","tool_input":{"command":"%s"},"tool_use_id":"%s"}' \
+    "$(js "$2")" "$1" "$(js "$3")" "$4" | TMPDIR="$tmp/snaps" bash "$g" 2>/dev/null
+}
+# run4 CWD COMMAND TUID [GUARD] -> Pre, run the command (with TMPDIR set), Post; prints Post's output
+run4() {
+  local out
+  out=$(hk PreToolUse "$1" "$2" "$3" "${4:-}")
+  case $out in *'"permissionDecision":"deny"'*) echo "DENIED"; return ;; esac
+  (cd "$1" && TMPDIR="$tmp/snaps" SRC="$tmp/src.txt" bash -c "$2" > /dev/null 2>&1)
+  hk PostToolUse "$1" "$2" "$3" "${4:-}"
+}
+fresh() { rm -rf "$tmp/team" "$tmp/snaps"; mkdir -p "$tmp/snaps"; cp -R "$pr" "$tmp/team"; }
+
+t "round 4 #1: a command that deletes its own snapshot gets 'snapshot missing', and it is logged"
+fresh
+out=$(run4 "$tmp/team/$seatn" 'rm -rf "$TMPDIR/ovm-twin-guard"; ls | xargs -n1 cp "$SRC"' tu41)
+case $out in *'TWIN-GUARD ALERT: snapshot missing'*) grep -q 'snapshot missing' "$tmp/team/_twin-guard.log" && pass || fail "not logged" ;; *) fail "got: ${out:0:160}" ;; esac
+
+t "round 4 #1: the per-call records live in a folder the guard made with mode 700"
+fresh
+hk PreToolUse "$tmp/team/$seatn" "true" tu42 > /dev/null
+m=$(ls -ld "$tmp/snaps/ovm-twin-guard" 2>/dev/null | cut -c1-10)
+[ -f "$tmp/snaps/ovm-twin-guard/agent4.tu42.snap" ] && [ -f "$tmp/snaps/ovm-twin-guard/agent4.tu42.ok" ] || fail "no per-call snapshot and marker"
+case $(uname -s) in MINGW*|MSYS*|CYGWIN*) pass ;; *) [ "$m" = drwx------ ] && pass || fail "mode $m" ;; esac
+
+t "round 4 #6: the snapshot uses sha256"
+l=$(sed -n 2p "$tmp/snaps/ovm-twin-guard/agent4.tu42.snap")
+case $l in [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*' '*) h=${l%% *}; [ ${#h} -eq 64 ] && pass || fail "hash '$h'" ;; *) fail "line '$l'" ;; esac
+
+t "round 4 #2: drafts/ and repo clones are pruned from the walk"
+fresh
+mkdir -p "$tmp/team/$seatn/drafts/proj" "$tmp/team/$seatn/clone/.git"
+printf 'draft\n' > "$tmp/team/$seatn/drafts/proj/HANDOFF.md"; printf 'repo\n' > "$tmp/team/$seatn/clone/CLAUDE.md"
+out=$(run4 "$tmp/team/$seatn" 'find drafts clone -type f -exec cp "$SRC" {} \;' tu43)
+[ -z "$out" ] && grep -q payload "$tmp/team/$seatn/clone/CLAUDE.md" && pass || fail "got: ${out:0:200}"
+
+t "round 4 #2: a Pre snapshot over the 5 s budget is logged"
+fresh
+sed 's/^BUDGET=5$/BUDGET=-1/' "$GUARD" > "$tmp/guard-budget.sh"
+hk PreToolUse "$tmp/team/$seatn" true tu44 "$tmp/guard-budget.sh" > /dev/null
+grep -q 'detector over budget' "$tmp/team/_twin-guard.log" 2>/dev/null && pass || fail "no budget note"
+
+t "round 4 #3: the team root is found up to three levels above the cwd"
+fresh
+mkdir -p "$tmp/team/$seatn/work/a"
+out=$(run4 "$tmp/team/$seatn/work/a" 'find ../.. -maxdepth 1 -type f -exec cp "$SRC" {} \;' tu45)
+case $out in *"protected file changed during twin command: $seatn/INBOX.md"*) pass ;; *) fail "got: ${out:0:200}" ;; esac
+
+t "round 4 #4: protected names match at any depth"
+fresh
+mkdir -p "$tmp/team/$seatn/archive/2026/09/old"; printf 'old\n' > "$tmp/team/$seatn/archive/2026/09/old/HANDOFF.md"
+out=$(run4 "$tmp/team/$seatn" 'find archive -type f -exec cp "$SRC" {} \;' tu46)
+case $out in *"$seatn/archive/2026/09/old/HANDOFF.md"*) pass ;; *) fail "got: ${out:0:200}" ;; esac
+
+t "round 4 #7: _twin-guard.log is in the snapshot set"
+fresh
+printf 'earlier alert\n' > "$tmp/team/_twin-guard.log"
+out=$(run4 "$tmp/team/$seatn" "perl -MFcntl -e 'opendir D, \"..\"; for (readdir D) { if (/log\$/) { sysopen F, \"../\$_\", O_WRONLY|O_APPEND; print F \"x\"; close F } }'" tu47)
+case $out in *'protected file changed during twin command: _twin-guard.log'*) pass ;; *) fail "got: ${out:0:200}" ;; esac
+
+t "round 4 #3: with no team root the pre-check still denies, and Post stays quiet"
+rm -rf "$tmp/lone"; mkdir -p "$tmp/lone"; printf 'x\n' > "$tmp/lone/INBOX.md"
+out=$(hk PreToolUse "$tmp/lone" 'echo x >> INBOX.md' tu48)
+out2=$(hk PreToolUse "$tmp/lone" 'true' tu49; hk PostToolUse "$tmp/lone" 'true' tu49)
+case $out in *'"permissionDecision":"deny"'*) [ -z "$out2" ] && pass || fail "post spoke: $out2" ;; *) fail "pre-check off without a team root" ;; esac
+
 t "positive control: the b9be2ea guard lets at least one modification through silently"
 csil=0
 for c in "${corpus[@]}"; do
