@@ -50,10 +50,10 @@ Default is STANDARD. Map from the human's language: "critical / ASAP / blocking 
 **Deadlines (`Due` column, any tier):** halfway to the deadline with the row still QUEUED → notify the human. Deadline passed without COMPLETE → escalate immediately, regardless of tier.
 
 **Who writes what:**
-- **Dispatcher** adds the row at dispatch time: next sequential ID (M-001, M-002, ...), one-line mission, assignees, per-lane QUEUED states, priority tier, due date (or —), any Depends On IDs, dispatch date.
-- **Specialist** flips their own lane state to ACTIVE on activation, and to COMPLETE (with date) when they write mission-complete.md. They never touch another lane's state.
-- **The MISSION WATCH pass** reconciles: if mission-complete.md exists but the lane still says ACTIVE, fix the lane.
-- **The Overmind** is board custodian: keep IDs sequential, archive COMPLETE rows when the Active table gets long, and never let the board contradict reality — the board is a view of the truth, not the truth itself. mission-complete.md remains the authoritative completion signal.
+- **Dispatcher** adds the row at dispatch time: an ID allocated without a race (the team's board script, else `alloc-id.sh`; dispatch.md Step 3), for example M-001, M-002, ... or a team prefix such as OPS-001, one-line mission, assignees, per-lane QUEUED states, priority tier, due date (or —), any Depends On IDs, dispatch date.
+- **Specialist** flips their own lane state to ACTIVE on activation, and to REVIEW when they write `mission-complete-<ID>.md`. They never set COMPLETE themselves, and they never touch another lane's state.
+- **The MISSION WATCH pass** reconciles: if a `mission-complete-<ID>.md` exists but the lane still says ACTIVE, move it to REVIEW and grade it.
+- **The Overmind** is board custodian: keep IDs unique, archive COMPLETE rows when the Active table gets long, and never let the board contradict reality — the board is a view of the truth, not the truth itself. A lane goes COMPLETE only on the PASS of a grader the Overmind spawned (dispatch.md, OUTCOMES); the doer's mission-complete file is a claim. A legacy `mission-complete.md` is read the same way.
 
 **Dependencies:** a mission whose Depends On is not COMPLETE starts as BLOCKED. The dispatcher can still write the brief and stage the lane — the specialist checks the board at activation, sees the unmet dependency, and flags it instead of charging ahead. When the upstream mission completes, whoever notices (usually TARS, the MISSION WATCH pass, or the Overmind) tells the human the downstream mission is clear to start.
 

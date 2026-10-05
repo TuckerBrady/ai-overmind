@@ -1,0 +1,34 @@
+# docs/v5/firmware-ledger.L3.tsv -- OPS-030 L3 amendments to docs/v5/firmware-ledger.tsv (CONTRACT 7.6, GAP-5).
+# Overrides base rows by (kind, line). Targets are L3 inventory files only. LF, tab-separated.
+# DEAD FW-10: Cowork paste ceremony and paste-wrapper removed from team building (Claude Code rewrite).
+# SUPERSEDED FW-19/SK-7: the doer no longer grades itself or sets COMPLETE; the Overmind-spawned grader does.
+# SUPERSEDED FW-27: a brief's MODEL TIER is advisory; switching models needs the human's yes.
+R	13	MOVED	reference/activation.md	TARS (the turn hook) reports what changed before every message. Cowork and other paste-based runtimes are lite mode.
+R	146	MOVED	reference/initiative.md	never copies or relays anything between seats
+R	171	MOVED	reference/initiative.md	and updates that pasted lite-mode copy whenever the file changes
+R	186	DELETED	DEAD	FW-10
+R	235	MOVED	reference/team-building.md	The human may have no technical knowledge — the Overmind handles all file creation autonomously. Do not ask the human to create, format, or save anything.
+R	237	MOVED	reference/team-building.md	write these files into their folder (all at the folder root — never in a .auto-memory/ subfolder
+R	254	MOVED	reference/team-building.md	A persona kept in a separate file read by a tool call is just a tool result, and compaction summarizes it away
+R	266	MOVED	reference/team-building.md	The human never edits a placeholder — every generated file is finished.
+R	269	MOVED	reference/team-building.md	Boot edits go to BOOT.md only, never the wrapper.
+R	272	DELETED	DEAD	FW-10
+R	279	DELETED	DEAD	FW-10
+R	359	MOVED	reference/team-building.md	Nothing here blocks setup — a "none of these yet" answer is fine
+R	403	MOVED	reference/team-building.md	It is the canonical boot layer — the single source. Edit it there, nowhere else.
+R	408	DELETED	DEAD	FW-10
+R	410	MOVED	reference/activation.md	in lite mode it writes and updates that pasted copy itself, whenever BOOT.md changes; the human never pastes anything
+R	420	MOVED	reference/team-building.md	Edit here, nowhere else — the CLAUDE.md wrapper only imports this file.
+R	541	DELETED	DEAD	FW-10
+R	593	MOVED	reference/handoffs.md	Re-anchor on the ## Persona section of your BOOT.md (always loaded in Claude Code; in lite mode it is the pasted Project Instructions)
+R	742	MOVED	reference/activation.md	In Claude Code that section is always in context; in lite mode, a persona edit takes effect only after the Overmind updates the pasted instructions.
+R	980	MOVED	reference/dispatch.md	One row per MISSION, never per lane — a multi-lane mission lists every assignee
+R	990	MOVED	reference/dispatch.md	When a mission's check-in window lapses, TARS cues the Overmind to run the watch rules below.
+R	1006	DELETED	SUPERSEDED	FW-19
+R	1014	MOVED	reference/dispatch.md	Surface each finding once, and again only if it changes or escalates — a watch that repeats the same warning every turn gets tuned out.
+R	1067	MOVED	reference/twins.md	Twins never write to the specialist's HANDOFF.md, INBOX.md, mission-complete files
+R	1094	DELETED	SUPERSEDED	FW-27
+R	1111	DELETED	SUPERSEDED	FW-19
+R	1149	MOVED	reference/board.md	One row per MISSION, never per lane. The mission ID is the goal, not the assignment.
+R	1167	DELETED	SUPERSEDED	FW-19
+R	1169	DELETED	SUPERSEDED	SK-7
