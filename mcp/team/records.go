@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // BoardRow is one row of the Active table on MISSION_BOARD.md, keyed by the
@@ -12,11 +13,68 @@ import (
 // custom ones come through unchanged.
 type BoardRow map[string]string
 
+// statusSplit and assigneeSplit are the CONTRACT 3.2 tokenizers.
+var (
+	statusSplit   = regexp.MustCompile(`[/,;\s]+`)
+	assigneeSplit = regexp.MustCompile(`[,/&+\s]+`)
+)
+
+func tokens(re *regexp.Regexp, cell string) []string {
+	var out []string
+	for _, tok := range re.Split(strings.TrimSpace(cell), -1) {
+		if tok != "" {
+			out = append(out, tok)
+		}
+	}
+	return out
+}
+
+// StatusTokens splits a Status cell per CONTRACT 3.2: on "/", ",", ";" and
+// whitespace. TARS uses the same split (GAP-26).
+func StatusTokens(cell string) []string { return tokens(statusSplit, cell) }
+
+// Complete reports whether every token of the row's Status cell is
+// COMPLETE. An empty cell is not complete.
+func (r BoardRow) Complete() bool {
+	toks := StatusTokens(r["Status"])
+	for _, tok := range toks {
+		if tok != "COMPLETE" {
+			return false
+		}
+	}
+	return len(toks) > 0
+}
+
+var inFlight = map[string]bool{"ACTIVE": true, "QUEUED": true, "BLOCKED": true, "REVIEW": true, "PENDING": true}
+
+// InFlight reports whether any Status token is one of the in-flight
+// statuses, PENDING included as the legacy alias of QUEUED (GAP-26).
+func (r BoardRow) InFlight() bool {
+	for _, tok := range StatusTokens(r["Status"]) {
+		if inFlight[tok] {
+			return true
+		}
+	}
+	return false
+}
+
+// Tier maps the row's Priority cell to the TARS cue tier (GAP-26):
+// CRITICAL/P0/HIGH to CRITICAL, STANDARD/P1/MEDIUM to STANDARD, else LOW.
+func (r BoardRow) Tier() string {
+	switch strings.ToUpper(strings.TrimSpace(r["Priority"])) {
+	case "CRITICAL", "P0", "HIGH":
+		return "CRITICAL"
+	case "STANDARD", "P1", "MEDIUM":
+		return "STANDARD"
+	}
+	return "LOW"
+}
+
 // Board returns the Active rows of MISSION_BOARD.md. With a seat, it keeps
-// only rows whose owner or assignee columns name that seat. Rows marked
-// COMPLETE are dropped unless all is set.
+// only rows whose owner or assignee columns name that seat. COMPLETE rows
+// are dropped unless all is set.
 func (t *Team) Board(seat *Seat, all bool) ([]BoardRow, error) {
-	text, err := readOptional(filepath.Join(t.Root, "MISSION_BOARD.md"))
+	text, err := t.readOptional(filepath.Join(t.Root, "MISSION_BOARD.md"))
 	if err != nil || text == "" {
 		return nil, err
 	}
@@ -46,7 +104,7 @@ func (t *Team) Board(seat *Seat, all bool) ([]BoardRow, error) {
 				row[h] = cells[i]
 			}
 		}
-		if !all && strings.Contains(strings.ToUpper(row["Status"]), "COMPLETE") {
+		if !all && row.Complete() {
 			continue
 		}
 		if seat != nil && !rowNames(row, *seat) {
@@ -79,11 +137,19 @@ func isSeparator(cells []string) bool {
 
 var ownerColumns = []string{"Owner", "Assignee", "Assignees"}
 
+// rowNames matches the seat's name, ignoring case, against each name in the
+// owner and assignee cells, split on ",", "/", "&", "+" and whitespace.
+// A substring never matches: "Sam" is not "Sam-Bot".
 func rowNames(row BoardRow, s Seat) bool {
-	word := regexp.MustCompile(`(?i)(^|[^A-Za-z0-9])` + regexp.QuoteMeta(s.Name) + `($|[^A-Za-z0-9])`)
 	for _, col := range ownerColumns {
-		if word.MatchString(row[col]) {
+		cell := strings.TrimSpace(row[col])
+		if cell != "" && strings.EqualFold(cell, s.Name) {
 			return true
+		}
+		for _, tok := range tokens(assigneeSplit, cell) {
+			if strings.EqualFold(tok, s.Name) {
+				return true
+			}
 		}
 	}
 	return false
@@ -96,13 +162,34 @@ type InboxEntry struct {
 	Body   string `json:"body"`
 }
 
-var readTag = regexp.MustCompile(`(^|\W)READ(\W|$)`)
+var headerSegments = regexp.MustCompile(` (?:—|-) `)
 
-// Inbox returns a seat's inbox entries. An entry is unread when its header
-// says UNREAD or carries no READ tag at all: an untagged header has not
-// been processed.
+// EntryStatus applies amendment A-8 (which replaces CONTRACT 3.3) to an
+// entry header. Strip the leading "## ", split on " — " or " - ", and take
+// each segment's first whitespace-delimited token with any [ and ] removed.
+// The first token that is exactly READ or UNREAD is the status. With no
+// such token the entry is UNREAD. "(READ the spec)" and "READ-ONLY" are
+// never status. TARS applies the same rule.
+func EntryStatus(header string) string {
+	header = strings.TrimPrefix(strings.TrimSpace(header), "## ")
+	for _, seg := range headerSegments.Split(header, -1) {
+		fields := strings.Fields(seg)
+		if len(fields) == 0 {
+			continue
+		}
+		if tok := strings.Trim(fields[0], "[]"); tok == "READ" || tok == "UNREAD" {
+			return tok
+		}
+	}
+	return "UNREAD"
+}
+
+// EntryRead reports whether an entry header's A-8 status is READ.
+func EntryRead(header string) bool { return EntryStatus(header) == "READ" }
+
+// Inbox returns a seat's inbox entries, unread ones only when asked.
 func (t *Team) Inbox(s Seat, unreadOnly bool) ([]InboxEntry, error) {
-	text, err := readOptional(t.seatFile(s, "INBOX.md"))
+	text, err := t.readOptional(t.seatFile(s, "INBOX.md"))
 	if err != nil || text == "" {
 		return nil, err
 	}
@@ -124,8 +211,7 @@ func (t *Team) Inbox(s Seat, unreadOnly bool) ([]InboxEntry, error) {
 		if !inFence && strings.HasPrefix(line, "## ") {
 			flush()
 			h := strings.TrimSpace(line[3:])
-			unread := strings.Contains(h, "UNREAD") || !readTag.MatchString(h)
-			cur = &InboxEntry{Header: h, Unread: unread}
+			cur = &InboxEntry{Header: h, Unread: !EntryRead(h)}
 			continue
 		}
 		if cur != nil {
@@ -138,59 +224,129 @@ func (t *Team) Inbox(s Seat, unreadOnly bool) ([]InboxEntry, error) {
 
 // Handoff is a seat's staged HANDOFF.md, picked from its copies.
 type Handoff struct {
-	Path      string   `json:"path"`
-	Written   string   `json:"written,omitempty"`
-	Activated string   `json:"activated,omitempty"`
-	Copies    []string `json:"copies"`
-	Differ    bool     `json:"copies_differ"`
-	Text      string   `json:"text"`
+	Path          string       `json:"path"`
+	Written       string       `json:"written,omitempty"`
+	WrittenSource string       `json:"written_source"`
+	Activated     string       `json:"activated,omitempty"`
+	Copies        []string     `json:"copies"`
+	Differ        bool         `json:"copies_differ"`
+	Other         *HandoffCopy `json:"other,omitempty"`
+	Text          string       `json:"text"`
+	at            time.Time
 }
 
+// HandoffCopy reports the copy that lost when both paths hold a handoff.
+type HandoffCopy struct {
+	Path          string `json:"path"`
+	Written       string `json:"written,omitempty"`
+	WrittenSource string `json:"written_source"`
+	Activated     string `json:"activated,omitempty"`
+}
+
+// HeaderLines is how far into a handoff the header fields are looked for.
+const HeaderLines = 40
+
 var (
-	writtenLine   = regexp.MustCompile(`(?m)^WRITTEN:\s*(.+)$`)
-	activatedLine = regexp.MustCompile(`(?m)^ACTIVATED:\s*(.+)$`)
+	writtenField   = regexp.MustCompile(`\bWRITTEN\**\s*:\**\s*(.*)$`)
+	activatedField = regexp.MustCompile(`^\**ACTIVATED\**\s*:\**\s*(.+)$`)
+	writtenValue   = regexp.MustCompile(`^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?(?:\s*(Z|[+-]\d{2}:\d{2}))?\b`)
 )
 
-// Handoff reads HANDOFF.md from the seat's folder root and .auto-memory,
-// returning the copy with the newer WRITTEN header. It returns nil when no
-// copy exists.
+// ParseWritten parses a WRITTEN value (CONTRACT 3.1): YYYY-MM-DD, optionally
+// HH:MM, optionally Z or an offset. Without a zone it is local time.
+func ParseWritten(v string) (time.Time, bool) {
+	m := writtenValue.FindStringSubmatch(strings.TrimSpace(strings.Trim(strings.TrimSpace(v), "*")))
+	if m == nil {
+		return time.Time{}, false
+	}
+	layout, value := "2006-01-02", m[1]
+	if m[2] != "" {
+		layout, value = layout+" 15:04", value+" "+m[2]
+	}
+	var at time.Time
+	var err error
+	switch m[3] {
+	case "":
+		at, err = time.ParseInLocation(layout, value, time.Local)
+	case "Z":
+		at, err = time.Parse(layout, value)
+	default:
+		at, err = time.Parse(layout+" -07:00", value+" "+m[3])
+	}
+	return at, err == nil
+}
+
+// handoffHeader reads WRITTEN and ACTIVATED from the first HeaderLines
+// lines, skipping fenced blocks. WRITTEN may sit mid-line and in bold.
+func handoffHeader(text string) (written, activated string) {
+	lines := strings.Split(text, "\n")
+	if len(lines) > HeaderLines {
+		lines = lines[:HeaderLines]
+	}
+	inFence := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if m := writtenField.FindStringSubmatch(trimmed); m != nil && written == "" {
+			written = strings.TrimSpace(strings.Trim(strings.TrimSpace(m[1]), "*"))
+		}
+		if m := activatedField.FindStringSubmatch(trimmed); m != nil && activated == "" {
+			activated = strings.TrimSpace(m[1])
+		}
+	}
+	return written, activated
+}
+
+// Handoff reads HANDOFF.md from the seat's folder root (canonical) and
+// .auto-memory (legacy), and returns the copy written most recently, by
+// time: the WRITTEN header when it parses, else the file's mtime. The other
+// copy is reported. It returns nil when no copy exists.
 func (t *Team) Handoff(s Seat) (*Handoff, error) {
-	var best *Handoff
-	var texts []string
-	var copies []string
+	var found []*Handoff
 	for _, rel := range [][]string{{"HANDOFF.md"}, {".auto-memory", "HANDOFF.md"}} {
 		p := t.seatFile(s, rel...)
-		text, err := readOptional(p)
+		text, err := t.readCapped(p)
 		if err != nil {
-			return nil, err
-		}
-		if text == "" {
-			if _, statErr := os.Stat(p); statErr != nil {
+			if os.IsNotExist(err) {
 				continue
 			}
+			return nil, err
 		}
-		relPath := filepath.ToSlash(filepath.Join(rel...))
-		copies = append(copies, relPath)
-		texts = append(texts, text)
-		h := &Handoff{Path: relPath, Text: text}
-		if m := writtenLine.FindStringSubmatch(text); m != nil {
-			h.Written = strings.TrimSpace(m[1])
+		h := &Handoff{Path: filepath.ToSlash(filepath.Join(rel...)), Text: text, WrittenSource: "header"}
+		h.Written, h.Activated = handoffHeader(text)
+		at, ok := ParseWritten(h.Written)
+		if !ok {
+			info, err := os.Stat(p)
+			if err != nil {
+				return nil, t.redactErr(err)
+			}
+			at, h.WrittenSource = info.ModTime(), "mtime"
 		}
-		if m := activatedLine.FindStringSubmatch(text); m != nil {
-			h.Activated = strings.TrimSpace(m[1])
-		}
-		if best == nil || h.Written > best.Written {
-			best = h
-		}
+		h.at = at
+		found = append(found, h)
 	}
-	if best == nil {
+	if len(found) == 0 {
 		return nil, nil
 	}
-	best.Copies = copies
-	for _, x := range texts[1:] {
-		if x != texts[0] {
-			best.Differ = true
+	best, other := found[0], (*Handoff)(nil)
+	if len(found) == 2 {
+		other = found[1]
+		if other.at.After(best.at) {
+			best, other = other, best
 		}
+	}
+	for _, h := range found {
+		best.Copies = append(best.Copies, h.Path)
+	}
+	if other != nil {
+		best.Differ = other.Text != best.Text
+		best.Other = &HandoffCopy{Path: other.Path, Written: other.Written, WrittenSource: other.WrittenSource, Activated: other.Activated}
 	}
 	return best, nil
 }

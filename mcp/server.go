@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 
@@ -27,16 +29,24 @@ This seat booted over MCP, not through the Claude Code plugin. What that means:
 - **Reads are tools.** Use the board, inbox and handoff tools for the session-start steps. Steps that
   need a shell or a file write (Gopher registration, ledger rows, marking inbox entries READ) cannot
   run in this runtime yet. Name each one you skipped in the boot report; do not pretend it ran.
-- **Firmware on demand.** The Overmind's firmware is long. Call firmware with no section for its
-  table of contents, then read the sections a task needs.
+- **Firmware on demand.** The full doctrine is split into topics. Call firmware with no section for
+  the topic index, then read the topics a task needs.
 `
 
-func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
+// config is what a server needs beyond the team itself.
+type config struct {
+	version     string // reported in the Engine line
+	defaultSeat string // the seat a call with no seat resolves to
+	pluginRoot  string // installed plugin folder, for the firmware hash check
+}
+
+func newServer(t *team.Team, cfg config) (*mcp.Server, error) {
+	defaultSeat := cfg.defaultSeat
 	seats, err := t.Seats()
 	if err != nil {
 		return nil, err
 	}
-	s := mcp.NewServer(&mcp.Implementation{Name: "overmind", Title: "ai-overmind team engine", Version: version},
+	s := mcp.NewServer(&mcp.Implementation{Name: "overmind", Title: "ai-overmind team engine", Version: cfg.version},
 		&mcp.ServerOptions{Instructions: instructions(seats, defaultSeat)})
 
 	seatOrDefault := func(name string) (team.Seat, error) {
@@ -52,11 +62,11 @@ func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in seatArg) (*mcp.CallToolResult, any, error) {
 		seat, err := seatOrDefault(in.Seat)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, redactErr(t, err)
 		}
-		text, err := bootText(t, seat)
+		text, err := bootText(t, cfg, seat)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, redactErr(t, err)
 		}
 		return textResult(text), nil, nil
 	})
@@ -67,7 +77,7 @@ func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 		seats, err := t.Seats()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, redactErr(t, err)
 		}
 		return jsonResult(seats)
 	})
@@ -80,13 +90,13 @@ func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
 		if strings.TrimSpace(in.Seat) != "" {
 			sv, err := t.Seat(in.Seat)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, redactErr(t, err)
 			}
 			seat = &sv
 		}
 		rows, err := t.Board(seat, in.All)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, redactErr(t, err)
 		}
 		if rows == nil {
 			rows = []team.BoardRow{}
@@ -100,11 +110,11 @@ func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in seatArg) (*mcp.CallToolResult, any, error) {
 		seat, err := seatOrDefault(in.Seat)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, redactErr(t, err)
 		}
 		h, err := t.Handoff(seat)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, redactErr(t, err)
 		}
 		if h == nil {
 			return textResult("No handoff staged for " + seat.Name + "."), nil, nil
@@ -118,11 +128,11 @@ func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in inboxArgs) (*mcp.CallToolResult, any, error) {
 		seat, err := seatOrDefault(in.Seat)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, redactErr(t, err)
 		}
 		entries, err := t.Inbox(seat, in.UnreadOnly)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, redactErr(t, err)
 		}
 		if entries == nil {
 			entries = []team.InboxEntry{}
@@ -136,7 +146,7 @@ func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in firmwareArgs) (*mcp.CallToolResult, any, error) {
 		if strings.TrimSpace(in.Section) == "" {
 			var b strings.Builder
-			b.WriteString("Firmware sections (call firmware with a section name to read one):\n")
+			b.WriteString("Firmware topic index (call firmware with a topic name to read one):\n")
 			for _, sec := range firmware.Sections() {
 				fmt.Fprintf(&b, "- %s\n", sec.Title)
 			}
@@ -168,7 +178,7 @@ func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
 		if err != nil {
 			return nil, mcp.ResourceNotFoundError(uri)
 		}
-		text, err := bootText(t, seat)
+		text, err := bootText(t, cfg, seat)
 		if err != nil {
 			return nil, err
 		}
@@ -182,9 +192,9 @@ func newServer(t *team.Team, version, defaultSeat string) (*mcp.Server, error) {
 	}, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		seat, err := seatOrDefault(req.Params.Arguments["seat"])
 		if err != nil {
-			return nil, err
+			return nil, redactErr(t, err)
 		}
-		text, err := bootText(t, seat)
+		text, err := bootText(t, cfg, seat)
 		if err != nil {
 			return nil, err
 		}
@@ -235,16 +245,51 @@ func instructions(seats []team.Seat, defaultSeat string) string {
 	return b.String()
 }
 
-func bootText(t *team.Team, seat team.Seat) (string, error) {
+// bootText is the seat's boot layer, the runtime note, then the firmware
+// identity (CONTRACT 7.7): an optional WARNING line, and the Engine line
+// last. The whole text stays inside team.MaxOutputBytes.
+func bootText(t *team.Team, cfg config, seat team.Seat) (string, error) {
 	boot, err := t.Boot(seat)
 	if err != nil {
-		return "", err
+		return "", redactErr(t, err)
 	}
-	return strings.TrimRight(boot, "\n") + "\n\n" + runtimeNote, nil
+	tail := "\n\n" + runtimeNote + "\n" + engineLines(cfg)
+	return team.Cap(strings.TrimRight(boot, "\n"), team.MaxOutputBytes-len(tail)) + tail, nil
+}
+
+// engineLines renders the 7.7 identity block. With a plugin root, a
+// firmware hash that differs from the embedded one adds the WARNING line
+// directly before the Engine line. A plugin root that cannot be hashed is
+// reported on stderr, never in the boot text.
+func engineLines(cfg config) string {
+	mine := firmware.Hash()[:12]
+	var b strings.Builder
+	if cfg.pluginRoot != "" {
+		theirs, err := firmware.HashDir(cfg.pluginRoot)
+		switch {
+		case err != nil:
+			log.Printf("overmind-mcp: cannot hash the plugin firmware under --plugin-root: %v", err)
+		case theirs[:12] != mine:
+			fmt.Fprintf(&b, "WARNING: installed plugin firmware sha256 %s differs from this server's %s. Rebuild or update overmind-mcp.\n", theirs[:12], mine)
+		}
+	}
+	fmt.Fprintf(&b, "Engine: overmind-mcp %s, firmware sha256 %s.\n", cfg.version, mine)
+	return b.String()
+}
+
+// redactErr keeps the team root's absolute path out of every tool error.
+func redactErr(t *team.Team, err error) error {
+	if err == nil {
+		return nil
+	}
+	if msg := t.Redact(err.Error()); msg != err.Error() {
+		return errors.New(msg)
+	}
+	return err
 }
 
 func textResult(s string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: s}}}
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: team.Cap(s, team.MaxOutputBytes)}}}
 }
 
 func jsonResult(v any) (*mcp.CallToolResult, any, error) {
