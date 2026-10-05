@@ -193,12 +193,16 @@ if [ "$mission" = NONE ]; then key="SELF-$HDR_WC"; else key="$mission-$HDR_WC"; 
 cdir="$seatdir/.go-claim"
 mkdir -p "$cdir" 2>/dev/null
 if ! mkdir "$cdir/$key" 2>/dev/null; then
-  o=""; [ -f "$cdir/$key/owner" ] && IFS= read -r o < "$cdir/$key/owner"
+  # The winner writes its owner file right after its mkdir; give it up to 3 s.
+  o=""; n=0
+  while [ ! -f "$cdir/$key/owner" ] && [ $n -lt 30 ]; do sleep 0.1 2>/dev/null || sleep 1; n=$((n+1)); done
+  [ -f "$cdir/$key/owner" ] && IFS= read -r o < "$cdir/$key/owner"
   echo "ALREADY CLAIMED: ${o:-by another session (claim in progress)}"; exit 3
 fi
 stamp_t=$(printf '%s-%s-%s %s:%s' "$now_y" "$now_mo" "$now_d" "$now_h" "$now_mi")
 # ---- 4. owner
-printf '%s %s session %s at %s\n' "$epoch" "$seat" "${sid:-unknown}" "$stamp_t" > "$cdir/$key/owner"
+printf '%s %s session %s at %s\n' "$epoch" "$seat" "${sid:-unknown}" "$stamp_t" > "$cdir/$key/.owner.$$" \
+  && mv -f "$cdir/$key/.owner.$$" "$cdir/$key/owner"
 
 # ---- 5. stamp (re-read under the claim: a stamp written since step 1 wins)
 hdr_parse "$file"
