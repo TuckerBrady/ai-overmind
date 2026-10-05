@@ -38,87 +38,90 @@ fi
 
 echo "--- UNTRUSTED TRANSCRIPT BEGIN ---"
 LC_ALL=C grep -E '"type": ?"(user|assistant)"' -- "$f" | LC_ALL=C awk '
-function skipws() {
-  while (P <= L) {
-    c = substr(S, P, 1)
-    if (c == " " || c == "\t" || c == "\r" || c == "\n") P++; else return
+# The record is cut into tokens once. split() on the quote character gives
+# the pieces between quotes; a quote is escaped when the piece before it ends
+# in an odd run of backslashes. Pieces outside strings hold only structure
+# and literals and are short, so they are read character by character;
+# string pieces are never walked, only located (start and length). This
+# keeps a 0.9 MB record with 70k strings fast on every awk, including ones
+# whose substr() costs the length of the whole record.
+function tokenize(   n, i, j, piece, k, c, lit, start) {
+  n = split(S, QP, "\"")
+  NT = 0; i = 1; pos = 0
+  while (i <= n) {
+    # piece i is outside any string
+    piece = QP[i]; lit = ""
+    for (k = 1; k <= length(piece); k++) {
+      c = substr(piece, k, 1)
+      if (c == " " || c == "\t" || c == "\r" || c == "\n") { if (lit != "") { TT[++NT] = "l"; TV[NT] = lit; lit = "" } continue }
+      if (c == "{" || c == "}" || c == "[" || c == "]" || c == ":" || c == ",") {
+        if (lit != "") { TT[++NT] = "l"; TV[NT] = lit; lit = "" }
+        TT[++NT] = c; continue
+      }
+      lit = lit c
+    }
+    if (lit != "") { TT[++NT] = "l"; TV[NT] = lit }
+    pos += length(piece)
+    if (i == n) break
+    # quote i opens a string at pos + 1; it closes at the next quote that
+    # is not escaped
+    start = pos + 2; pos += 1; j = i + 1
+    while (j < n && QP[j] ~ /\\$/ && match(QP[j], /\\+$/) && RLENGTH % 2 == 1) { pos += length(QP[j]) + 1; j++ }
+    if (j >= n) { BAD = 1; return }
+    pos += length(QP[j]) + 1
+    TT[++NT] = "s"; TS[NT] = start; TL[NT] = pos - start
+    i = j + 1
   }
-}
-# Every quote position in the record, found once. A quote is escaped when
-# the text before it ends in an odd run of backslashes. Strings are then read
-# by offset: no copy of the rest of the record per string.
-function quotes(   n, i, pos) {
-  n = split(S, QPIECE, "\"")
-  pos = 0; NQ = n - 1; QI = 1
-  for (i = 1; i <= NQ; i++) {
-    pos += length(QPIECE[i]) + 1; QPOS[i] = pos
-    QESC[i] = (match(QPIECE[i], /\\+$/) && RLENGTH % 2 == 1) ? 1 : 0
-  }
-}
-# Read a JSON string starting at P (on the opening quote). Returns the raw,
-# still-escaped content (only when keep is set) and leaves P after the
-# closing quote.
-function rstr(keep,   start, j) {
-  while (QI <= NQ && QPOS[QI] < P) QI++
-  if (QI > NQ || QPOS[QI] != P) { BAD = 1; P = L + 1; return "" }
-  start = P + 1; j = QI + 1
-  while (j <= NQ && QESC[j]) j++
-  if (j > NQ) { BAD = 1; P = L + 1; return "" }
-  QI = j + 1; P = QPOS[j] + 1
-  return keep ? substr(S, start, QPOS[j] - start) : ""
 }
 function want(path) {
   return path ~ /^(type|uuid|timestamp|isMeta|isSidechain|isCompactSummary|isVisibleInTranscriptOnly|origin\.kind|message\.role|message\.content|message\.content\[[0-9]+\]\.(type|text))$/
 }
-function rval(path, depth,   c, key, i, start) {
-  if (depth > 64 || BAD) { BAD = 1; return }
-  skipws(); c = substr(S, P, 1)
-  if (c == "{") {
-    P++; skipws()
-    if (substr(S, P, 1) == "}") { P++; return }
-    while (P <= L && !BAD) {
-      skipws()
-      if (substr(S, P, 1) != "\"") { BAD = 1; return }
-      key = rstr(1); skipws()
-      # A key written with an escape (isMet\u0061) would be read by a real
-      # JSON parser as a different key than it is here: fail closed.
+function rval(path, depth,   t, key, i) {
+  if (depth > 64 || BAD || TI > NT) { BAD = 1; return }
+  t = TT[TI]
+  if (path == "origin" && t != "{") ORIGX = 1
+  if (t == "{") {
+    TI++
+    if (TT[TI] == "}") { TI++; return }
+    while (TI <= NT && !BAD) {
+      if (TT[TI] != "s") { BAD = 1; return }
+      key = substr(S, TS[TI], TL[TI]); TI++
+      # A key written with an escape (isMet<backslash>u0061) would be read by
+      # a real JSON parser as a different key than it is here: fail closed.
       if (index(key, "\\")) { BAD = 1; return }
       if (path == "" && key == "origin") { if (HASORIGIN) { BAD = 1; return } HASORIGIN = 1 }
       if (path == "origin") { OKEYS++; if (key != "kind") ORIGX = 1 }
-      if (substr(S, P, 1) != ":") { BAD = 1; return }
-      P++
+      if (TT[TI] != ":") { BAD = 1; return }
+      TI++
       rval(path == "" ? key : path "." key, depth + 1)
-      skipws(); c = substr(S, P, 1)
-      if (c == ",") { P++; continue }
-      if (c == "}") { P++; return }
+      if (BAD) return
+      if (TT[TI] == ",") { TI++; continue }
+      if (TT[TI] == "}") { TI++; return }
       BAD = 1; return
     }
-    return
+    BAD = 1; return
   }
-  if (c == "[") {
-    P++; skipws(); i = 0
-    if (substr(S, P, 1) == "]") { P++; return }
-    while (P <= L && !BAD) {
+  if (t == "[") {
+    TI++; i = 0
+    if (TT[TI] == "]") { TI++; return }
+    while (TI <= NT && !BAD) {
       rval(path "[" i "]", depth + 1); i++
-      skipws(); c = substr(S, P, 1)
-      if (c == ",") { P++; continue }
-      if (c == "]") { P++; return }
+      if (BAD) return
+      if (TT[TI] == ",") { TI++; continue }
+      if (TT[TI] == "]") { TI++; return }
       BAD = 1; return
     }
-    return
+    BAD = 1; return
   }
-  if (path == "origin" && c != "{") ORIGX = 1
-  if (c == "\"") {
-    if (want(path)) { if (path in V) { BAD = 1; return } V[path] = rstr(1); T[path] = "s" } else rstr(0)
-    return
+  if (t == "s") {
+    if (want(path)) { if (path in V) { BAD = 1; return } V[path] = substr(S, TS[TI], TL[TI]); T[path] = "s" }
+    TI++; return
   }
-  start = P
-  while (P <= L) {
-    c = substr(S, P, 1)
-    if (c == "," || c == "}" || c == "]" || c == " " || c == "\t" || c == "\r" || c == "\n") break
-    P++
+  if (t == "l") {
+    if (want(path)) { if (path in V) { BAD = 1; return } V[path] = TV[TI]; T[path] = "l" }
+    TI++; return
   }
-  if (want(path)) { if (path in V) { BAD = 1; return } V[path] = substr(S, start, P - start); T[path] = "l" }
+  BAD = 1
 }
 # \n and \t escapes become a space; every other escape is left as written.
 # Linear: an escaped backslash is set aside first so "\\n" stays as written.
@@ -245,8 +248,9 @@ BEGIN {
   # Pasted images ride inside user turns as base64; drop the payload, keep the turn.
   if (length(S) > 65536) gsub(/"data": ?"[A-Za-z0-9+\/=]+"/, "\"data\":\"\"", S)
   if (length(S) > 1048576) { SKIP++; next }
-  L = length(S); P = 1; BAD = 0; HASORIGIN = 0; OKEYS = 0; ORIGX = 0
-  quotes()
+  BAD = 0; HASORIGIN = 0; OKEYS = 0; ORIGX = 0
+  split("", TT); split("", TS); split("", TL); split("", TV)
+  tokenize(); TI = 1
   split("", V); split("", T)
   rval("", 0)
   if (BAD) { SKIP++; next }
