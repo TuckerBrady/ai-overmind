@@ -1,0 +1,8 @@
+\. ./x.sh
+e\val true
+so\urce ./x.sh
+"eval" true
+s"ource" ./x.sh
+coproc . ./x.sh
+coproc eval true
+echo `echo \`. ./x.sh\``

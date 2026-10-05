@@ -335,13 +335,25 @@ else HASH="cksum"; fi
 # "D <path>" a claim or ID folder. Pruned by name: .git, node_modules, drafts
 # and _claims (TARS's).
 listing() {
-  find "$1" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
-    -name .git -prune -exec printf 'G %s\n' {} + -o \
-    -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
-       -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
-       -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
-       -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'F %s\n' {} + -o \
-    -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'D %s\n' {} + > "$2" 2>/dev/null
+  case ${OSTYPE:-} in
+    darwin*|*bsd*)
+      find "$1" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
+        -name .git -prune -exec printf 'G %s\n' {} + -o \
+        -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
+           -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
+           -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
+           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'F %s\n' {} + -o \
+        -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'D %s\n' {} + > "$2" 2>/dev/null ;;
+    *)
+      # GNU find prints the lines itself: no printf process per batch.
+      find "$1" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
+        -name .git -printf 'G %p\n' -prune -o \
+        -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
+           -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
+           -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
+           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -printf 'F %p\n' -o \
+        -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -printf 'D %p\n' > "$2" 2>/dev/null ;;
+  esac
 }
 
 # The snapshot program (A-25.3; A-33 S-1). Inputs, in order: REF (the call's
@@ -365,7 +377,7 @@ SNAP='
     if ($1 == "dir") rdir[k] = 1; else rh[k] = $1
     next
   }
-  pass == 2 && FILENAME == hashes {
+  (pre != "" && FILENAME == pre) || (pass == 2 && FILENAME == hashes) {
     if (substr($0, 1, 1) == "\\") next
     if (ck) { h = $1 ":" $2; p = $0; sub(/^[^ ]+ [^ ]+ /, "", p) }
     else { h = $1; p = $0; sub(/^[^ ]+ [ *]?/, "", p) }
@@ -389,7 +401,7 @@ SNAP='
       if (skip) continue
       rel = substr(p, length(root) + 2)
       if (typ[i] == "D") { m++; ed[m] = "dir " rel; er[m] = rel; ek[m] = "dir"; continue }
-      if (pass == 1) { print p; continue }
+      if (pass == 1) { if (!(p in hh)) print p; continue }
       h = (p in hh) ? hh[p] : "unreadable"
       m++; ed[m] = h " " rel; er[m] = rel; ek[m] = h
     }
@@ -409,17 +421,19 @@ SNAP='
     for (r in rdir) if (!(r in seen)) print "C " r
   }'
 
-# snapshot MODE ROOT REF [OUT] -> lists ROOT, hashes every protected file
-# found, and runs SNAP; sets SNAPOUT to the program's output.
+# snapshot MODE ROOT REF [OUT [PREHASHED]] -> lists ROOT, hashes every
+# protected file found (except those PREHASHED already holds, the hashes Post
+# took a moment earlier), and runs SNAP; sets SNAPOUT to the program's output.
 snapshot() {
-  local mode=$1 r=$2 ref=$3 out=${4:-} ck=0 lf="$gdir/$callid.l" hf="$gdir/$callid.h"
+  local mode=$1 r=$2 ref=$3 out=${4:-} pre=${5:-} ck=0 lf="$gdir/$callid.l" hf="$gdir/$callid.h"
   [ "$HASH" = cksum ] && ck=1
   [ -f "$ref" ] || ref=/dev/null
+  [ -n "$pre" ] && [ -f "$pre" ] || pre=/dev/null
   listing "$r" "$lf"
   # shellcheck disable=SC2086
-  awk -v pass=1 -v root="$r" -v ref=/dev/null "$SNAP" /dev/null "$lf" | tr '\n' '\000' | xargs -0 $HASH > "$hf" 2>/dev/null
-  SNAPOUT=$(awk -v pass=2 -v mode="$mode" -v root="$r" -v ref="$ref" -v hashes="$hf" -v ck="$ck" \
-    -v out="$out" "$SNAP" "$ref" "$hf" "$lf")
+  awk -v pass=1 -v root="$r" -v ref=/dev/null -v pre="$pre" -v ck="$ck" "$SNAP" /dev/null "$pre" "$lf" | tr '\n' '\000' | xargs -0 -r $HASH > "$hf" 2>/dev/null
+  SNAPOUT=$(awk -v pass=2 -v mode="$mode" -v root="$r" -v ref="$ref" -v pre="$pre" -v hashes="$hf" -v ck="$ck" \
+    -v out="$out" "$SNAP" "$ref" "$pre" "$hf" "$lf")
   : > "$lf"; : > "$hf"
 }
 
@@ -450,17 +464,17 @@ alert() { # ROOTS EVENT LINES... -> log each line under each root listed (one
   printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}\n' "$ev" "$esc"
 }
 
-# recheck SNAPFILE -> SNAPOUT gets "C <relpath>" for every file the Pre
+# recheck SNAPFILE HASHFILE -> HASHFILE gets the fresh hashes, SNAPOUT gets "C <relpath>" for every file the Pre
 # record lists whose content changed or which is gone. No walk: only the
 # recorded files are hashed, so this is quick however many files a command
 # created (A-38 P1).
 recheck() {
-  local sf=$1 r ck=0 hf="$gdir/$callid.h"
+  local sf=$1 r ck=0 hf=$2
   [ "$HASH" = cksum ] && ck=1
   IFS= read -r r < "$sf"; r=${r#root }
   # shellcheck disable=SC2086
   awk -v r="$r" 'FNR > 1 && $1 != "dir" { p = $0; sub(/^[^ ]+ /, "", p); print r "/" p }' "$sf" |
-    tr '\n' '\000' | xargs -0 $HASH > "$hf" 2>/dev/null
+    tr '\n' '\000' | xargs -0 -r $HASH > "$hf" 2>/dev/null
   SNAPOUT=$(awk -v r="$r" -v ck="$ck" '
     FILENAME == ARGV[1] { if (FNR == 1 || $1 == "dir") next; k = $0; sub(/^[^ ]+ /, "", k); old[k] = $1; next }
     {
@@ -470,7 +484,6 @@ recheck() {
       if (index(p, r "/") == 1) now[substr(p, length(r) + 2)] = h
     }
     END { for (k in old) if (!(k in now) || "" now[k] != "" old[k]) print "C " k }' "$sf" "$hf")
-  : > "$hf"
 }
 
 # logline ROOTS MSG -> append MSG to <root>/_twin-guard.log for each root
@@ -531,7 +544,7 @@ if [ "$event" != PreToolUse ]; then
   #    outrun the hook's timeout, and the log keeps what was found (A-38 P1).
   msgs=() seenc=$nl
   for sf in "${sfs[@]}"; do
-    recheck "$sf"
+    recheck "$sf" "$sf.r"
     while IFS= read -r rel; do
       case $rel in 'C '?*) ;; *) continue ;; esac
       rel=${rel#C }; seenc="$seenc$rel$nl"
@@ -545,7 +558,7 @@ EOF
   nlog=${#msgs[@]}
   for sf in "${sfs[@]}"; do
     IFS= read -r sr < "$sf"; sr=${sr#root }
-    snapshot post "$sr" "$sf"
+    snapshot post "$sr" "$sf" "" "$sf.r"
     while IFS= read -r rel; do
       case $rel in 'C '?*) ;; *) continue ;; esac
       rel=${rel#C }
@@ -555,7 +568,7 @@ EOF
     done <<EOF
 $SNAPOUT
 EOF
-    : > "$sf"
+    : > "$sf"; : > "$sf.r"
   done
   : > "$busy"
   [ ${#msgs[@]} -gt 0 ] || exit 0

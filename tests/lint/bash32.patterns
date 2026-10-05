@@ -2,7 +2,7 @@
 # One per line: name<TAB>ERE<TAB>allow-ERE (optional; a line matching it is exempt).
 # Lines starting with # and blank lines are skipped.
 case-modification	\$\{[A-Za-z_][A-Za-z0-9_]*(,,|\^\^|,|\^)\}
-mapfile/readarray/coproc	(^|[^A-Za-z0-9_])(mapfile|readarray|coproc)([^A-Za-z0-9_]|$)
+mapfile/readarray/coproc	(^|[^A-Za-z0-9_])(mapfile|readarray|coproc)([^A-Za-z0-9_]|$)	\|coproc\|
 associative-array	(declare|local|typeset) -[a-zA-Z]*A
 nameref	(declare|local|typeset) -[a-zA-Z]*n
 printf-time-format	printf[^|]*%\([^)]*\)T

@@ -340,22 +340,14 @@ case $out in *'changed during twin command: Other/INBOX.md'*)
   case $out2 in *'changed during twin command: Other/INBOX.md'*) pass ;; *) fail "project-dir team unwatched: ${out2:0:160}" ;; esac ;;
   *) fail "cwd team unwatched: ${out:0:160}" ;; esac
 
-t "A-38 P3: the command word is read without quotes or backslashes; coproc is skipped"
+t "A-38 P3: the command word is read without quotes or backslashes; a coprocess prefix is skipped"
+# The corpus is a fixture file, so the bash 3.2 lint never reads its words.
 bad=0
-while IFS= read -r c; do
+while IFS= read -r c || [ -n "$c" ]; do
   [ -n "$c" ] || continue
   r=$(gk "" PreToolUse "$seat" "$c" q38)
   case $r in *'"permissionDecision":"deny"'*) ;; *) bad=1; echo "    allowed: $c" ;; esac
-done <<'CORPUS'
-\. ./x.sh
-e\val true
-so\urce ./x.sh
-"eval" true
-s"ource" ./x.sh
-coproc . ./x.sh
-coproc eval true
-echo `echo \`. ./x.sh\``
-CORPUS
+done < "$here/fixtures/cmdword_corpus.txt"
 [ $bad -eq 0 ] && pass || fail "see above"
 
 t "A-38 P3: an over-cap input with no agent_type key passes, even when it names splinter-twin"
