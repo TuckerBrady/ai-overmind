@@ -43,14 +43,58 @@ if ( : > "$root/WORKING_WITH_A B.md" ) 2>/dev/null; then
 fi
 
 old "$root"/WORKING_WITH_*.md
-# ---- L8 per MCP 3.3 (GAP-27): last segment only; untagged is unread
+# ---- L8 unread count per amendment A-8 (replaces 3.3 / GAP-27). Each header
+# of fixtures/inbox_a8.txt is classified alone: a session starts on an empty
+# inbox, the header is written, and the next turn reports growth only if the
+# entry is unread.
 inbox="$om/INBOX.md"
-printf '# INBOX\n\n## 2026-10-01 — From T-Bot (READ the spec) — UNREAD\nbody\n## 2026-10-02 — From T-Bot — READ\nbody\n## 2026-10-03 — From T-Bot\nuntagged\n### 2026-10-03 - sub - not an entry\n' > "$inbox"
+k=0 unread=0 total=0
+while IFS= read -r l || [ -n "$l" ]; do
+  l=${l%"$cr"}
+  case $l in ''|'#'*) continue ;; esac
+  want=${l%%"$tab"*}; h=${l#*"$tab"}
+  k=$(( k + 1 )); total=$(( total + 1 ))
+  : > "$inbox"
+  hook "a8_$k" "$om" >/dev/null; backdate "a8_$k"
+  printf '# INBOX\n\n%s\nbody\n### 2026-10-03 - READ - a sub-heading is not an entry\n' "$h" > "$inbox"
+  out=$(hook "a8_$k" "$om")
+  got=READ; [ "$out" = "TARS: 1 unread inbox entries (was 0)." ] && got=UNREAD
+  [ "$got" = UNREAD ] && unread=$(( unread + 1 ))
+  t "A-8 $want: $h"
+  expect "classified $got (output: $out)" test "$got" = "$want"
+done < "$here/fixtures/inbox_a8.txt"
+
+# the whole fixture as one inbox, then growth by two
+{ printf '# INBOX\n\n'; while IFS= read -r l || [ -n "$l" ]; do l=${l%"$cr"}; case $l in ''|'#'*) continue ;; esac; printf '%s\nbody\n' "${l#*"$tab"}"; done < "$here/fixtures/inbox_a8.txt"; } > "$inbox"
 hook l8 "$om" >/dev/null; backdate l8
-printf '## 2026-10-04 - From Nash - read\nlower-case read\n## 2026-10-04 - From Nash - READ me later\nunread\n' >> "$inbox"
+printf '## 2026-10-06 — From Nash — UNREAD — new\n## 2026-10-06 — From Nash — READ-ONLY\n## 2026-10-06 — From Nash — READ\n' >> "$inbox"
 out=$(hook l8 "$om")
-t "2.16 unread = UNREAD + untagged + non-READ last segment (2 -> 3)"
-expect "got: $out" test "$out" = "TARS: 3 unread inbox entries (was 2)."
+t "A-8 whole fixture: $unread unread of $total, then +2"
+expect "got: $out" test "$out" = "TARS: $(( unread + 2 )) unread inbox entries (was $unread)."
+
+# ---- the shared A-8 fixture from L5 (mcp/testdata/inbox-rule/Sam - QA/INBOX.md
+# at b61c7f8, copied byte for byte). Line 1 holds the oracle count; bodies say
+# unread: or processed:. TARS must count exactly that many, fence included.
+shared="$here/fixtures/inbox-rule-INBOX.md"
+exp=""; IFS= read -r l1 < "$shared"; l1=${l1%"$cr"}
+case $l1 in '<!-- expected unread: '*' -->') exp=${l1#'<!-- expected unread: '}; exp=${exp%' -->'} ;; esac
+bodies=0
+while IFS= read -r l || [ -n "$l" ]; do case $l in unread:*) bodies=$(( bodies + 1 )) ;; esac; done < "$shared"
+t "shared fixture: oracle on line 1 is 10 and matches its unread: bodies"
+expect "oracle=$exp bodies=$bodies" test "$exp" = 10 -a "$bodies" = 10
+: > "$inbox"
+hook shared1 "$om" >/dev/null; backdate shared1
+cp "$shared" "$inbox"
+out=$(hook shared1 "$om")
+t "A-8 shared fixture: TARS counts exactly $exp unread"
+expect "got: $out" test "$out" = "TARS: $exp unread inbox entries (was 0)."
+# the same file with CRLF line endings (a Windows checkout)
+: > "$inbox"
+hook shared2 "$om" >/dev/null; backdate shared2
+while IFS= read -r l || [ -n "$l" ]; do printf '%s\r\n' "${l%"$cr"}"; done < "$shared" > "$inbox"
+out=$(hook shared2 "$om")
+t "A-8 shared fixture with CRLF: still $exp"
+expect "got: $out" test "$out" = "TARS: $exp unread inbox entries (was 0)."
 
 # ---- meter kinds: 1M denominator (GAP-17), singular eta (GAP-19), L3, P up to 3 digits (GAP-18)
 tx="$tmp/m.jsonl"; : > "$tx"

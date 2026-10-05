@@ -1,0 +1,17 @@
+# Amendment A-8 inbox status fixture (shared format with overmind-mcp).
+# <expected status><TAB><header>. Lines starting with # are comments.
+READ	## 2026-09-26 — From WRENCH (Nash) — READ — #65 fixes are in, re-review please
+READ	## 2026-10-02 — From T-Bot — READ
+READ	## 2026-10-02 - From T-Bot - READ
+UNREAD	## 2026-10-02 — From T-Bot — UNREAD
+UNREAD	## [UNREAD] 2026-10-03 — From Vaughn — gate result
+READ	## [READ] 2026-10-03 — From Vaughn — gate result
+READ	## READ 2026-09-14 23:20 — From Pierce — spec v1.2
+READ	## READ (closed by T-Bot 2026-09-20) — From Dean — form
+UNREAD	## UNREAD — From Mercer — brief
+UNREAD	## 2026-10-01 — From T-Bot (READ the spec) — UNREAD
+UNREAD	## 2026-10-05 — From T-Bot (READ the spec)
+UNREAD	## 2026-10-01 - From Nash - READ-ONLY note
+UNREAD	## 2026-10-03 — From T-Bot
+UNREAD	## 2026-10-04 - From Nash - read
+UNREAD	## Inbox rules

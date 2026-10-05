@@ -26,7 +26,7 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/ovm.XXXXXX") || exit 1
 trap 'rm -rf "$tmp"' EXIT
 TH="$tmp/tarshome"
 SYSPATH=$PATH
-cr=$'\r'
+cr=$'\r' tab=$'\t'
 
 # jpath PATH: the path as a JSON string body (Windows form under Git Bash).
 jpath() {

@@ -278,18 +278,46 @@ if [ -z "$first" ] && [ -f "$seatdir/BOOT.md" ] && [ -f "$st/bootref" ] && [ "$s
 fi
 
 # Unread inbox entries: recount only when the inbox changed; report growth.
-# An entry is a "## " header. Its status is the last " — " or " - " segment,
-# trimmed; only READ (any case) is read. An untagged entry is unread.
+# An entry is a "## " header (amendment A-8, shared with overmind-mcp): split
+# it on " — " or " - "; in order, each segment's first whitespace token with
+# any surrounding [ ] removed; the first token that is exactly READ or UNREAD
+# is the status. No such token means unread. Builtins only.
 inbox_growth() {
-  local f="$1/INBOX.md" cur=0 prev line seg
+  local f="$1/INBOX.md" cur=0 prev line rest seg tok status us=$'\037'
   [ -f "$f" ] || return
   [ -z "$first" ] && [ ! "$f" -nt "$st/marker" ] && return
+  local fc="" fl=0 lead t r bq='`'
   while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%"$cr"}
+    # A "## " inside a fenced code block (``` or ~~~, indent 0-3) is not an
+    # entry. A fence closes on a run of the same character at least as long.
+    lead=${line%%[! ]*}
+    if [ ${#lead} -le 3 ]; then
+      t=${line#"$lead"}
+      case $t in
+        "$bq$bq$bq"*|'~~~'*)
+          if [ -z "$fc" ]; then
+            fc=${t:0:1}; r=${t%%[!"$fc"]*}; fl=${#r}
+            continue
+          fi
+          r=${t%%[!"$fc"]*}; t=${t#"$r"}
+          [ ${#r} -ge "$fl" ] && [ -z "${t//[ ]/}" ] && fc="" fl=0
+          continue ;;
+      esac
+    fi
+    [ -n "$fc" ] && continue
     case $line in '## '*) ;; *) continue ;; esac
-    seg=${line%"$cr"}; seg=${seg#'## '}
-    seg=${seg##* — }; seg=${seg##* - }
-    seg=${seg//"$tab"/ }; seg=${seg#"${seg%%[! ]*}"}; seg=${seg%"${seg##*[! ]}"}
-    case $seg in [Rr][Ee][Aa][Dd]) ;; *) cur=$(( cur + 1 )) ;; esac
+    rest=${line#'## '}; rest=${rest//"$tab"/ }
+    rest=${rest// — /$us}; rest=${rest// - /$us}
+    status=""
+    while :; do
+      seg=${rest%%"$us"*}
+      seg=${seg#"${seg%%[! ]*}"}; tok=${seg%%[ ]*}
+      tok=${tok#\[}; tok=${tok%\]}
+      case $tok in READ|UNREAD) status=$tok; break ;; esac
+      case $rest in *"$us"*) rest=${rest#*"$us"} ;; *) break ;; esac
+    done
+    [ "$status" = READ ] || cur=$(( cur + 1 ))
   done < "$f"
   prev=$(getn "$st/unread")
   put "$st/unread" "$cur"
