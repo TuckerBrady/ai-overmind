@@ -306,21 +306,41 @@ fi
 # ---------------------------------------------------------------- which seat
 # Pinned on turn 1 (or the first turn that finds no pin): the role, the team
 # root and the seat folder. A later cd elsewhere doesn't change who this is.
+#
+# Team root (OPS-030 release lane): the OUTERMOST of the cwd and its two
+# parents that holds a live MISSION_BOARD.md, the rule twin-guard.sh uses. A
+# board whose first line says RETIRED BRIDGE COPY doesn't count: the live team
+# keeps one in every seat folder as a pointer, and the nearest-board rule made
+# each seat folder its own team root. The seat folder is the root's child on
+# the way to the cwd. A pin whose root holds a retired copy is re-derived.
+liveboard() {
+  local l=""
+  [ -f "$1/MISSION_BOARD.md" ] || return 1
+  IFS= read -r -n 200 l < "$1/MISSION_BOARD.md"
+  case $l in *'RETIRED BRIDGE COPY'*) return 1 ;; esac
+  return 0
+}
 role="" root="" seatdir=""
 if [ -z "$first" ] && [ -f "$st/seat" ]; then
   { IFS= read -r role; IFS= read -r root; IFS= read -r seatdir; } < "$st/seat"
+  [ -n "$root" ] && ! liveboard "$root" && role=""
 fi
 case $role in overmind|specialist) ;; *) role="" ;; esac
 if [ -z "$role" ]; then
   root=""
-  parent=${cwd%/*}
-  if [ -f "$cwd/MISSION_BOARD.md" ]; then root=$cwd
-  elif [ -f "$parent/MISSION_BOARD.md" ]; then root=$parent
+  d=$cwd n=0
+  while (( n <= 2 )) && [ -n "$d" ]; do
+    liveboard "$d" && root=$d
+    case $d in */*) d=${d%/*} ;; *) break ;; esac
+    n=$(( n + 1 ))
+  done
+  seatdir=$cwd
+  if [ -n "$root" ] && [ "$root" != "$cwd" ]; then
+    rel=${cwd#"$root"/}; seatdir="$root/${rel%%/*}"
   fi
   role=specialist
-  case ${cwd##*/} in *[Oo][Vv][Ee][Rr][Mm][Ii][Nn][Dd]*) role=overmind ;; esac
+  case ${seatdir##*/} in *[Oo][Vv][Ee][Rr][Mm][Ii][Nn][Dd]*) role=overmind ;; esac
   [ -n "$root" ] && [ "$root" = "$cwd" ] && role=overmind
-  seatdir=$cwd
   if [ "$role" = overmind ] && [ "$root" = "$cwd" ]; then
     shopt -s nocaseglob nullglob
     for d in "$root"/*overmind*/; do seatdir=${d%/}; break; done
