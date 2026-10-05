@@ -1,30 +1,53 @@
 #!/usr/bin/env bash
 # guard.sh --session <id> --running <0|1> --fold <file> [--worktree <path>]...
 #
-# /consolidate's pre-archive guard (CONTRACT 6.9, GAP-45). Archiving a desktop
-# session stops it and, by default, deletes its worktree, so a sibling is
-# archived only when this exits 0. Every check runs; the exit code is the
-# LOWEST failing code:
+# /consolidate's pre-archive guard (CONTRACT 6.9, GAP-45, amendment A-34).
+# Archiving a desktop session stops it and, by default, deletes its worktree,
+# so a sibling is archived only when this exits 0.
 #
+# The check is an outcome invariant, not a list of git states:
+#
+#   Everything archiving would delete must already be recoverable from what
+#   is on a remote. Every file on disk under the worktree (resolved to its
+#   toplevel) must exist as a blob reachable from a remote-tracking ref, and
+#   every commit on any local ref, refs/worktree/*, refs/bisect/* and every
+#   stash entry must be reachable from the remote-tracking refs. Content in
+#   the index counts too. Any nested repository (a .git directory or file
+#   anywhere below, in a build directory or not) is checked the same way.
+#
+# Skipped: the toplevel's .git, and a directory named node_modules, dist,
+# build, .next, target, __pycache__ or .venv that sits beside the manifest
+# that rebuilds it (package.json, Cargo.toml, pyproject.toml, ...) and holds
+# no .git anywhere inside.
+#
+# Nothing a repository configures can run. The guard uses plumbing only
+# (rev-parse, for-each-ref, rev-list, ls-files -s, hash-object --no-filters)
+# and never git status, diff or submodule, so no filter driver, hook or
+# fsmonitor is ever invoked. Files are hashed byte for byte; a file that only
+# differs by line endings is hashed a second time in an empty sandbox
+# repository with no system or global config, where no filter driver exists.
+#
+# It trusts remote-tracking refs as they are on disk (A-28): the remote is
+# never contacted, because that would run the repo's ssh and credential
+# programs. A stale or hand-written refs/remotes/... ref makes content look
+# pushed.
+#
+# Every check runs; the exit code is the LOWEST failing code:
 #   0  pass: safe to archive (still only after the human's yes this session)
 #   10 running: the session is mid-turn or has live background work
-#   11 work archiving would delete: uncommitted or untracked changes, a
-#      stash, an ignored path that is not a manifest-backed build directory,
-#      a dirty submodule; in the worktree or any submodule
-#   12 unpushed commits: commits no remote-tracking ref holds, on any local
-#      ref (HEAD only in a linked worktree), here or in any submodule.
-#      Remote-tracking refs are trusted as they are on disk; the remote is
-#      never asked (that would run its ssh and credential programs)
+#   11 a file no remote holds (up to 20 paths and the count are printed), or
+#      a nested repository with no remote at all
+#   12 a commit no remote holds: on a local branch, tag, HEAD, refs/worktree,
+#      refs/bisect or the stash
 #   13 open PR on the worktree's branch with no fold note (a PR comment
 #      containing the fold file's basename)
 #   14 not folded: the fold file is missing, or has no Siblings row whose
 #      Session is exactly this sid8 with Class SUPERSEDED or DIVERGED and
 #      Result "nothing unique" or "folded: ...", or fails invariant.sh
-#   15 cannot verify: a worktree path is not a git work tree, the repo's own
-#      config or a submodule's defines a filter driver (inspecting it would
-#      run that program), a populated gitlink has no .gitmodules entry,
-#      or a branch has a GitHub upstream and gh is missing, unauthenticated
-#      or failing
+#   15 cannot verify: not a git work tree, no remote-tracking refs, a path
+#      that cannot be read or holds a newline, more than 200000 files, or a
+#      branch has a GitHub upstream and gh is missing, unauthenticated or
+#      failing
 #   2  bad usage
 #
 # One line per failed check goes to stdout as "guard: <code> <reason>".
@@ -50,129 +73,169 @@ case $sid in *[!A-Za-z0-9_-]*) usage ;; esac
 # sid8: the first 8 characters of the id, without the desktop "local_" prefix.
 bare=${sid#local_}; sid8=${bare:0:8}
 
-# git, with core.fsmonitor off and hooks pointed at nothing. That closes two
-# ways a repo's own config can make a git call run a program. It does not
-# close the third: a filter driver (filter.<x>.clean / .process, named by
-# .gitattributes) runs during "git status". So before any status, a repo
-# whose own config (local, worktree, included files, or a submodule's)
-# defines a filter is not inspected at all: exit 15, cannot verify. Filters
-# in the user's global or system config are the user's own installs (git-lfs)
-# and are not a repo-borne payload.
+MAXFILES=200000
+nl='
+'
+# Plumbing only, and still hardened: no fsmonitor, no hooks, no pager, no
+# automatic gc or maintenance, no optional index locks.
 g() {
   git --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null \
     -c core.pager=cat -c gc.auto=0 -c maintenance.auto=false -C "$@"
 }
-# An ignored path may go with the worktree only when it is a directory a
-# build or an install recreates: its LAST component is one of these names
-# AND the manifest that recreates it sits next to it. Anything else is
-# someone's work.
-rebuildable() { # $1 repo dir, $2 ignored path relative to it
-  local p=${2%/} last parent m f
-  last=${p##*/}; parent=$1
-  case $p in */*) parent="$1/${p%/*}" ;; esac
-  case $last in
-    node_modules|.next) set -- package.json ;;
-    dist|build) set -- package.json pyproject.toml setup.py setup.cfg Cargo.toml go.mod pom.xml build.gradle build.gradle.kts ;;
-    target) set -- Cargo.toml pom.xml build.sbt ;;
-    .venv) set -- pyproject.toml requirements.txt setup.py setup.cfg Pipfile poetry.lock ;;
-    __pycache__)
-      for f in "$parent"/*.py; do [ -f "$f" ] && return 0; done
-      set -- pyproject.toml setup.py setup.cfg requirements.txt ;;
-    *) return 1 ;;
-  esac
-  for m in "$@"; do [ -f "$parent/$m" ] && return 0; done
-  return 1
-}
 tmpd=$(mktemp -d "${TMPDIR:-/tmp}/guard.XXXXXX") || exit 15
 trap 'rm -rf "$tmpd"' EXIT
-# Every filter.* setting git would actually apply in this repo (includes and
-# includeIf resolved exactly as git resolves them), minus the user's own
-# global and system scopes. What is left came from the repo: its config, a
-# worktree config, or a file one of those includes.
-filters_in() { # $1 repo dir
-  g "$1" config --show-scope --includes --get-regexp '^filter\.' 2>/dev/null |
-    LC_ALL=C grep -vE '^(global|system|command)[[:space:]]'
-}
-# Every populated gitlink (index mode 160000) under $1, recursively, found
-# without running anything a repo configures: ls-files reads the index and
-# config -f reads .gitmodules as a plain file. One line each:
-#   MAPPED <dir>     declared in that repo's .gitmodules
-#   UNMAPPED <dir>   not declared: a nested repo nothing vouches for
-#   DEEP <dir>       nesting past 8 levels
-# A populated gitlink is a directory holding a .git. git status recurses into
-# it, and its own config (a filter) would run, so each one is scanned below.
-walk_links() { # $1 repo dir, $2 depth
-  local dir=$1 depth=$2 ent mode path full
-  if [ "$depth" -gt 8 ]; then echo "DEEP $dir"; return; fi
-  g "$dir" ls-files -s -z > "$tmpd/ls.$depth" 2>/dev/null
-  : > "$tmpd/map.$depth"
-  if [ -f "$dir/.gitmodules" ]; then
-    git config -f "$dir/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null |
-      LC_ALL=C sed 's/^[^ ]* //' > "$tmpd/map.$depth"
-  fi
-  while IFS= read -r -d '' ent; do
-    mode=${ent%% *}
-    [ "$mode" = 160000 ] || continue
-    path=${ent#*$'\t'}; full="$dir/$path"
-    [ -e "$full/.git" ] || continue
-    if LC_ALL=C grep -qxF -- "$path" "$tmpd/map.$depth"; then
-      echo "MAPPED $full"
-      walk_links "$full" $((depth + 1))
-    else
-      echo "UNMAPPED $full"
-    fi
-  done < "$tmpd/ls.$depth"
-}
-# 11 and 12 for one repository: a worktree or a submodule.
-check_repo() { # $1 repo dir
-  local r=$1 ent code path dirty=0 nign=0 gdir cdir ahead what
-  # 11: tracked changes, untracked files, dirty submodules (whatever
-  # .gitmodules or diff.ignoreSubmodules say), and ignored files. Archiving
-  # deletes the worktree, ignored files included.
-  if ! g "$r" status --porcelain -z --untracked-files=normal --ignore-submodules=none --ignored=matching > "$tmpd/st" 2>/dev/null; then
-    flag 15 "git status failed in $r"; return
-  fi
-  while IFS= read -r -d '' ent; do
-    code=${ent:0:2}; path=${ent:3}
-    case $code in R?|C?) IFS= read -r -d '' _ ;; esac   # a rename's source path follows
-    if [ "$code" = '!!' ]; then
-      if rebuildable "$r" "$path"; then
-        nign=$((nign+1)); [ $nign -le 20 ] && echo "guard: ignored (rebuildable) $path in $r"
-      else
-        flag 11 "ignored, not rebuildable, deleted on archive: $path in $r"
-      fi
-    else
-      dirty=1
-    fi
-  done < "$tmpd/st"
-  [ $dirty = 1 ] && flag 11 "uncommitted or untracked changes in $r"
-  # 12: commits no remote holds. A main worktree or a submodule counts every
-  # local ref (other branches, tags, a detached commit); a linked worktree
-  # checks its own HEAD, since the shared refs belong to the main one. The
-  # stash is uncommitted work: 11. Remote-tracking refs are trusted as they
-  # are on disk; nothing here asks the remote (that would run its ssh and
-  # credential programs).
-  gdir=$(g "$r" rev-parse --path-format=absolute --git-dir 2>/dev/null)
-  cdir=$(g "$r" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
-  if [ -n "$gdir" ] && [ "$gdir" = "$cdir" ]; then
-    g "$r" rev-parse -q --verify refs/stash > /dev/null 2>&1 && flag 11 "the stash holds uncommitted work in $r"
-    ahead=$(g "$r" rev-list --count --exclude=refs/stash --all --not --remotes 2>/dev/null)
-    what="on local branches, tags or HEAD"
-  elif g "$r" rev-parse --verify -q HEAD > /dev/null 2>&1; then
-    ahead=$(g "$r" rev-list --count HEAD --not --remotes 2>/dev/null)
-    what="on HEAD"
-  else
-    ahead=0; what=""
-  fi
-  case $ahead in
-    ''|*[!0-9]*) flag 15 "cannot count unpushed commits in $r" ;;
-    0) ;;
-    *) flag 12 "$ahead commit(s) $what that no remote holds in $r" ;;
-  esac
-}
 
 codes=""
 flag() { codes="$codes $1"; echo "guard: $1 $2"; }
+
+# --- the invariant, for one repository and (recursively) the ones inside it ------
+ctn=0
+check_tree() { # $1 directory, $2 1 if this is a nested repository
+  local dir=$1 nested=$2 top f extras stashlog ahead fmt rc nmiss nested_roots r
+  ctn=$((ctn + 1)); f="$tmpd/ct$ctn"
+  top=$(g "$dir" rev-parse --show-toplevel 2>/dev/null)
+  if [ -z "$top" ] || [ ! -d "$top" ]; then
+    flag 15 "not a git work tree: $dir"; return
+  fi
+  if [ -z "$(g "$top" for-each-ref --count=1 --format=x refs/remotes 2>/dev/null)" ]; then
+    if [ "$nested" = 1 ]; then flag 11 "nested repository with no remote at all: $top"
+    else flag 15 "no remote-tracking refs to verify against: $top"; fi
+    return
+  fi
+
+  # Refs: every local ref, the per-worktree refs, and every stash entry (the
+  # stash reflog, not only its tip) must be reachable from the remotes.
+  g "$top" for-each-ref --format='%(objectname)' refs/worktree refs/bisect > "$f.extra" 2>/dev/null
+  stashlog=$(g "$top" rev-parse --git-path logs/refs/stash 2>/dev/null)
+  case $stashlog in /*|?:/*) ;; ?*) stashlog="$top/$stashlog" ;; esac
+  if [ -n "$stashlog" ] && [ -f "$stashlog" ]; then
+    LC_ALL=C awk '$2 ~ /^[0-9a-f]+$/ && (length($2) == 40 || length($2) == 64) { print $2 }' "$stashlog" >> "$f.extra"
+  fi
+  # --not before --stdin leaves the stdin revisions positive.
+  ahead=$(g "$top" rev-list --count --all --not --remotes --stdin < "$f.extra" 2>/dev/null); rc=$?
+  case $rc:$ahead in
+    0:0) ;;
+    0:*[!0-9]*|0:|[!0]*) flag 15 "cannot walk the refs of $top" ;;
+    *) flag 12 "$ahead commit(s) no remote holds (local branches, tags, HEAD, refs/worktree, refs/bisect, stash) in $top" ;;
+  esac
+
+  # Files. Three walks, no git involved: the .git entries below the toplevel
+  # (nested repositories), the allow-listed directory names, and every file
+  # and symlink. Nothing is pruned except .git, so nested repositories
+  # inside build directories are found.
+  if [ -n "$(cd "$top" && find . -path ./.git -prune -o -name "*$nl*" -print 2>/dev/null | head -n 1)" ]; then
+    flag 15 "a path below $top holds a newline; cannot verify"; return
+  fi
+  # Walks run from inside the toplevel, so no character in its path can act
+  # as a -path pattern.
+  ( cd "$top" && find . -path ./.git -prune -o -name .git -prune -print ) > "$f.git" 2> "$f.err1"
+  ( cd "$top" && find . -name .git -prune -o -type d \( -name node_modules -o -name dist -o -name build \
+    -o -name .next -o -name target -o -name __pycache__ -o -name .venv \) -print ) > "$f.dirs" 2> "$f.err2"
+  ( cd "$top" && find . -name .git -prune -o -type f -print ) > "$f.files" 2> "$f.err3"
+  ( cd "$top" && find . -name .git -prune -o -type l -print ) > "$f.links" 2> "$f.err4"
+  if [ -s "$f.err1" ] || [ -s "$f.err2" ] || [ -s "$f.err3" ] || [ -s "$f.err4" ]; then
+    flag 15 "cannot read every path below $top: $(head -n 1 "$f.err1" "$f.err2" "$f.err3" "$f.err4" 2>/dev/null | LC_ALL=C grep -v '^==>' | LC_ALL=C grep . | head -n 1)"
+    return
+  fi
+  # Classify (relative paths). Out: $f.keep (files to verify), $f.klinks
+  # (symlinks to verify), $f.nested (outermost nested repositories),
+  # $f.skipped (rebuildable directories left out).
+  LC_ALL=C awk -v top="./" -v f="$f" '
+    function rel(p) { return substr(p, length(top) + 1) }
+    function parent(p) { return (p ~ /\//) ? substr(p, 1, match(p, /\/[^\/]*$/) - 1) : "" }
+    function under(p, set,   q) { q = p; while (q != "") { if (q in set) return 1; q = parent(q) } return 0 }
+    FILENAME ~ /\.git$/   { n = rel($0); n = parent(n); if (n != "") NR_[n] = 1; next }
+    FILENAME ~ /\.dirs$/  { D[rel($0)] = 1; next }
+    FILENAME ~ /\.files$/ { r = rel($0); F[r] = 1; FO[++nf] = r
+                            if (r ~ /\.py$/) PY[parent(r)] = 1; next }
+    FILENAME ~ /\.links$/ { LO[++nl] = rel($0); next }
+    END {
+      M["node_modules"] = "package.json"; M[".next"] = "package.json"
+      M["dist"] = "package.json pyproject.toml setup.py setup.cfg Cargo.toml go.mod pom.xml build.gradle build.gradle.kts"
+      M["build"] = M["dist"]
+      M["target"] = "Cargo.toml pom.xml build.sbt"
+      M[".venv"] = "pyproject.toml requirements.txt setup.py setup.cfg Pipfile poetry.lock"
+      M["__pycache__"] = "pyproject.toml setup.py setup.cfg requirements.txt"
+      # outermost nested repositories
+      for (n in NR_) { if (!under(parent(n), NR_)) { OUT[n] = 1; print n > (f ".nested") } }
+      # a nested repository anywhere inside a directory taints all its ancestors
+      for (n in NR_) { q = parent(n); while (q != "") { HASGIT[q] = 1; q = parent(q) } }
+      for (d in D) {
+        if (d in HASGIT || d in NR_) continue
+        last = d; sub(/.*\//, "", last); par = parent(d)
+        ok = 0; k = split(M[last], ms, " ")
+        for (i = 1; i <= k; i++) if (((par == "" ? "" : par "/") ms[i]) in F) ok = 1
+        if (last == "__pycache__" && (par in PY)) ok = 1
+        if (ok) SKIP[d] = 1
+      }
+      for (d in SKIP) if (!under(parent(d), SKIP)) print d > (f ".skipped")
+      for (i = 1; i <= nf; i++) { r = FO[i]; if (under(parent(r), OUT) || under(parent(r), SKIP)) continue; print r > (f ".keep") }
+      for (i = 1; i <= nl; i++) { r = LO[i]; if (under(parent(r), OUT) || under(parent(r), SKIP)) continue; print r > (f ".klinks") }
+    }' "$f.git" "$f.dirs" "$f.files" "$f.links"
+  touch "$f.keep" "$f.klinks" "$f.nested" "$f.skipped"
+  if [ "$(wc -l < "$f.keep" | tr -d ' ')" -gt "$MAXFILES" ]; then
+    flag 15 "more than $MAXFILES files below $top; too large to verify"; return
+  fi
+  LC_ALL=C sort "$f.skipped" | head -n 20 | while IFS= read -r r; do echo "guard: skipped (rebuildable) $r in $top"; done
+  n=$(wc -l < "$f.skipped" | tr -d ' ')
+  [ "$n" -gt 20 ] && echo "guard: skipped (rebuildable) ...and $((n - 20)) more in $top"
+
+  # The blobs the remotes hold.
+  if ! g "$top" rev-list --objects --remotes > "$f.robj" 2>/dev/null; then
+    flag 15 "cannot list the objects the remotes hold in $top"; return
+  fi
+  LC_ALL=C awk '{ print $1 }' "$f.robj" > "$f.remote"
+
+  # Hash every file byte for byte.
+  : > "$f.h1"
+  if [ -s "$f.keep" ] && ! g "$top" hash-object --no-filters --stdin-paths < "$f.keep" > "$f.h1" 2> "$f.err5"; then
+    flag 15 "cannot read every file below $top: $(head -n 1 "$f.err5")"; return
+  fi
+  # Symlinks: the blob is the link text.
+  : > "$f.lk"
+  while IFS= read -r r; do
+    printf '%s\t%s\n' "$(readlink "$top/$r" | g "$top" hash-object --no-filters --stdin 2>/dev/null)" "$r" >> "$f.lk"
+  done < "$f.klinks"
+  # Files whose bytes are not on a remote.
+  LC_ALL=C awk -v f="$f" 'FILENAME == f ".remote" { R[$1] = 1; next }
+    FILENAME == f ".keep" { P[FNR] = $0; next }
+    FILENAME == f ".h1" { if (!($1 in R)) print P[FNR] }' "$f.remote" "$f.keep" "$f.h1" > "$f.miss1"
+  # A second look at those, as git add would store them on this platform
+  # (line endings), in an empty sandbox: no repository config, no system or
+  # global config, so no filter driver exists to run.
+  : > "$f.miss2"
+  if [ -s "$f.miss1" ]; then
+    fmt=$(g "$top" rev-parse --show-object-format 2>/dev/null); fmt=${fmt:-sha1}
+    if [ ! -d "$tmpd/sandbox-$fmt.git" ]; then
+      GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null HOME="$tmpd" \
+        git init -q --bare --object-format="$fmt" "$tmpd/sandbox-$fmt.git" > /dev/null 2>&1
+    fi
+    ( cd "$top" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1 HOME="$tmpd" \
+        GIT_DIR="$tmpd/sandbox-$fmt.git" GIT_WORK_TREE=. \
+        git -c core.autocrlf=true -c core.safecrlf=false -c core.fsmonitor=false -c core.hooksPath=/dev/null \
+        hash-object --stdin-paths < "$f.miss1" ) > "$f.h2" 2> /dev/null || : > "$f.h2"
+    LC_ALL=C awk -v f="$f" 'FILENAME == f ".remote" { R[$1] = 1; next }
+      FILENAME == f ".miss1" { P[FNR] = $0; n = FNR; next }
+      FILENAME == f ".h2" { H[FNR] = $1 }
+      END { for (i = 1; i <= n; i++) if (!(H[i] in R)) print P[i] }' "$f.remote" "$f.miss1" "$f.h2" > "$f.miss2"
+  fi
+  LC_ALL=C awk -v f="$f" 'FILENAME == f ".remote" { R[$1] = 1; next }
+    { split($0, a, "\t"); if (!(a[1] in R)) print a[2] }' "$f.remote" "$f.lk" >> "$f.miss2"
+  # Content staged in the index (it goes with the worktree too).
+  g "$top" ls-files -s -z 2>/dev/null | LC_ALL=C tr '\0' '\n' |
+    LC_ALL=C awk -v f="$f" 'FILENAME == f ".remote" { R[$1] = 1; next }
+      { split($0, a, "\t"); split(a[1], m, " "); if (m[1] != "160000" && !(m[2] in R)) print a[2] " (staged)" }' "$f.remote" - >> "$f.miss2"
+  nmiss=$(LC_ALL=C sort -u "$f.miss2" | LC_ALL=C grep -c .)
+  if [ "$nmiss" -gt 0 ]; then
+    flag 11 "$nmiss file(s) no remote holds in $top; archiving would delete them:"
+    LC_ALL=C sort -u "$f.miss2" | head -n 20 | sed 's/^/guard:     /'
+  fi
+
+  # Each outermost nested repository, the same way.
+  while IFS= read -r r; do
+    [ -n "$r" ] && check_tree "$top/$r" 1
+  done < "$f.nested"
+}
 
 # Bound a network call when a timeout tool exists.
 tmo=""
@@ -204,39 +267,20 @@ if [ ${#wts[@]} -eq 0 ]; then
   echo "guard: note no --worktree given: nothing on disk was checked for $sid8"
 fi
 for wt in ${wts[@]+"${wts[@]}"}; do
-  if [ ! -d "$wt" ] || [ "$(g "$wt" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; then
-    flag 15 "not a git work tree: $wt"; continue
-  fi
-  # Gitlinks first: nothing below may run inside a nested repo that is not
-  # declared, or one whose own config defines a filter.
-  walk_links "$wt" 0 > "$tmpd/links"
-  bad=$(LC_ALL=C grep -E '^(UNMAPPED|DEEP) ' "$tmpd/links" | head -n 1)
-  if [ -n "$bad" ]; then
-    flag 15 "nested repo with no .gitmodules entry (${bad#* }); not inspected: $wt"; continue
-  fi
-  : > "$tmpd/subs"
-  while read -r kind sub; do printf '%s\n' "$sub" >> "$tmpd/subs"; done < "$tmpd/links"
-  fdir=""
-  if [ -n "$(filters_in "$wt" | head -n 1)" ]; then fdir=$wt; fi
-  while IFS= read -r sub; do
-    [ -z "$fdir" ] && [ -n "$(filters_in "$sub" | head -n 1)" ] && fdir=$sub
-  done < "$tmpd/subs"
-  if [ -n "$fdir" ]; then
-    flag 15 "repo config defines a filter driver ($fdir); not inspected: $wt"; continue
-  fi
-  check_repo "$wt"
-  # ...and every submodule, recursively, the same way.
-  while IFS= read -r sub; do check_repo "$sub"; done < "$tmpd/subs"
-  branch=$(g "$wt" symbolic-ref -q --short HEAD 2>/dev/null)
+  if [ ! -d "$wt" ]; then flag 15 "not a git work tree: $wt"; continue; fi
+  check_tree "$wt" 0
+  top=$(g "$wt" rev-parse --show-toplevel 2>/dev/null)
+  [ -n "$top" ] || continue
+  branch=$(g "$top" symbolic-ref -q --short HEAD 2>/dev/null)
   [ -n "$branch" ] || continue
-  remote=$(g "$wt" config --get "branch.$branch.remote" 2>/dev/null)
+  remote=$(g "$top" config --get "branch.$branch.remote" 2>/dev/null)
   # No upstream set: a PR can still be open on this branch at origin.
   [ -n "$remote" ] || remote=origin
-  url=$(g "$wt" config --get "remote.$remote.url" 2>/dev/null)
+  url=$(g "$top" config --get "remote.$remote.url" 2>/dev/null)
   case $url in *github.com[:/]*) ;; *) continue ;; esac
   repo=${url#*github.com}; repo=${repo#[:/]}; repo=${repo%.git}; repo=${repo%/}
   case $repo in *[!A-Za-z0-9_./-]*|*/*/*|/*|*..*|'') flag 15 "cannot parse GitHub repo from the upstream of $branch"; continue ;; esac
-  merge=$(g "$wt" config --get "branch.$branch.merge" 2>/dev/null); merge=${merge:-refs/heads/$branch}; head=${merge#refs/heads/}
+  merge=$(g "$top" config --get "branch.$branch.merge" 2>/dev/null); merge=${merge:-refs/heads/$branch}; head=${merge#refs/heads/}
   [ -n "$head" ] || head=$branch
   if ! gh_ready; then
     flag 15 "gh $gh_state: cannot check open PRs on $repo:$head"; continue
