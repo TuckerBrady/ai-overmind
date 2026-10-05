@@ -224,6 +224,7 @@ You never write or touch a brief. Before activating a handoff, `/go` shows you w
 | `skills/collective/` | Collective operations — find a venue, seat other Overminds, run cross-team missions (no server required) |
 | `skills/assimilate/` | `/assimilate` — an invited Overmind's one command to join: capability sweep, Genesis Seed identity, invite discovery |
 | `skills/morph/` | Morph: an architect, parallel builders, fresh graders, and a domain gate, all as splinter twins in one session; merges only on PASS |
+| `skills/consolidate/` | `/consolidate` (The Quickening) — run it in the session you keep; folds every other open session on the same mission into it, then closes them behind a pre-archive guard |
 | `skills/initiative/` | `/initiative` — show or set the team's initiative setting (25/50/75/90/100%) |
 | `skills/caveman/` | Ultra-compressed communication mode (~65-75% fewer tokens) |
 | `WELCOME.html` | Styled field manual — presented on first activation |
