@@ -48,9 +48,10 @@ HOME=$V "$B" "$PROOF" issue "$CID" Verifier Other >/dev/null 2>&1 && fail "secon
 answer "$n" "$tmp/s3"; verify "$tmp/s3" >/dev/null
 
 t "a nonce mid-claim (.claim.* file) still counts as a round in flight (N-5)"
-: > "$VD/pending/.claim.peer.12345"
+# A-32: only a claim whose PID is alive counts; this shell's PID is.
+: > "$VD/pending/.claim.peer.$$"
 HOME=$V "$B" "$PROOF" issue "$CID" Verifier Peer >/dev/null 2>&1 && fail "issued" || pass
-rm -f "$VD/pending/.claim.peer.12345"
+rm -f "$VD/pending/.claim.peer.$$"
 
 t "two verifies racing on one nonce: exactly one passes (mv claim, N1)"
 out=$(issue); n=${out##* nonce }; answer "$n" "$tmp/s4"
