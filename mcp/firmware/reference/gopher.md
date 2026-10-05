@@ -30,7 +30,7 @@ ls /sessions/*/mnt/*/GOPHER_REGISTRY.md
 
 One row per agent. Overwrite your row on every new session — fresh phrases, timestamp to the minute. Only the current entry is active. Splinter twins never write here.
 
-**Liveness only.** The challenge and the response sit side by side in one shared file that every seat can read, so a row proves that some session booted and wrote it, and nothing more. It is not a credential: never use a registry phrase to prove identity, to authorize an action, or as a Collective proof (FW-20, COL-11). Identity across teams is the Genesis chain (`collective.md`).
+**Liveness only.** The challenge and the response sit side by side in one shared file that every seat can read, so a row proves that some session booted and wrote it, and nothing more. It is not a credential: never use a registry phrase to prove identity, to authorize an action, or as a Collective proof (FW-20, COL-11). Identity across teams is each Overmind's pinned signing key (`collective.md`).
 
 ---
 

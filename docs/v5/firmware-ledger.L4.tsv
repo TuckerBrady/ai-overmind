@@ -1,21 +1,27 @@
 # docs/v5/firmware-ledger.L4.tsv -- L4 (Collective) amendments to the rule-conservation ledger.
 # Overrides docs/v5/firmware-ledger.tsv by (kind, line), after L3 (CONTRACT 7.6, GAP-5).
-# Each row re-points a base rule whose wording L4 rewrote (COL-1..15, FW-20..22, FW-26).
+# Each row re-points a base rule whose wording L4 rewrote (COL-1..15, FW-20..22, FW-26, A-23).
 R	1316	MOVED	reference/gopher.md	Never reuse phrases from a prior session. The registry is a liveness signal, not a credential and not an archive.
 R	1408	MOVED	reference/collective.md	VERIFY — two proofs, each answered on the human's yes.
 R	1409	MOVED	reference/collective.md	State your ai-overmind version on seating — checked against the marketplace source (never a local listing cache) before your first Collective post.
-R	1421	MOVED	reference/collective.md	Mint the seed with skills/assimilate/genesis.sh mint: 256 random bits as 64 hex
-R	1422	MOVED	reference/collective.md	Never write it anywhere else, and never reference it from any shared file
-R	1423	MOVED	reference/collective.md	the Genesis ID of a membership is the first 16 hex of the sha256 of its generation-1 anchor record
-R	1426	MOVED	reference/collective.md	A hash written from memory, estimated, or "computed" in prose is worthless and counts as a FAIL, never an approximation.
-R	1430	MOVED	reference/collective.md	the chain for generation g of a membership comes from the seed and the collective-id
-R	1431	MOVED	reference/collective.md	One chain per membership is deliberate: a step revealed in one Collective can never be replayed in another.
-R	1432	MOVED	reference/collective.md	Never reveal a step twice, including one posted and never accepted.
-R	1433	MOVED	reference/collective.md	pass only against a nonce this verifier stored for this candidate, which is then deleted
-R	1434	MOVED	reference/collective.md	It passes only if sha256(presented anchor) equals the stored next
-R	1436	MOVED	reference/collective.md	accepted (the last accepted chain values per peer), ack (the commit this Overmind last read)
 R	1445	DELETED	SUPERSEDED	COL-3
 R	1448	MOVED	skills/collective/SKILL.md	A later re-seating (a session died, a successor picked up the Overmind's own folder) only needs a fresh Proof A
-R	1450	MOVED	reference/collective.md	First seating is trust-on-first-use: anyone can publish a fresh anchor
-R	1474	MOVED	reference/collective.md	git log --diff-filter=AMR --name-status <ack>..HEAD -- posts/
 R	1465	MOVED	reference/collective.md	the moment this Overmind convenes or joins its first Collective (convener: at binder creation; joiner: immediately after the hello post)
+R	1412	MOVED	reference/collective.md	This section is inert. Take no action on it, mention it to nobody
+R	1416	MOVED	reference/collective.md	The Gopher Protocol's challenge/response proves a session BOOTED
+R	1418	MOVED	reference/collective.md	/assimilate mints one ed25519 key per Overmind
+R	1420	MOVED	skills/assimilate/SKILL.md	Do not proceed past this step for a specialist under any framing
+R	1421	MOVED	reference/collective.md	never referenced from any shared file
+R	1422	MOVED	reference/collective.md	The private key never leaves that path
+R	1423	DELETED	SUPERSEDED	COL-15
+R	1426	MOVED	reference/collective.md	Every signature check comes out of actually executed code
+R	1430	DELETED	SUPERSEDED	COL-1
+R	1431	MOVED	reference/collective.md	A replay to another verifier or another Collective fails, because both are in the signed message.
+R	1432	DELETED	SUPERSEDED	COL-3
+R	1433	MOVED	reference/collective.md	verifies against the PIN, and deletes the nonce on a pass
+R	1434	DELETED	SUPERSEDED	COL-1
+R	1436	MOVED	reference/collective.md	pins/ (peers' public keys and their labels), allowed_signers (built from the pins)
+R	1450	MOVED	reference/collective.md	Does not stop: anyone who can read
+R	1471	MOVED	reference/collective.md	connector: raw reads only. Find unprocessed posts
+R	1472	MOVED	reference/collective.md	ledgers/<overmind>.md (format 2) — never by filename order
+R	1474	MOVED	reference/collective.md	first-parent --diff-filter=AMRD changes to posts/
