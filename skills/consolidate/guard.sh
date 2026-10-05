@@ -8,12 +8,18 @@
 #
 #   0  pass: safe to archive (still only after the human's yes this session)
 #   10 running: the session is mid-turn or has live background work
-#   11 dirty worktree: uncommitted or untracked changes
-#   12 unpushed commits: HEAD has commits no remote branch holds
+#   11 work archiving would delete: uncommitted or untracked changes, a
+#      stash, an ignored path that is not a manifest-backed build directory,
+#      a dirty submodule; in the worktree or any submodule
+#   12 unpushed commits: commits no remote-tracking ref holds, on any local
+#      ref (HEAD only in a linked worktree), here or in any submodule.
+#      Remote-tracking refs are trusted as they are on disk; the remote is
+#      never asked (that would run its ssh and credential programs)
 #   13 open PR on the worktree's branch with no fold note (a PR comment
 #      containing the fold file's basename)
-#   14 not folded: the fold file is missing, has no Siblings row for this
-#      session, records it "not folded", or fails invariant.sh
+#   14 not folded: the fold file is missing, or has no Siblings row whose
+#      Session is exactly this sid8 with Class SUPERSEDED or DIVERGED and
+#      Result "nothing unique" or "folded: ...", or fails invariant.sh
 #   15 cannot verify: a worktree path is not a git work tree, the repo's own
 #      config or a submodule's defines a filter driver (inspecting it would
 #      run that program), a populated gitlink has no .gitmodules entry,
