@@ -85,6 +85,12 @@ macOS. Read it, never write it. If that record is missing, take the
 newest `*.jsonl` in the slug folder whose first record's `timestamp` matches
 the session's creation time. If neither works, say so and use `list_events`.
 
+Resolve the `cliSessionId` for this session and for every candidate, and
+keep it next to the `local_` id. Two things key on it: the transcript file,
+and the mission claim `_claims/<ID>.<cliSessionId>` (TARS names a claim by
+the hook's session id, which is the CLI id). The fold file, the guard and
+`sib8` use the `local_` id.
+
 ## 1. Anchor
 
 The anchor is **this session, always**. Never offer to fold this session into
@@ -116,7 +122,11 @@ Build the candidate list from all four sources and de-duplicate by session id:
   mission:** every session of one seat shares a folder, so a same-cwd session
   with an unrelated title is not a candidate.
 - `<team-root>/_claims/<ID>.*`: each claim file is `<epoch> <SEAT>` and its
-  name ends in the claiming session's id.
+  name ends in the claiming session's **CLI session id** (`cliSessionId`, the
+  transcript's uuid), not the `local_` id: TARS names claims by the hook's
+  `session_id`. Map each claim to its desktop session through the
+  `cliSessionId` that step 0 resolves for every candidate, and keep both ids
+  for each sibling.
 
 Then sort each candidate:
 
@@ -323,8 +333,16 @@ FOREIGN, or fails its guard, the sibling stays open; say which and why.
 FOREIGN, cloud and not-folded sessions are never in the archive set.
 
 **On a yes**, for each sibling marked archive, and for each of its side
-sessions, run the pre-archive guard first. Pass every repo or worktree the sibling used (from its `cwd`,
-`get_session` worktree info, and the repos its transcript ran git in):
+sessions, run the pre-archive guard first. Pass as `--worktree`:
+
+- every worktree `get_session(<id>)` reports for that session;
+- its `cwd`, **only if** `git -C <cwd> rev-parse --is-inside-work-tree`
+  succeeds there (a seat folder is not a repo; passing it makes the guard
+  exit 15);
+- every other repo its transcript ran git in.
+
+With no `--worktree` at all the guard checks nothing on disk and says so;
+never treat that as a pass for a session that touched a repo.
 
 ```
 bash guard.sh --session <local_id> --running <1 if isRunning else 0> --fold <fold-file> [--worktree <path>]...
@@ -334,8 +352,8 @@ bash guard.sh --session <local_id> --running <1 if isRunning else 0> --fold <fol
 |---|---|---|
 | 0 | safe | archive it |
 | 10 | running | leave it open; report |
-| 11 | uncommitted or untracked changes | leave it open; report the paths |
-| 12 | commits no remote holds | leave it open; report the branch |
+| 11 | uncommitted, untracked, stashed or ignored work, or a dirty submodule | leave it open; report the paths |
+| 12 | commits no remote holds (any branch, tag or detached commit, or in a submodule) | leave it open; report the branch |
 | 13 | open PR with no fold note | comment on the PR naming the fold file (needs his yes like any PR comment), then **run guard again**, and archive only on that re-run's exit 0; or leave it open |
 | 14 | not folded | leave it open; fix the fold |
 | 15 | cannot verify (gh missing or unauthenticated, not a git repo, or the repo defines a filter driver that inspecting would run) | leave it open; report |
@@ -347,8 +365,13 @@ the human's yes in this session. A failure
 is reported, never forced: no retry with fewer worktrees, no skipping the
 guard.
 
+Put the guard's `ignored (rebuildable)` lines in the close table, under the
+sibling they belong to, so the human sees what goes with the worktree.
+
 After the archives, remove each archived sibling's claim,
-`<team-root>/_claims/<ID>.<its session id>`, and record every result under
+`<team-root>/_claims/<ID>.<its cliSessionId>` (the CLI id from step 0, never
+the `local_` id: that file does not exist and the live claim would stay),
+and record every result under
 `## Close` in the fold file. Then report in one line: how many were archived,
 which stayed open, and why.
 
