@@ -55,13 +55,12 @@ mkrepo() { # $1 dir
   git -C "$1" push -q -u origin main 2>/dev/null
 }
 
-# A PATH with no gh on it at all, and a fake gh to put in front of it.
-np=""
-IFS=:
-for d in $PATH; do
-  [ -e "$d/gh" ] || [ -e "$d/gh.exe" ] || np="$np${np:+:}$d"
-done
-unset IFS
+# "gh missing": a stub dir first on PATH whose gh exits 127, the shell's
+# "command not found". Nothing is removed from PATH, so git and coreutils
+# stay reachable wherever they live (on Ubuntu, /usr/bin also holds gh).
+stub="$tmp/nogh"; mkdir -p "$stub"
+printf '#!/usr/bin/env bash\nexit 127\n' > "$stub/gh"; chmod +x "$stub/gh"
+np="$stub:$PATH"
 fake="$tmp/fakebin"; mkdir -p "$fake"
 {
   echo '#!/usr/bin/env bash'
@@ -163,7 +162,7 @@ mkfold "folded: 1 decisions, 0 files" "user:$U1"
 
 t "15 gh missing with a GitHub upstream"
 rc=$(runp "$np" --session "$SID" --running 0 --fold "$fold" --worktree "$gw")
-[ "$rc" = 15 ] && pass || fail "rc=$rc $(cat "$tmp/out")"
+[ "$rc" = 15 ] && LC_ALL=C grep -q 'gh missing' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
 
 t "15 gh unauthenticated with a GitHub upstream"
 echo 1 > "$FAKEGH/auth_rc"; echo 42 > "$FAKEGH/prs"
@@ -200,6 +199,35 @@ w4="$tmp/w4"; mkrepo "$w4"
 git -C "$w4" config core.fsmonitor "touch '$tmp/pwned'; false"
 run --session "$SID" --running 0 --fold "$fold" --worktree "$w4" > /dev/null
 [ ! -e "$tmp/pwned" ] && pass || fail "the fsmonitor command ran"
+
+# A filter driver named by .gitattributes runs during "git status". The guard
+# must not inspect such a repo at all: exit 15, and the payload never runs.
+mkfilter() { # $1 dir, $2 where the filter is defined: local | include
+  mkrepo "$1"
+  case $2 in
+    local) git -C "$1" config filter.evil.clean "touch '$tmp/pwned-$2'; cat" ;;
+    include)
+      git config --file "$1/.git/extra.cfg" filter.evil.clean "touch '$tmp/pwned-$2'; cat"
+      git -C "$1" config include.path extra.cfg ;;
+  esac
+  echo '* filter=evil' > "$1/.gitattributes"
+  git -C "$1" -c filter.evil.clean=cat add .gitattributes
+  git -C "$1" -c filter.evil.clean=cat commit -qm attrs
+  git -C "$1" -c filter.evil.clean=cat push -q 2>/dev/null
+  touch -t 202901010000 "$1/a.txt"   # same content, new mtime: status must hash it through the filter
+}
+for where in local include; do
+  t "15 repo filter driver ($where config) and the payload never runs"
+  w5="$tmp/w5-$where"; mkfilter "$w5" "$where"
+  rc=$(run --session "$SID" --running 0 --fold "$fold" --worktree "$w5")
+  [ "$rc" = 15 ] && [ ! -e "$tmp/pwned-$where" ] && LC_ALL=C grep -q 'filter driver' "$tmp/out" && pass ||
+    fail "rc=$rc pwned=$([ -e "$tmp/pwned-$where" ] && echo yes || echo no) $(cat "$tmp/out")"
+done
+for where in local include; do
+  t "positive control: plain git status in the $where repo does run the filter"
+  ( cd "$tmp/w5-$where" && git status --porcelain > /dev/null 2>&1 )
+  [ -e "$tmp/pwned-$where" ] && pass || fail "the fixture filter never fires, so the case above proves nothing"
+done
 
 t "2 on bad usage"
 r1=$(run --session "$SID" --running maybe --fold "$fold")

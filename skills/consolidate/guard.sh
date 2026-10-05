@@ -14,8 +14,10 @@
 #      containing the fold file's basename)
 #   14 not folded: the fold file is missing, has no Siblings row for this
 #      session, records it "not folded", or fails invariant.sh
-#   15 cannot verify: a worktree path is not a git work tree, or a branch has
-#      a GitHub upstream and gh is missing, unauthenticated or failing
+#   15 cannot verify: a worktree path is not a git work tree, the repo's own
+#      config defines a filter driver (inspecting it would run that program),
+#      or a branch has a GitHub upstream and gh is missing, unauthenticated
+#      or failing
 #   2  bad usage
 #
 # One line per failed check goes to stdout as "guard: <code> <reason>".
@@ -41,9 +43,23 @@ case $sid in *[!A-Za-z0-9_-]*) usage ;; esac
 # sid8: the first 8 characters of the id, without the desktop "local_" prefix.
 bare=${sid#local_}; sid8=${bare:0:8}
 
-# git, read-only, with core.fsmonitor off: a repo's own config must not be
-# able to make "git status" run a program.
-g() { git -c core.fsmonitor=false -C "$@"; }
+# git, with core.fsmonitor off and hooks pointed at nothing. That closes two
+# ways a repo's own config can make a git call run a program. It does not
+# close the third: a filter driver (filter.<x>.clean / .process, named by
+# .gitattributes) runs during "git status". So before any status, a repo
+# whose own config (local, worktree, included files, or a submodule's)
+# defines a filter is not inspected at all: exit 15, cannot verify. Filters
+# in the user's global or system config are the user's own installs (git-lfs)
+# and are not a repo-borne payload.
+g() { git -c core.fsmonitor=false -c core.hooksPath=/dev/null -C "$@"; }
+repo_filters() { # $1 work tree -> prints any repo-controlled filter.* config
+  g "$1" config --local --includes --get-regexp '^filter\.' 2>/dev/null
+  g "$1" config --worktree --includes --get-regexp '^filter\.' 2>/dev/null
+  if [ -f "$1/.gitmodules" ]; then
+    g "$1" submodule --quiet foreach --recursive \
+      'git config --local --includes --get-regexp "^filter\." || :' 2>/dev/null
+  fi
+}
 
 codes=""
 flag() { codes="$codes $1"; echo "guard: $1 $2"; }
@@ -61,8 +77,14 @@ gh_state=""   # "", ok, missing, unauth
 gh_ready() {
   if [ -z "$gh_state" ]; then
     if ! command -v gh >/dev/null 2>&1; then gh_state=missing
-    elif ! $tmo gh auth status >/dev/null 2>&1; then gh_state=unauth
-    else gh_state=ok; fi
+    else
+      $tmo gh auth status >/dev/null 2>&1
+      case $? in
+        0) gh_state=ok ;;
+        126|127) gh_state=missing ;;   # found but cannot run
+        *) gh_state=unauth ;;
+      esac
+    fi
   fi
   [ "$gh_state" = ok ]
 }
@@ -71,6 +93,9 @@ fbase=${fold##*/}
 for wt in ${wts[@]+"${wts[@]}"}; do
   if [ ! -d "$wt" ] || [ "$(g "$wt" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; then
     flag 15 "not a git work tree: $wt"; continue
+  fi
+  if [ -n "$(repo_filters "$wt" | head -n 1)" ]; then
+    flag 15 "repo config defines a filter driver; not inspected: $wt"; continue
   fi
   if [ -n "$(g "$wt" status --porcelain --untracked-files=normal 2>/dev/null | head -1)" ]; then
     flag 11 "uncommitted or untracked changes in $wt"
