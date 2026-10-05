@@ -2,7 +2,12 @@
 # skills/go/claim.sh -- claim a staged HANDOFF.md atomically (CONTRACT 4.1, 4.14;
 # AMENDMENTS GAP-31, GAP-32, GAP-33).
 #
-#   claim.sh [--check] <seat-folder> <handoff-file> <session-id> <seat-name>
+#   claim.sh [--check] [--expect <sha256>] <seat-folder> <handoff-file> <session-id> <seat-name>
+#
+# --check also prints CONTENT_SHA256, the sha256 of the brief as it stands.
+# /go shows the brief to the human and then claims with --expect <that hash>:
+# if the file changed in between, the claim refuses with REASON: CHANGED, so
+# what runs is exactly what the human saw (AMENDMENTS A-26).
 #
 # One check path for every TYPE. In order:
 #   1. validate the header (CONTRACT 7.2)
@@ -21,9 +26,11 @@
 # Exit codes: 0 claimed (or, with --check, claimable); 3 already claimed or
 # already ACTIVATED (prints owner and time); 2 refused, with a line
 # "REASON: <TOKEN>", TOKEN one of UNKNOWN_TYPE NO_SEAT NO_WRITTEN SEAT_MISMATCH
-# CONSOLIDATED NO_BOARD_ROW NOT_ASSIGNED BOARD_UNREACHABLE. A detail line may
-# follow. Usage errors also exit 2, with REASON: UNKNOWN_TYPE when the file
-# cannot be read as a brief.
+# CONSOLIDATED NO_BOARD_ROW NOT_ASSIGNED BOARD_UNREACHABLE, and CHANGED for an
+# --expect mismatch. A detail line may follow. Usage errors also exit 2, with
+# REASON: UNKNOWN_TYPE when the file cannot be read as a brief: a missing file,
+# a HANDOFF.md that is a symlink or a folder, a symlinked .go-claim, or a header
+# that runs past line 39 (a stamp under it would fall outside the 40 lines read).
 #
 # Session id: the go skill passes ${CLAUDE_SESSION_ID}, which Claude Code
 # substitutes in skill content ("Available string substitutions",
@@ -33,13 +40,14 @@
 #
 # Team root: CONTRACT 7.1 applied to the seat folder's parent: the parent if it
 # holds MISSION_BOARD.md, else the grandparent if it does (GAP-31).
-# Board rows: the "## Active" and "## Archive" tables. Columns are found by
+# Board rows: the "## Active" table only (COLLECTIVE_BOARD.md: any table not
+# under an Archive heading). Columns are found by
 # header cell: ID, Status, Assignees (the live team writes "Assignee"), Owner.
 # A seat is assigned when it is a token of the Assignee(s) or Owner cell (split
 # on , / & + and whitespace) or names its own lane in the Status cell.
 # A row counts only while in flight: a Status token in ACTIVE QUEUED BLOCKED
-# REVIEW PENDING (PENDING is the legacy alias of QUEUED). An Archive row, or a
-# row (or this seat's lane) that is COMPLETE, is closed: NO_BOARD_ROW.
+# REVIEW PENDING (PENDING is the legacy alias of QUEUED). A row missing from
+# ## Active, or one (or this seat's lane) that is COMPLETE, is closed: NO_BOARD_ROW.
 # BOARD_UNREACHABLE refuses DISPATCH and CTM-LANE briefs only; a self-handoff
 # or informational brief with an unreachable board proceeds without the check.
 # CTM-LANE missions live on COLLECTIVE_BOARD.md, read at the team root.
@@ -47,10 +55,16 @@ set -u
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/header.sh"
 
-check=0
-if [ "${1:-}" = --check ]; then check=1; shift; fi
+check=0 expect=""
+while :; do
+  case ${1:-} in
+    --check) check=1; shift ;;
+    --expect) [ $# -ge 2 ] || break; expect=$2; shift 2 ;;
+    *) break ;;
+  esac
+done
 if [ $# -ne 4 ]; then
-  echo "usage: claim.sh [--check] <seat-folder> <handoff-file> <session-id> <seat-name>" >&2
+  echo "usage: claim.sh [--check] [--expect <sha256>] <seat-folder> <handoff-file> <session-id> <seat-name>" >&2
   echo "REASON: UNKNOWN_TYPE"; exit 2
 fi
 seatdir=${1%/}; file=$2; rawsid=$3; seat=$4
@@ -58,7 +72,23 @@ seatdir=${1%/}; file=$2; rawsid=$3; seat=$4
 refuse() { echo "REASON: $1"; [ -n "${2:-}" ] && echo "DETAIL: $2"; exit 2; }
 
 [ -d "$seatdir" ] || refuse UNKNOWN_TYPE "seat folder not found"
+[ -L "$file" ] && refuse UNKNOWN_TYPE "the brief is a symlink"
+[ -d "$file" ] && refuse UNKNOWN_TYPE "the brief is a folder"
+[ -L "$seatdir/.go-claim" ] && refuse UNKNOWN_TYPE ".go-claim is a symlink"
 hdr_parse "$file" || refuse UNKNOWN_TYPE "handoff file not readable"
+[ "$HDR_LAST" -gt 39 ] && refuse UNKNOWN_TYPE "the header runs past line 39"
+
+# sha256 of a file: sha256sum, else shasum -a 256, else openssl (GAP-12).
+sha_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum < "$1" | cut -c1-64
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 < "$1" | cut -c1-64
+  else openssl dgst -sha256 < "$1" | sed 's/^.*= *//' | cut -c1-64
+  fi
+}
+content_sha=$(sha_of "$file")
+if [ -n "$expect" ] && [ "$expect" != "$content_sha" ]; then
+  refuse CHANGED "the brief changed since it was shown (expected $expect, now $content_sha)"
+fi
 
 sid=$rawsid
 [ "$sid" = '${CLAUDE_SESSION_ID}' ] && sid=""
@@ -72,6 +102,7 @@ emit_fields() {
   echo "WRITTEN=$HDR_WRITTEN"
   echo "DISPATCHED_BY=${HDR_DISPATCHER:-}"
   echo "AGE_MIN=$age"
+  echo "CONTENT_SHA256=$content_sha"
 }
 
 # ---- 1. header
@@ -122,10 +153,11 @@ if [ "$mission" != NONE ]; then
     echo "NOTE: board unreachable; board check skipped for $HDR_TYPE"
   else
     # One line per matching row: section<TAB>status<TAB>assignees<TAB>owner
-    row=$(head -c 1048576 "$board" | tr -d '\r' | awk -F'|' -v id="$mission" '
+    row=$(head -c 1048576 "$board" | tr -d '\r' | awk -F'|' -v id="$mission" -v ctm="$([ "$HDR_TYPE" = CTM-LANE ] && echo 1 || echo 0)" '
       function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
       /^## / { sec = tolower($0); sub(/^## +/, "", sec); hdr = 0; next }
       /^\|/ {
+        if (ctm ? (sec ~ /^archive/) : (sec !~ /^active/)) next
         if (!hdr) {
           ci = si = ai = oi = 0
           for (i = 2; i < NF; i++) {
@@ -144,7 +176,7 @@ if [ "$mission" != NONE ]; then
         next
       }
       { hdr = 0 }')
-    [ -n "$row" ] || refuse NO_BOARD_ROW "$mission is not on ${board##*/}"
+    [ -n "$row" ] || refuse NO_BOARD_ROW "$mission is not open on ${board##*/} (## Active)"
     IFS=$'\t' read -r sec status assignees owner <<EOF
 $row
 EOF
@@ -192,6 +224,7 @@ if [ $check -eq 1 ]; then emit_fields; echo "CLAIMABLE"; exit 0; fi
 if [ "$mission" = NONE ]; then key="SELF-$HDR_WC"; else key="$mission-$HDR_WC"; fi
 cdir="$seatdir/.go-claim"
 mkdir -p "$cdir" 2>/dev/null
+[ -L "$cdir" ] && refuse UNKNOWN_TYPE ".go-claim is a symlink"
 if ! mkdir "$cdir/$key" 2>/dev/null; then
   # The winner writes its owner file right after its mkdir; give it up to 3 s.
   o=""; n=0
@@ -204,9 +237,14 @@ stamp_t=$(printf '%s-%s-%s %s:%s' "$now_y" "$now_mo" "$now_d" "$now_h" "$now_mi"
 printf '%s %s session %s at %s\n' "$epoch" "$seat" "${sid:-unknown}" "$stamp_t" > "$cdir/$key/.owner.$$" \
   && mv -f "$cdir/$key/.owner.$$" "$cdir/$key/owner"
 
-# ---- 5. stamp (re-read under the claim: a stamp written since step 1 wins)
+# ---- 5. stamp (re-read under the claim: a stamp written since step 1 wins,
+# and an --expect hash is checked again against the file we are about to stamp)
 hdr_parse "$file"
 if [ -n "$HDR_ACTIVATED" ]; then echo "ALREADY ACTIVATED: $HDR_ACTIVATED"; exit 3; fi
+if [ -n "$expect" ] && [ "$expect" != "$(sha_of "$file")" ]; then
+  rm -rf "${cdir:?}/$key"
+  refuse CHANGED "the brief changed while it was being claimed"
+fi
 eol=""; [ "$HDR_CRLF" = 1 ] && eol=$'\r'
 st_line="ACTIVATED: $stamp_t by $seat (session ${sid:0:8})"
 [ -n "$sid" ] || st_line="ACTIVATED: $stamp_t by $seat"

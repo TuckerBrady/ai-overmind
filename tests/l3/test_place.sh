@@ -83,6 +83,53 @@ out=$(bash "$PLACE" migrate "$m" 2>&1)
 sup=$(ls "$m" | grep -c '^HANDOFF\.superseded-')
 case $out in *"SUPERSEDED: "*"MIGRATED: "*) grep -q '^WRITTEN: 2026-10-06' "$m/HANDOFF.md" && [ "$sup" = 1 ] && pass || fail "state wrong" ;; *) fail "$out" ;; esac
 
+t "A-26: migrate asks when the copies differ and one can't be dated"
+a="$tmp/team/Ask"; mkdir -p "$a/.auto-memory"
+brief "$a/HANDOFF.md" SELF-HANDOFF Ask NONE "2026-10-05 09:00"
+printf 'TYPE: SELF-HANDOFF\nSEAT: Ask\nnotes without a date\n' > "$a/.auto-memory/HANDOFF.md"
+out=$(bash "$PLACE" migrate "$a" 2>&1)
+case $out in "ASK: "*"CANONICAL: $a/HANDOFF.md"*"LEGACY: $a/.auto-memory/HANDOFF.md"*) [ -f "$a/.auto-memory/HANDOFF.md" ] && grep -q '^WRITTEN: 2026-10-05 09:00' "$a/HANDOFF.md" && pass || fail "something moved" ;; *) fail "$out" ;; esac
+
+t "A-26: a HANDOFF.md that is a folder is refused, by place and by migrate"
+d="$tmp/team/Dir"; mkdir -p "$d/HANDOFF.md"
+brief "$tmp/nd" DISPATCH Dir AXM-1 "2026-10-05 09:00"
+out=$(bash "$PLACE" place "$d" "$tmp/nd" 2>&1); rc=$?
+out2=$(bash "$PLACE" migrate "$d" 2>&1); rc2=$?
+case "$out|$out2" in "REFUSED: HANDOFF.md is a folder|REFUSED: HANDOFF.md is a folder") [ $rc -eq 2 ] && [ $rc2 -eq 2 ] && pass || fail "rc $rc/$rc2" ;; *) fail "$out | $out2" ;; esac
+
+t "A-26: a HANDOFF.md that is a symlink is refused"
+l="$tmp/team/Link"; mkdir -p "$l"; printf 'elsewhere\n' > "$tmp/target.md"
+if ln -s "$tmp/target.md" "$l/HANDOFF.md" 2>/dev/null && [ -L "$l/HANDOFF.md" ]; then
+  brief "$tmp/nl" DISPATCH Link AXM-1 "2026-10-05 09:00"
+  out=$(bash "$PLACE" place "$l" "$tmp/nl" 2>&1); rc=$?
+  [ $rc -eq 2 ] && grep -q '^elsewhere' "$tmp/target.md" && case $out in "REFUSED: HANDOFF.md is a symlink"*) true ;; *) false ;; esac && pass || fail "$out"
+else
+  echo "  (symlinks unavailable on this filesystem: case not reachable)"; pass
+fi
+
+race() { # N -> number of briefs lost when N placements race on one seat
+  local n=$1 r="$tmp/race.$1.$RANDOM" i got
+  mkdir -p "$r/seat"
+  i=1; while [ $i -le "$n" ]; do brief "$r/new.$i" DISPATCH Seat "AXM-$i" "2026-10-05 09:00"; i=$((i+1)); done
+  i=1; while [ $i -le "$n" ]; do bash "$PLACE" place "$r/seat" "$r/new.$i" > /dev/null 2>&1 & i=$((i+1)); done
+  wait
+  got=$(cat "$r/seat"/HANDOFF*.md 2>/dev/null | grep -c '^MISSION: AXM-')
+  echo $((n - got))
+}
+t "A-26: 20 two-way races lose no brief"
+lost=0; k=0
+while [ $k -lt 20 ]; do lost=$((lost + $(race 2))); k=$((k+1)); done
+[ $lost -eq 0 ] && pass || fail "$lost briefs lost"
+t "A-26: a 10-way race loses no brief, and leaves no lock behind"
+lost=$(race 10)
+[ "$lost" -eq 0 ] && [ -z "$(ls -d "$tmp"/race.10.*/seat/.handoff.lock 2>/dev/null)" ] && pass || fail "$lost briefs lost"
+
+t "a stale lock (over 30 s old) is broken, not waited on forever"
+st="$tmp/team/Stale"; mkdir -p "$st/.handoff.lock"; echo 1000 > "$st/.handoff.lock/at"
+brief "$tmp/ns" DISPATCH Stale AXM-1 "2026-10-05 09:00"
+out=$(bash "$PLACE" place "$st" "$tmp/ns" 2>&1)
+case $out in "PLACED: "*) pass ;; *) fail "$out" ;; esac
+
 t "usage errors exit 2"
 bash "$PLACE" frobnicate > /dev/null 2>&1; [ $? -eq 2 ] && pass || fail "rc"
 

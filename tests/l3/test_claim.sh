@@ -228,6 +228,76 @@ brief "$b/ctm.md" CTM-LANE Nash CTM-007 "2026-10-05 09:00" "DISPATCHED BY: Eli-B
 out=$(bash "$CLAIM" --check "$seat" "$b/ctm.md" s1 Nash 2>&1; echo "rc=$?")
 case $out in *CLAIMABLE*"rc=0") pass ;; *) fail "$out" ;; esac
 
+# ---------------------------------------------------------------- A-26
+sh_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum < "$1" | cut -c1-64; else shasum -a 256 < "$1" | cut -c1-64; fi; }
+t "A-26: --check prints the brief's content sha256"
+brief "$b/sha.md" SELF-HANDOFF Nash NONE "2026-10-05 10:00"
+got=$(bash "$CLAIM" --check "$seat" "$b/sha.md" s1 Nash | sed -n 's/^CONTENT_SHA256=//p')
+[ -n "$got" ] && [ "$got" = "$(sh_of "$b/sha.md")" ] && pass || fail "got '$got'"
+
+t "A-26: --expect with the shown hash claims; a changed brief refuses with REASON: CHANGED"
+s3="$team/T-Bot - The Overmind"
+brief "$s3/HANDOFF.md" SELF-HANDOFF T-Bot NONE "2026-10-05 10:01"
+h=$(sh_of "$s3/HANDOFF.md")
+printf 'injected line\n' >> "$s3/HANDOFF.md"
+out=$(bash "$CLAIM" --expect "$h" "$s3" "$s3/HANDOFF.md" s1 T-Bot 2>&1; echo "rc=$?")
+case $out in *"REASON: CHANGED"*"rc=2") ;; *) fail "changed brief: $(printf '%s' "$out" | tr '\n' ' ')" ;; esac
+[ ! -e "$s3/.go-claim/SELF-20261005-1001" ] || fail "claim dir left behind"
+h2=$(sh_of "$s3/HANDOFF.md")
+out=$(bash "$CLAIM" --expect "$h2" "$s3" "$s3/HANDOFF.md" s1 T-Bot 2>&1; echo "rc=$?")
+case $out in *"CLAIMED SELF-20261005-1001"*"rc=0") pass ;; *) fail "matching hash: $(printf '%s' "$out" | tr '\n' ' ')" ;; esac
+
+t "A-26: board rows come from ## Active only (a matching row in another table doesn't count)"
+t3="$tmp/team3"; mkteam "$t3"
+cat >> "$t3/MISSION_BOARD.md" <<'EOF'
+
+## Parked
+
+| ID | Mission | Owner | Assignee | Status | Priority |
+|----|---------|-------|----------|--------|----------|
+| AXM-777 | Parked but says ACTIVE | T-Bot | Nash | ACTIVE | LOW |
+EOF
+brief "$b/parked.md" DISPATCH Nash AXM-777 "2026-10-05 09:00" "DISPATCHED BY: T-Bot"
+out=$(bash "$CLAIM" --check "$t3/Nash - Developer" "$b/parked.md" s1 Nash 2>&1; echo "rc=$?")
+case $out in *"REASON: NO_BOARD_ROW"*"rc=2") pass ;; *) fail "$(printf '%s' "$out" | tr '\n' ' ')" ;; esac
+
+t "A-26: a brief that is a folder is refused"
+mkdir -p "$b/dirbrief.md"
+out=$(bash "$CLAIM" --check "$seat" "$b/dirbrief.md" s1 Nash 2>&1; echo "rc=$?")
+case $out in *"REASON: UNKNOWN_TYPE"*"is a folder"*"rc=2") pass ;; *) fail "$out" ;; esac
+
+t "A-26: a brief that is a symlink, and a symlinked .go-claim, are refused"
+s4="$tmp/team4/Nash - Developer"; mkdir -p "$s4"; mkteam "$tmp/team4"
+brief "$tmp/real.md" SELF-HANDOFF Nash NONE "2026-10-05 09:00"
+if ln -s "$tmp/real.md" "$s4/HANDOFF.md" 2>/dev/null && [ -L "$s4/HANDOFF.md" ]; then
+  out=$(bash "$CLAIM" "$s4" "$s4/HANDOFF.md" s1 Nash 2>&1; echo "rc=$?")
+  rm -f "$s4/HANDOFF.md"; brief "$s4/HANDOFF.md" SELF-HANDOFF Nash NONE "2026-10-05 09:00"
+  mkdir -p "$tmp/gc"; ln -s "$tmp/gc" "$s4/.go-claim"
+  out2=$(bash "$CLAIM" "$s4" "$s4/HANDOFF.md" s1 Nash 2>&1; echo "rc=$?")
+  case "$out|$out2" in *"is a symlink"*"rc=2|"*".go-claim is a symlink"*"rc=2") [ -z "$(ls "$tmp/gc")" ] && pass || fail "wrote through .go-claim" ;; *) fail "$out | $out2" ;; esac
+else
+  echo "  (symlinks unavailable on this filesystem: case not reachable)"; pass
+fi
+
+t "A-26: a header that runs past line 39 is refused"
+{ printf 'TYPE: SELF-HANDOFF\nSEAT: Nash\n'; i=0; while [ $i -lt 37 ]; do echo "line $i"; i=$((i+1)); done; printf 'MISSION: NONE\nWRITTEN: 2026-10-05 09:00\n'; } > "$b/late.md"
+out=$(bash "$CLAIM" --check "$seat" "$b/late.md" s1 Nash 2>&1; echo "rc=$?")
+case $out in *"REASON: UNKNOWN_TYPE"*"past line 39"*"rc=2") pass ;; *) fail "$(printf '%s' "$out" | tr '\n' ' ')" ;; esac
+
+t "A-26: stamps match case-insensitively, after a list marker"
+for st in "- activated: 2026-10-04 by Nash" "* Activated: 2026-10-04 by Nash" "1. ACTIVATED: 2026-10-04 by Nash" "+ consolidated-into: X 2026-10-04 10:00"; do
+  brief "$b/stamp.md" SELF-HANDOFF Nash NONE "2026-10-05 09:00" "$st"
+  out=$(bash "$CLAIM" --check "$seat" "$b/stamp.md" s1 Nash 2>&1; echo "rc=$?")
+  case $st in *onsolidated*) want="REASON: CONSOLIDATED" ;; *) want="ALREADY ACTIVATED" ;; esac
+  case $out in *"$want"*) ;; *) fail "$st: $(printf '%s' "$out" | tr '\n' ' ')"; continue ;; esac
+done
+pass
+
+t "A-26: the em-dash commentary after a seat name is stripped"
+brief "$b/em.md" SELF-HANDOFF "Nash $(printf '\342\200\224') developer" NONE "2026-10-05 09:00"
+out=$(bash "$CLAIM" --check "$seat" "$b/em.md" s1 Nash 2>&1; echo "rc=$?")
+case $out in *CLAIMABLE*"rc=0") pass ;; *) fail "$(printf '%s' "$out" | tr '\n' ' ')" ;; esac
+
 t "usage errors exit 2"
 out=$(bash "$CLAIM" only two 2>&1; echo "rc=$?"); case $out in *"rc=2") pass ;; *) fail "$out" ;; esac
 

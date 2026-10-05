@@ -25,6 +25,9 @@ HDR_RE_FIELD='^(TYPE|SEAT|MISSIONS|MISSION ID|MISSION|WRITTEN|DISPATCHED BY|ACTI
 HDR_RE_MEXACT='^[A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?$'
 HDR_RE_DATE='([0-9]{4})-([0-9]{2})-([0-9]{2})([ T]([0-9]{2}):([0-9]{2}))?'
 HDR_RE_TYPE='^([A-Za-z-]+)'
+# Stamps match case-insensitively (A-26): "activated:" is a stamp too.
+HDR_RE_STAMP='^(ACTIVATED|CONSOLIDATED-INTO):[[:space:]]*(.*)$'
+HDR_EMDASH=$'\xe2\x80\x94'
 
 hdr_t() { # STRING -> HDR_T, trimmed (no subshell, so no fork)
   HDR_T=$1
@@ -41,7 +44,7 @@ hdr_upper() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]'; }
 #   of the last header-field line, 0 if none) HDR_CRLF (1 when the file's first
 #   line ends in CR).
 hdr_parse() {
-  local f=$1 n=0 line seg rest key val tok dot=' '$'\xc2\xb7'' ' cr=$'\r'
+  local f=$1 n=0 line seg rest key val tok nc dot=' '$'\xc2\xb7'' ' cr=$'\r'
   HDR_TYPE="" HDR_SEAT="" HDR_MISSION="" HDR_MISSION_RAW="" HDR_WRITTEN="" HDR_WC=""
   HDR_DISPATCHER="" HDR_ACTIVATED="" HDR_CONSOLIDATED="" HDR_LAST=0 HDR_CRLF=0
   HDR_Y="" HDR_MO="" HDR_D="" HDR_H="" HDR_MI=""
@@ -53,7 +56,12 @@ hdr_parse() {
     line=${line//\*/}
     # Leading blockquote markers and whitespace.
     while :; do
-      case $line in ' '*|"$(printf '\t')"*|'>'*) line=${line:1} ;; *) break ;; esac
+      case $line in
+        ' '*|$'\t'*|'>'*) line=${line:1} ;;
+        [-+]' '*) line=${line:2} ;;
+        [0-9]'. '*|[0-9][0-9]'. '*) line=${line#*. } ;;
+        *) break ;;
+      esac
     done
     rest=$line
     while [ -n "$rest" ]; do
@@ -62,8 +70,17 @@ hdr_parse() {
         *) seg=$rest; rest="" ;;
       esac
       hdr_t "$seg"; seg=$HDR_T
-      [[ $seg =~ $HDR_RE_FIELD ]] || continue
-      key=${BASH_REMATCH[1]}; hdr_t "${BASH_REMATCH[2]}"; val=$HDR_T
+      if [[ $seg =~ $HDR_RE_FIELD ]]; then
+        key=${BASH_REMATCH[1]}; hdr_t "${BASH_REMATCH[2]}"; val=$HDR_T
+      else
+        shopt -q nocasematch && nc=1 || nc=0
+        shopt -s nocasematch
+        if [[ $seg =~ $HDR_RE_STAMP ]]; then
+          key=$(hdr_upper "${BASH_REMATCH[1]}"); hdr_t "${BASH_REMATCH[2]}"; val=$HDR_T
+        else key=""; fi
+        [ $nc -eq 1 ] || shopt -u nocasematch
+        [ -n "$key" ] || continue
+      fi
       HDR_LAST=$n
       case $key in
         TYPE) [ -z "$HDR_TYPE" ] && [[ $val =~ $HDR_RE_TYPE ]] && HDR_TYPE=$(hdr_upper "${BASH_REMATCH[1]}") ;;
@@ -107,7 +124,7 @@ hdr_seat_matches() {
   local h w
   hdr_t "$1"; h=$(hdr_upper "$HDR_T"); hdr_t "$2"; w=$(hdr_upper "$HDR_T")
   [ -n "$w" ] || return 1
-  h=${h%% (*}; h=${h%%,*}; h=${h%% - *}; h=${h%% $'â'*}
+  h=${h%% (*}; h=${h%%,*}; h=${h%% - *}; h=${h%% "$HDR_EMDASH"*}
   hdr_t "$h"
   [ "$HDR_T" = "$w" ]
 }

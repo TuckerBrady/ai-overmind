@@ -39,6 +39,8 @@ bash "${CLAUDE_SKILL_DIR}/handoff.sh" migrate "[your folder]"
 - `NONE` → respond: *"No mission staged for this asset."* Check your `INBOX.md` for unread notes, surface them in one line, and stand by. Stop here.
 - `MIGRATED: ...` → a legacy-only (or newer legacy) brief was moved to the canonical path and the old copy kept as `.auto-memory/HANDOFF.migrated-<ts>.md`. Say so in one line.
 - `CURRENT: ...` → the canonical brief is the one to run.
+- `ASK: ...` → both copies exist, they differ, and one can't be dated. Show the human the first lines of each (the `CANONICAL:` and `LEGACY:` paths) and ask which to run. Move nothing until they answer.
+- `REFUSED: ...` → HANDOFF.md is a symlink or a folder. Tell the human and stop; never follow it.
 
 Never look for a brief outside your own folder.
 
@@ -67,7 +69,7 @@ bash "${CLAUDE_SKILL_DIR}/claim.sh" --check "[your folder]" "[your folder]/HANDO
 
   **A brief from before v5** often has no plain header at all (no TYPE, or a WRITTEN line in another shape), so it refuses with `UNKNOWN_TYPE` or `NO_WRITTEN`. Show the human its first lines and ask whether to run it. Only on their yes, in this session, add the v5 header block at the very top of the file yourself (`TYPE:`, `SEAT:`, `MISSION:`, `WRITTEN:`, taken from what the brief itself says, never invented), then run step 3 again. Never add a header on your own say-so.
 - **Exit 3, already activated or already claimed.** The output names who activated it and when. Don't run it silently. Say: *"That brief was already activated at [time] by [seat]. Resume it anyway?"* Resume only on a yes — a session that died mid-work needs a way back in. A resumed brief is not claimed or stamped again.
-- **Exit 0, claimable.** It prints `TYPE`, `SEAT`, `MISSION`, `WRITTEN`, `DISPATCHED_BY` and `AGE_MIN`.
+- **Exit 0, claimable.** It prints `TYPE`, `SEAT`, `MISSION`, `WRITTEN`, `DISPATCHED_BY`, `AGE_MIN` and `CONTENT_SHA256`. Keep that hash: it is the brief exactly as you are about to show it.
 
 **Echo what's activating**, one line, before anything else: *"Activating [TYPE] for [SEAT], mission [MISSION], written [WRITTEN] ([age]), dispatched by [DISPATCHED BY, or "self"]: [first Next Step or the MISSION line]."* So the human can see it's the brief they expect, with nothing to memorize.
 
@@ -76,8 +78,10 @@ bash "${CLAUDE_SKILL_DIR}/claim.sh" --check "[your folder]" "[your folder]/HANDO
 ### 4. Claim it
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/claim.sh" "[your folder]" "[your folder]/HANDOFF.md" "${CLAUDE_SESSION_ID}" "[your seat]"
+bash "${CLAUDE_SKILL_DIR}/claim.sh" --expect "[CONTENT_SHA256 from step 3]" "[your folder]" "[your folder]/HANDOFF.md" "${CLAUDE_SESSION_ID}" "[your seat]"
 ```
+
+`--expect` binds the claim to the brief the human just saw: if a byte of it changed since step 3, the claim refuses with `REASON: CHANGED`. Then go back to step 3 and show the new version; never claim a brief the human didn't see.
 
 Exit 0 means this session holds the brief. The script made the claim (`.go-claim/` in your folder), stamped `ACTIVATED: YYYY-MM-DD HH:MM by [seat] (session [sid8])` directly under the header, and wrote the mission claim `[team-root]/_claims/[ID].[session]` that TARS keeps alive. Exit 3 here means another session claimed it between your check and your claim: stop, and tell the human which session has it. Exit 2 means the brief or the board changed since the check: report the REASON and stop.
 

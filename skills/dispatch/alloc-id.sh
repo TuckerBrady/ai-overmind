@@ -4,7 +4,8 @@
 #
 #   alloc-id.sh <team-root> <PREFIX>
 #
-# PREFIX matches ^[A-Z]{2,5}$. The next number is 1 + the largest N of any
+# PREFIX matches ^[A-Z][A-Z0-9]{0,4}$ (A-26; M is valid, as M-017 is under
+# A-17). The next number is 1 + the largest N of any
 # PREFIX-N in the first cell of a row in the board's "## Active" and
 # "## Archive" tables (MISSION_BOARD.md) and of any <team-root>/_ids/PREFIX-N
 # entry. The ID is then claimed with mkdir <team-root>/_ids/<ID>, which is
@@ -18,7 +19,7 @@
 set -u
 [ $# -eq 2 ] || { echo "usage: alloc-id.sh <team-root> <PREFIX>" >&2; exit 2; }
 root=${1%/}; prefix=$2
-[[ $prefix =~ ^[A-Z]{2,5}$ ]] || { echo "alloc-id: prefix must be 2-5 capital letters" >&2; exit 2; }
+[[ $prefix =~ ^[A-Z][A-Z0-9]{0,4}$ ]] || { echo "alloc-id: prefix must be a capital letter and up to four more capitals or digits" >&2; exit 2; }
 [ -d "$root" ] || { echo "alloc-id: no team root at $root" >&2; exit 2; }
 ids="$root/_ids"
 if [ -L "$ids" ]; then echo "alloc-id: $ids is a symlink; refusing" >&2; exit 2; fi
@@ -30,7 +31,7 @@ if [ -f "$root/MISSION_BOARD.md" ]; then
     /^## / { s = tolower($0); sub(/^## +/, "", s); on = (s ~ /^(active|archive)/); next }
     on && /^\|/ {
       c = $2; gsub(/^[ \t*]+|[ \t*]+$/, "", c)
-      if (c ~ ("^" p "-[0-9]+[a-z]?$")) { sub(/^[A-Z]+-/, "", c); sub(/[a-z]$/, "", c); n = c + 0; if (n > max) max = n }
+      if (c ~ ("^" p "-[0-9]+[a-z]?$")) { sub(/^[^-]+-/, "", c); sub(/[a-z]$/, "", c); n = c + 0; if (n > max) max = n }
     }
     END { print max + 0 }')
   max=$m

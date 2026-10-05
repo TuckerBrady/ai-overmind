@@ -38,9 +38,13 @@ out=$(bash "$ALLOC" "$t2" AXM); [ "$out" = AXM-048 ] && pass || fail "got $out"
 t "a team with no board starts at 001"
 mkdir -p "$tmp/empty"; out=$(bash "$ALLOC" "$tmp/empty" QA); [ "$out" = QA-001 ] && pass || fail "got $out"
 
+t "A-26: single-letter and digit-bearing prefixes are valid (M-017 style)"
+out=$(bash "$ALLOC" "$t2" M); out2=$(bash "$ALLOC" "$t2" A1)
+[ "$out" = M-018 ] && [ "$out2" = A1-001 ] && pass || fail "got $out, $out2"
+
 t "a bad prefix exits 2"
 acc=""
-for p in ops O TOOLONG "AX-1" ""; do
+for p in ops 1AB TOOLONG AB1234 "AX-1" ""; do
   bash "$ALLOC" "$t2" "$p" > /dev/null 2>&1; [ $? -eq 2 ] || acc="$acc '$p'"
 done
 [ -z "$acc" ] && pass || fail "accepted:$acc"
