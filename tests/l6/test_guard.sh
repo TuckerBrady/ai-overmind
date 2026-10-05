@@ -16,6 +16,7 @@ export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t
 export GIT_CONFIG_NOSYSTEM=1 HOME="$tmp/home"; mkdir -p "$HOME"
 git config --global init.defaultBranch main
 git config --global core.autocrlf false
+git config --global protocol.file.allow always
 
 SID=local_1589a98d-aba5-4d0b-b537-0d7db91eb862
 U1=11111111-2222-4333-8444-555555555555
@@ -228,6 +229,132 @@ for where in local include; do
   ( cd "$tmp/w5-$where" && git status --porcelain > /dev/null 2>&1 )
   [ -e "$tmp/pwned-$where" ] && pass || fail "the fixture filter never fires, so the case above proves nothing"
 done
+
+# --- the security reviewer's attack corpus (L6 r2) ---------------------------------
+# Work that archiving would delete must stop the archive; a repo must not be
+# able to make the guard run a program. Each case is the reviewer's, by id.
+pwn="$tmp/PWNED"
+mkpay() { printf '#!/bin/sh\necho %s >> "%s"\ncat\n' "$1" "$pwn" > "$tmp/pay_$1.sh"; chmod +x "$tmp/pay_$1.sh"; }
+addsub() { # $1 name: a pushed superproject with a pushed submodule at sub/
+  mkrepo "$tmp/$1src"; mkrepo "$tmp/$1"
+  git -C "$tmp/$1" submodule -q add "$tmp/$1src.git" sub > /dev/null 2>&1
+  git -C "$tmp/$1" commit -qm addsub; git -C "$tmp/$1" push -q 2>/dev/null
+}
+G() { run --session "$SID" --running 0 --fold "${F:-$fold}" "$@"; }
+expect_rc() { # want rc -- guard args
+  local want=$1; shift; local rc; rc=$(G "$@")
+  [ "$rc" = "$want" ] && pass || fail "rc=$rc want $want: $(head -c 300 "$tmp/out")"
+}
+
+t "2a ignored file (info/exclude) -> 11"
+mkrepo "$tmp/ig"; echo '*.secret' >> "$tmp/ig/.git/info/exclude"; echo work > "$tmp/ig/notes.secret"
+expect_rc 11 --worktree "$tmp/ig"
+t "2a the ignored path is named"
+LC_ALL=C grep -q 'ignored, not rebuildable.*notes.secret' "$tmp/out" && pass || fail "$(cat "$tmp/out")"
+t "2b ignored dir via committed .gitignore -> 11"
+mkrepo "$tmp/ig2"; echo 'cowork-prompts/' > "$tmp/ig2/.gitignore"; git -C "$tmp/ig2" add .gitignore; git -C "$tmp/ig2" commit -qm gi; git -C "$tmp/ig2" push -q 2>/dev/null
+mkdir "$tmp/ig2/cowork-prompts"; echo prompt > "$tmp/ig2/cowork-prompts/PROMPT_99.md"
+expect_rc 11 --worktree "$tmp/ig2"
+t "ignored rebuildable dirs pass and are listed"
+mkrepo "$tmp/rb"; printf 'node_modules/\ndist/\npkg/.venv/\n' > "$tmp/rb/.gitignore"; git -C "$tmp/rb" add .gitignore; git -C "$tmp/rb" commit -qm gi; git -C "$tmp/rb" push -q 2>/dev/null
+mkdir -p "$tmp/rb/node_modules/x" "$tmp/rb/dist" "$tmp/rb/pkg/.venv"; : > "$tmp/rb/node_modules/x/i.js"; : > "$tmp/rb/dist/o.js"; : > "$tmp/rb/pkg/.venv/p"
+rc=$(G --worktree "$tmp/rb")
+[ "$rc" = 0 ] && LC_ALL=C grep -q 'ignored (rebuildable) node_modules/' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
+t "2c unpushed tag-only commit -> 12"
+mkrepo "$tmp/tg"; git -C "$tmp/tg" checkout -q --detach; echo b > "$tmp/tg/b"; git -C "$tmp/tg" add b; git -C "$tmp/tg" commit -qm tagonly; git -C "$tmp/tg" tag v-local; git -C "$tmp/tg" checkout -q main
+expect_rc 12 --worktree "$tmp/tg"
+t "2d unpushed commit on a branch that is not HEAD -> 12"
+mkrepo "$tmp/nb"; git -C "$tmp/nb" checkout -qb side; echo b > "$tmp/nb/b"; git -C "$tmp/nb" add b; git -C "$tmp/nb" commit -qm side; git -C "$tmp/nb" checkout -q main
+expect_rc 12 --worktree "$tmp/nb"
+t "2e stash only -> 11"
+mkrepo "$tmp/st"; echo dirty >> "$tmp/st/a.txt"; git -C "$tmp/st" stash -q
+expect_rc 11 --worktree "$tmp/st"
+t "2f detached HEAD, unpushed -> 12"
+mkrepo "$tmp/dh"; git -C "$tmp/dh" checkout -q --detach; echo b > "$tmp/dh/b"; git -C "$tmp/dh" add b; git -C "$tmp/dh" commit -qm det
+expect_rc 12 --worktree "$tmp/dh"
+t "2h nested repo ignored by the outer one -> 11"
+mkrepo "$tmp/ne"; echo 'inner/' > "$tmp/ne/.gitignore"; git -C "$tmp/ne" add .gitignore; git -C "$tmp/ne" commit -qm gi; git -C "$tmp/ne" push -q 2>/dev/null
+git init -q "$tmp/ne/inner"; echo w > "$tmp/ne/inner/w"; git -C "$tmp/ne/inner" add w; git -C "$tmp/ne/inner" commit -qm inner
+expect_rc 11 --worktree "$tmp/ne"
+t "2i nested repo, not ignored -> 11"
+mkrepo "$tmp/ne2"; git init -q "$tmp/ne2/inner"; echo w > "$tmp/ne2/inner/w"; git -C "$tmp/ne2/inner" add w; git -C "$tmp/ne2/inner" commit -qm inner
+expect_rc 11 --worktree "$tmp/ne2"
+t "2j/2k dirty submodule, even with ignore=all committed in .gitmodules -> 11"
+addsub sm; git -C "$tmp/sm" config -f .gitmodules submodule.sub.ignore all; git -C "$tmp/sm" add .gitmodules; git -C "$tmp/sm" commit -qm ign; git -C "$tmp/sm" push -q 2>/dev/null
+echo dirt >> "$tmp/sm/sub/a.txt"
+expect_rc 11 --worktree "$tmp/sm"
+t "2l unpushed submodule commit, superproject bump pushed -> 12"
+addsub sm2; echo n > "$tmp/sm2/sub/n"; git -C "$tmp/sm2/sub" add n; git -C "$tmp/sm2/sub" commit -qm subwork
+git -C "$tmp/sm2" add sub; git -C "$tmp/sm2" commit -qm bump; git -C "$tmp/sm2" push -q 2>/dev/null
+expect_rc 12 --worktree "$tmp/sm2"
+t "2m diff.ignoreSubmodules=all in local config, dirty submodule -> 11"
+addsub sm3; git -C "$tmp/sm3" config diff.ignoreSubmodules all; echo dirt >> "$tmp/sm3/sub/a.txt"
+expect_rc 11 --worktree "$tmp/sm3"
+t "2n linked worktree, local-only branch commit -> 12"
+mkrepo "$tmp/lw"; git -C "$tmp/lw" worktree add -q -b wtb "$tmp/lw-wt" 2>/dev/null; echo z > "$tmp/lw-wt/z"; git -C "$tmp/lw-wt" add z; git -C "$tmp/lw-wt" commit -qm wt
+expect_rc 12 --worktree "$tmp/lw-wt"
+t "2p no --worktree: the guard says nothing on disk was checked"
+rc=$(G)
+[ "$rc" = 0 ] && LC_ALL=C grep -q 'note no --worktree given' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
+
+# Fold rows that must not count as folded (2r-alt, 2r, 2s, 2t).
+mkrows() { # file, siblings rows
+  sed '/^| 1589a98d | DIVERGED /d' "$fold" | awk -v rows="$2" '{ print } /^\|---\|---\|---\|---\|---\|$/ && !done { print rows; done = 1 }' > "$1"
+}
+t "2r-alt only another row mentions this sid8 -> 14"
+F="$tmp/fold/AXM-046-20261004-2214.md"; mkrows "$F" "| aaaaaaaa | DIVERGED | handoff of 1589a98d | Read | folded: 1 decisions, 0 files |"
+expect_rc 14 --worktree "$wt"
+t "2r an earlier row mentions this sid8; this row is LIVE, not folded -> 14"
+F="$tmp/fold/AXM-046-20261004-2211.md"; mkrows "$F" "| aaaaaaaa | DIVERGED | after 1589a98d handoff | Read | folded: 1 decisions, 0 files |
+| 1589a98d | LIVE | - | Ask | not folded (timed out) |"
+expect_rc 14 --worktree "$wt"
+t "2s NOT FOLDED in capitals -> 14"
+F="$tmp/fold/AXM-046-20261004-2212.md"; mkrows "$F" "| 1589a98d | DIVERGED | - | Ask | NOT FOLDED (timed out) |"
+expect_rc 14 --worktree "$wt"
+t "2t FOREIGN, report only -> 14"
+F="$tmp/fold/AXM-046-20261004-2213.md"; mkrows "$F" "| 1589a98d | FOREIGN | - | - | report only |"
+expect_rc 14 --worktree "$wt"
+t "a SUPERSEDED row with nothing unique passes"
+F="$tmp/fold/AXM-046-20261004-2215.md"; mkrows "$F" "| 1589a98d | SUPERSEDED | handoff | Read | nothing unique |"
+expect_rc 0 --worktree "$wt"
+unset F
+
+t "code-exec attacks: hooks, hooksPath, submodule hooks, fsmonitor, ssh, credential, pager, diff, gc"
+mkrepo "$tmp/hk"; for h in post-index-change post-checkout reference-transaction; do printf '#!/bin/sh\necho hook-%s >> "%s"\n' "$h" "$pwn" > "$tmp/hk/.git/hooks/$h"; chmod +x "$tmp/hk/.git/hooks/$h"; done; touch "$tmp/hk/a.txt"; G --worktree "$tmp/hk" > /dev/null
+mkrepo "$tmp/hp"; mkdir "$tmp/hpd"; printf '#!/bin/sh\necho hookpath >> "%s"\n' "$pwn" > "$tmp/hpd/post-index-change"; chmod +x "$tmp/hpd/post-index-change"; git -C "$tmp/hp" config core.hooksPath "$tmp/hpd"; touch "$tmp/hp/a.txt"; G --worktree "$tmp/hp" > /dev/null
+addsub smh; printf '#!/bin/sh\necho subhook >> "%s"\n' "$pwn" > "$tmp/smh/.git/modules/sub/hooks/post-index-change"; chmod +x "$tmp/smh/.git/modules/sub/hooks/post-index-change"; touch "$tmp/smh/sub/a.txt"; G --worktree "$tmp/smh" > /dev/null
+addsub sm5; mkpay fsmsub; git -C "$tmp/sm5/sub" config core.fsmonitor "$tmp/pay_fsmsub.sh"; touch "$tmp/sm5/sub/a.txt"; G --worktree "$tmp/sm5" > /dev/null
+mkrepo "$tmp/ss"; mkpay ssh; mkpay cred; git -C "$tmp/ss" config core.sshCommand "$tmp/pay_ssh.sh"; git -C "$tmp/ss" config credential.helper "!$tmp/pay_cred.sh"; git -C "$tmp/ss" config core.askPass "$tmp/pay_cred.sh"; git -C "$tmp/ss" remote set-url origin git@github.com:acme/widgets.git
+PATH="$fake:$PATH" G --worktree "$tmp/ss" > /dev/null
+mkrepo "$tmp/de"; mkpay dext; mkpay tconv; git -C "$tmp/de" config diff.external "$tmp/pay_dext.sh"; git -C "$tmp/de" config diff.t.textconv "$tmp/pay_tconv.sh"; echo '* diff=t' > "$tmp/de/.gitattributes"; git -C "$tmp/de" config core.pager "$tmp/pay_dext.sh"; echo zz >> "$tmp/de/a.txt"; G --worktree "$tmp/de" > /dev/null
+mkrepo "$tmp/ar"; mkpay alt; git -C "$tmp/ar" config core.alternateRefsCommand "$tmp/pay_alt.sh"; git -C "$tmp/ar" config gc.auto 1; G --worktree "$tmp/ar" > /dev/null
+addsub sm6; mkpay upd; git -C "$tmp/sm6" config submodule.sub.update "!$tmp/pay_upd.sh"; G --worktree "$tmp/sm6" > /dev/null
+[ ! -s "$pwn" ] && pass || fail "ran: $(tr '\n' ' ' < "$pwn")"
+
+# Filter drivers from every repo-controlled place: each is refused (15) and
+# never runs. includeIf conditions are written so they hold on this host.
+for kind in sub mixedcase worktree linked onbranch gitdir hasconfig; do
+  t "filter driver via $kind -> 15, payload never runs"
+  d="$tmp/f_$kind"; mkpay "f$kind"; inc="$tmp/inc_$kind.cfg"
+  printf '[filter "z"]\n\tclean = %s\n' "$tmp/pay_f$kind.sh" > "$inc"
+  case $kind in
+    sub) addsub "f_$kind"; git -C "$d/sub" config filter.z.clean "$tmp/pay_f$kind.sh"; echo '* filter=z' > "$d/sub/.gitattributes"; touch "$d/sub/a.txt" ;;
+    mixedcase) mkrepo "$d"; printf '[Filter "Z"]\n\tclean = %s\n' "$tmp/pay_f$kind.sh" >> "$d/.git/config" ;;
+    worktree) mkrepo "$d"; git -C "$d" config extensions.worktreeConfig true; git -C "$d" config --worktree filter.z.clean "$tmp/pay_f$kind.sh" ;;
+    linked) mkrepo "$d.main"; git -C "$d.main" config extensions.worktreeConfig true; git -C "$d.main" worktree add -q -b w2 "$d" 2>/dev/null
+            git -C "$d" push -q -u origin w2 2>/dev/null; git -C "$d" config --worktree filter.z.clean "$tmp/pay_f$kind.sh" ;;
+    onbranch) mkrepo "$d"; git -C "$d" config includeIf.onbranch:main.path "$inc" ;;
+    gitdir) mkrepo "$d"; git -C "$d" config "includeIf.gitdir:**/f_gitdir/.git.path" "$inc" ;;
+    hasconfig) mkrepo "$d"; git -C "$d" config 'includeIf.hasconfig:remote.*.url:**/*.git.path' "$inc" ;;
+  esac
+  [ -f "$d/.gitattributes" ] || echo '* filter=z' > "$d/.gitattributes"
+  touch "$d/a.txt"
+  rc=$(G --worktree "$d")
+  [ "$rc" = 15 ] && ! LC_ALL=C grep -q "^f$kind\$" "$pwn" 2>/dev/null && pass || fail "rc=$rc ran=$(cat "$pwn" 2>/dev/null | tr '\n' ' ') $(head -c 200 "$tmp/out")"
+done
+t "positive control: the includeIf filters are live for git itself"
+live=0; for kind in onbranch gitdir hasconfig; do [ -n "$(git -C "$tmp/f_$kind" config --get filter.z.clean)" ] && live=$((live+1)); done
+[ $live = 3 ] && pass || fail "$live of 3 includeIf filters are active"
 
 t "2 on bad usage"
 r1=$(run --session "$SID" --running maybe --fold "$fold")
