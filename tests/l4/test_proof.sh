@@ -47,6 +47,11 @@ HOME=$V "$B" "$STATE" pin "$CID" Other "$(pubof "$V")" "$(fp "$(pubof "$V")")" >
 HOME=$V "$B" "$PROOF" issue "$CID" Verifier Other >/dev/null 2>&1 && fail "second round issued" || pass
 answer "$n" "$tmp/s3"; verify "$tmp/s3" >/dev/null
 
+t "a nonce mid-claim (.claim.* file) still counts as a round in flight (N-5)"
+: > "$VD/pending/.claim.peer.12345"
+HOME=$V "$B" "$PROOF" issue "$CID" Verifier Peer >/dev/null 2>&1 && fail "issued" || pass
+rm -f "$VD/pending/.claim.peer.12345"
+
 t "two verifies racing on one nonce: exactly one passes (mv claim, N1)"
 out=$(issue); n=${out##* nonce }; answer "$n" "$tmp/s4"
 ( verify "$tmp/s4" > "$tmp/r1" 2>/dev/null ) & ( verify "$tmp/s4" > "$tmp/r2" 2>/dev/null ) & wait

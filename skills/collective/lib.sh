@@ -140,19 +140,28 @@ allowed_signers() {
 }
 
 # commit_signer REPO CID SHA: print the pinned label whose key signed SHA, or
-# fail. GitHub's verified flag and logins play no part (A-23).
+# fail. GitHub's verified flag and logins play no part (A-23). Only an SSH
+# signature can verify: the OpenPGP and X.509 programs are set to `false`, so
+# a gpg-signed commit (whose UID text is attacker-chosen) always fails (MF-1).
+# The signer is read only from a line that BEGINS with the ssh-keygen verdict,
+# and it must name an existing pin.
 commit_signer() {
-  local d out
+  local d out l who=""
   d=$(state_dir "$2") || return 2
   [ -s "$d/allowed_signers" ] || return 1
-  out=$(git -C "$1" -c gpg.format=ssh -c gpg.ssh.allowedSignersFile="$d/allowed_signers" \
+  out=$(git -C "$1" -c gpg.format=ssh -c gpg.openpgp.program=false -c gpg.x509.program=false \
+        -c gpg.ssh.program=ssh-keygen -c gpg.ssh.allowedSignersFile="$d/allowed_signers" \
         verify-commit "$3" 2>&1) || return 1
-  case $out in
-    *'Good "git" signature for '*)
-      out=${out#*Good \"git\" signature for }; out=${out%% *}
-      printf '%s' "$out" ;;
-    *) return 1 ;;
-  esac
+  while IFS= read -r l; do
+    l=${l%$'\r'}
+    case $l in
+      'Good "git" signature for '*) who=${l#Good \"git\" signature for }; who=${who%% *}; break ;;
+    esac
+  done <<EOF
+$out
+EOF
+  [ -n "$who" ] && [ -f "$d/pins/$who.pub" ] || return 1
+  printf '%s' "$who"
 }
 
 # Minute arithmetic on YYYYMMDDHHMM stamps, without date -d.

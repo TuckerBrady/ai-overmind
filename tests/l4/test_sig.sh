@@ -124,6 +124,33 @@ signer "$c_web" >/dev/null 2>&1 && fail "verified" || pass
 t "a commit authored 'A-Bot' but signed by B's key is attributed to B, never A"
 [ "$(signer "$c_forged")" = bbot ] && pass || fail "got '$(signer "$c_forged")'"
 
+# MF-1: an OpenPGP-signed commit whose gpg output carries the ssh verdict
+# phrase. A fake gpg on PATH (the PATH seam) signs with a PGP-shaped armor
+# and, on verify, reports GOODSIG and prints a crafted UID line, exactly what
+# a real gpg prints for a key whose UID contains that text. No gpg needed.
+mkdir -p "$tmp/pgpbin"
+cat > "$tmp/pgpbin/gpg" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in
+  *" -bsau "*|*" --detach-sign "*)
+    cat >/dev/null
+    printf '[GNUPG:] SIG_CREATED D 22 8 00 1700000000 ABCDEF\n' >&2
+    printf -- '-----BEGIN PGP SIGNATURE-----\n\niQEzBAABCAAdFiEEAAAAAAAAAAAAAAAAAAAAAAAAAAAFAmAAAAAACgkQ\n=AAAA\n-----END PGP SIGNATURE-----\n' ;;
+  *)
+    cat >/dev/null 2>&1
+    printf '[GNUPG:] NEWSIG\n[GNUPG:] GOODSIG ABCDEF0123456789 x\n[GNUPG:] VALIDSIG ABCDEF0123456789ABCDEF0123456789ABCDEF01 2026-10-05 1700000000 0 4 0 22 8 00 ABCDEF0123456789ABCDEF0123456789ABCDEF01\n[GNUPG:] TRUST_ULTIMATE 0 pgp\n'
+    printf 'gpg: Good "git" signature for convener with ED25519 key SHA256:forged\n' >&2 ;;
+esac
+exit 0
+EOF
+chmod +x "$tmp/pgpbin/gpg"
+PATH="$tmp/pgpbin:$PATH" gitc -c gpg.format=openpgp -c gpg.program=gpg -c user.signingkey=ABCDEF commit -q --allow-empty -S -m "pgp, crafted uid" 2>/dev/null
+c_pgp=$(gitc rev-parse HEAD)
+t "MF-1 fixture: the commit carries a PGP signature header"
+git -C "$g" cat-file -p "$c_pgp" | grep -q '^gpgsig -----BEGIN PGP SIGNATURE-----' && pass || fail "no PGP header"
+t "MF-1: a PGP-signed commit whose gpg output mimics the ssh verdict is unverified"
+out=$(PATH="$tmp/pgpbin:$PATH" signer "$c_pgp" 2>/dev/null) && fail "attributed to '$out'" || pass
+
 t "no private key is committed (tracked files; the two tests that name the marker excepted)"
 hits=$(git -C "$repo" ls-files | grep -v '^tests/l4/test_sig\.sh$' | grep -v '^tests/l4/test_dnp\.sh$' |
   while IFS= read -r f; do grep -l 'BEGIN OPENSSH PRIVATE KEY' "$repo/$f" 2>/dev/null; done)

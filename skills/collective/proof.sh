@@ -38,7 +38,7 @@ case $cmd in
     me=$(label_norm "$2"); peer=$(label_norm "$3")
     [ -f "$d/pins/$peer.pub" ] || die 3 "REFUSED: $3 has no pinned key; pin it after an out-of-band fingerprint check"
     mkdir -p "$d/pending" || die 3 "cannot create $d/pending"
-    for p in "$d"/pending/*; do
+    for p in "$d"/pending/* "$d"/pending/.claim.*; do
       [ -e "$p" ] && die 1 "REFUSED: a round is already in flight in this Collective (one at a time)"
     done
     n=$(rand_hex 16)

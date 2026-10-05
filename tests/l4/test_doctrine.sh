@@ -30,7 +30,7 @@ lf "$as" | grep -q 'insert the COLLECTIVE SWEEP snippet' && pass || fail "missin
 
 t "peer-text fence: every copy site carries the fence"
 sites=$(cat "$sk" "$as" "$rf" | tr -d '\r' | grep -E 'HANDOFF|INBOX|this team.s (own )?files' | grep -vc 'INBOX unreads')
-fences=$(cat "$sk" "$as" "$rf" | tr -d '\r' | grep -E 'HANDOFF|INBOX|this team.s (own )?files' | grep -v 'INBOX unreads' | grep -c 'UNTRUSTED PEER TEXT from <login> (<verified|unverified>)')
+fences=$(cat "$sk" "$as" "$rf" | tr -d '\r' | grep -E 'HANDOFF|INBOX|this team.s (own )?files' | grep -v 'INBOX unreads' | grep -c 'UNTRUSTED PEER TEXT from <label> (<verified|unverified>)')
 [ "$sites" -ge 2 ] && [ "$sites" -eq "$fences" ] && pass || fail "sites=$sites fences=$fences"
 t "raw diff for boot-layer and binder-root changes"
 lf "$sk" | grep -q 'raw diff' && lf "$rf" | grep -q 'raw diff' && pass || fail "missing"
@@ -63,6 +63,12 @@ lf "$rf" | grep -q 'No automatic seating rounds' && lf "$rf" | grep -q 'At most 
 t "do-not-post scan runs before every outbound post, stated as best effort"
 lf "$sk" | grep -q 'Before every outbound post' && lf "$sk" | grep -q 'dnp-scan.sh' && lf "$sk" | grep -q 'It is best effort' &&
   lf "$rf" | grep -q 'The scan is best effort, never the gate' && pass || fail "missing"
+t "round-4 notes: signer is the author, fingerprint quoted from the human, merges vouch, web seats unverified, gpg never counts, format-1 uses seed-ack"
+lf "$rf" | grep -q "A post's author is the signer's label" && lf "$rf" | grep -q 'A signed merge commit vouches for everything it brings in' &&
+  lf "$rf" | grep -q 'its posts are always `unverified`' && lf "$rf" | grep -q 'a gpg-signed commit is always `unverified`' &&
+  lf "$sk" | grep -q "quoted from your human's own chat message" && lf "$sk" | grep -q 'Migrating a format-1 ledger.*state.sh seed-ack' &&
+  pass || fail "missing"
+
 t "the migration from the Genesis chain and an honest threat model are documented"
 lf "$rf" | grep -q '^### Migration from the Genesis chain' && lf "$rf" | grep -q '^### Threat model' &&
   lf "$rf" | grep -q '\*\*Does not stop:\*\*' && pass || fail "missing"
