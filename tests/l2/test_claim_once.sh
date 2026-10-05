@@ -42,6 +42,35 @@ expect "got: $all2" test "$(count 'mission watch due' "$all2")" = 1
 t "grammar"
 expect "grammar" grammar_ok "$all$all2"
 
+# ---- A-12: the key identifies the event, not just its body
+hook sb1 "$om" >/dev/null; backdate sb1
+printf 'RESULT: PASS\n' > "$dev/mission-complete-AXM-11.md"
+o1=$(hook sb1 "$om"); backdate sb1
+printf 'RESULT: PASS\n' > "$dev/mission-complete-AXM-12.md"
+o2=$(hook sb1 "$om")
+t "A-12 two same-body files from one seat each report once (first)"
+expect "got: $o1" test "$(count 'TARS: Nash - Developer wrote mission-complete for AXM-11.' "$o1")" = 1
+t "A-12 two same-body files from one seat each report once (second)"
+expect "got: $o2" test "$(count 'TARS: Nash - Developer wrote mission-complete for AXM-12.' "$o2")" = 1 -a "$(count 'AXM-11' "$o2")" = 0
+
+# ---- A-12: claims are scoped to the team root; two teams under one HOME
+rootB="$tmp/teamB"; mkteam "$rootB"
+omB="$rootB/T-Bot - The Overmind"
+cp "$root/MISSION_BOARD.md" "$rootB/MISSION_BOARD.md"
+TARS_NOW=6100 hook ta "$om" >/dev/null; TARS_NOW=6100 hook tb "$omB" >/dev/null
+TARS_NOW=6400 hook ta "$om" > "$tmp/outA" & TARS_NOW=6400 hook tb "$omB" > "$tmp/outB" &
+wait
+oa=$(cat "$tmp/outA"); ob=$(cat "$tmp/outB")
+t "A-12 team A gets its own C1 in the shared window"
+expect "got: $oa" test "$(count 'mission watch due' "$oa")" = 1
+t "A-12 team B gets its own C1 in the same window"
+expect "got: $ob" test "$(count 'mission watch due' "$ob")" = 1
+t "A-12 lines are in the grammar"
+expect "grammar" grammar_ok "$o1
+$o2
+$oa
+$ob"
+
 # ---- claim dirs older than 7 days are pruned on a session's first turn
 mkdir -p "$TH/claims/mc.old.old"; old "$TH/claims/mc.old.old"
 hook fresh1 "$om" >/dev/null

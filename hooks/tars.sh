@@ -82,8 +82,12 @@ say() { emit "TARS: $1"; }
 cue() { emit "TARS (cue): $1"; }
 getn() { local v=""; [ -f "$1" ] && read -r v < "$1"; num "$v" 12 || v=0; printf '%s' "$v"; }
 put() { printf '%s' "$2" > "$1"; }
-# claim KEY: the first session to make the directory owns the event.
+# claim KEY: the first session to make the directory owns the event. Keys
+# are scoped to the team root (amendment A-12): rootkey sets rk to the cksum
+# of the pinned root path, computed on the first event only.
 claim() { mkdir "$home/claims/$1" 2>/dev/null; }
+rk=""
+rootkey() { [ -n "$rk" ] || { rk=$(printf '%s' "$root" | cksum); rk=${rk// /-}; }; }
 
 first=""
 if [ ! -f "$st/started" ]; then
@@ -358,9 +362,10 @@ if [ -n "$root" ]; then
         mid=${fn#mission-complete-}; mid=${mid%.md}
       fi
       [[ $mid =~ $re_m ]] || mid=""
-      k1=$(printf '%s' "$who" | cksum); k2=$(cksum < "$f")
+      k1=$(printf '%s' "$who" | cksum); k2=$(printf '%s' "$fn" | cksum); k3=$(cksum < "$f")
       [[ $who =~ $re_s ]] || who=unknown
-      claim "mc.${k1// /-}.${k2// /-}" && say "$who wrote mission-complete${mid:+ for $mid}."
+      rootkey
+      claim "mc.$rk.${k1// /-}.${k2// /-}.${k3// /-}" && say "$who wrote mission-complete${mid:+ for $mid}."
     done
     shopt -u nullglob
 
@@ -428,7 +433,8 @@ if [ -n "$root" ]; then
         last=$(getn "$st/lastwatch")
         if [ -z "$first" ] && (( now - last >= cadence )); then
           put "$st/lastwatch" "$now"
-          claim "cue.$(( now / cadence ))" &&
+          rootkey
+          claim "cue.$rk.$(( now / cadence ))" &&
             cue "mission watch due: $count in flight, highest priority $tier. Run the watch rules and report only what you find."
         fi
       fi
