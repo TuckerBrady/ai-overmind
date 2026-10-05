@@ -59,7 +59,8 @@
 #
 # Pre-check rules for Bash (A-25.2). The command is matched with ', " and \
 # removed, so IN''BOX.md and INB\OX.md are INBOX.md.
-#   - eval, source and . are denied outright.
+#   - eval and source are denied outright, and so is . when it starts a
+#     simple command outside quotes (a quoted " . " is perl's concatenation).
 #   - A redirect target containing $ or ` is denied; so is one that names, or
 #     as a glob can match, a protected file.
 #   - cp, mv, ln, install, rsync and scp: every non-option argument is checked,
@@ -80,8 +81,8 @@
 #     of it that does so must start with a read-only verb (cat, grep, head,
 #     tail, wc, diff, less, awk without -i, sed without -i, git
 #     log|show|diff|status) and no redirection may write a file.
-# Input over the 512 KiB cap fails CLOSED at PreToolUse for every session: the
-# cap is checked before the twin test (A-33 S-3).
+# Input over the 512 KiB cap is streamed whole to find agent_type before the
+# twin test (A-33 S-3): a twin fails CLOSED, a main session is never refused.
 #
 # Residual risks (reference/twins.md): a program that builds a protected path
 # at run time (reported after the fact, not prevented); a Bash command left
@@ -92,7 +93,7 @@
 # same window (the detector alerts, it can't tell who).
 #
 # A session that is not a twin pays one builtin read, one length test and one
-# substring test (a PostToolUse over the cap also pays one grep).
+# substring test (input over the cap also pays one grep over the whole of it).
 # Every path exits 0.
 
 export LC_ALL=C
@@ -109,21 +110,30 @@ deny() {
   exit 0
 }
 
-# The cap comes before the twin test (A-33 S-3): past the cap the input is cut,
-# and agent_type can sit after a huge tool_input. PreToolUse fires only for the
-# five write-capable tools (hooks.json), and a cut input can't show whether the
-# caller is a twin, so every over-cap PreToolUse fails closed. A PostToolUse
-# over the cap (a large tool_response) is scanned whole for a twin's agent_type
-# key (unescaped quotes: inside a JSON string every quote is escaped); a twin's
-# gets an alert, since its record can't be found and checked.
+# The cap comes before the twin test (A-33 S-3, round 2 ruling): past the cap
+# the input is cut, and agent_type can sit after a huge tool_input. So an
+# over-cap input is streamed whole, once, through one grep that stops at the
+# first agent_type key (unescaped quotes: inside a JSON string every quote is
+# escaped, so only a real key matches), whatever the field order:
+#   - its value names splinter-twin: a twin. PreToolUse is denied (fail
+#     closed); PostToolUse is alerted, since its record can't be checked;
+#   - no agent_type at all: a main session. Allowed, the guard is skipped;
+#   - the stream read failed: deny only when the bytes read so far name
+#     splinter-twin anywhere; otherwise allow.
+# A main session is never refused.
 overcap=""
 if [ ${#in} -gt $CAP ]; then
+  re_at='(^|[^\])"agent_type"[[:space:]]*:[[:space:]]*"[^"]*"'
+  at=$( { printf '%s' "$in"; cat || printf '\n"_ovm_readfail_":"1"\n'; } 2>/dev/null |
+        grep -Eo -m 1 "$re_at"'|"_ovm_readfail_":"1"' 2>/dev/null )
+  case $at in
+    *'"agent_type"'*splinter-twin*) ;;
+    *_ovm_readfail_*) case $in in *splinter-twin*) ;; *) exit 0 ;; esac ;;
+    *) exit 0 ;;
+  esac
   if [ "$event" = PreToolUse ]; then
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The tool input is over the 512 KiB cap that the ai-overmind twin guard can check, so the call is refused. Split it into smaller calls."}}\n'
-    exit 0
+    deny "hook input over the 512 KiB cap"
   fi
-  re_twin='(^|[^\])"agent_type"[[:space:]]*:[[:space:]]*"[^"]*splinter-twin'
-  { printf '%s' "$in"; cat; } | grep -Eq "$re_twin" || exit 0
   overcap=1
 fi
 case $in in *splinter-twin*) ;; *) [ -n "$overcap" ] || exit 0 ;; esac
@@ -604,6 +614,32 @@ readonly_ok() { # verb, args... -> 0 when the part only reads
   return 1
 }
 
+# qdot -> 0 when "." really starts a simple command: the command is split on
+# ; & | ( ) and newlines only OUTSIDE single and double quotes, so a quoted
+# " . " (perl's or awk's concatenation) is not a source. Run only when the
+# quote-blind split below finds a "." verb.
+qdot() {
+  local s=$cmd q="" c i n=${#cmd} seg="" j
+  for ((i = 0; i <= n; i++)); do
+    c=${s:i:1}
+    if [ -n "$q" ]; then
+      [ "$c" = "$q" ] && q=""
+      seg="$seg$c"; continue
+    fi
+    case $c in
+      "'"|'"') q=$c; seg="$seg$c" ;;
+      ''|';'|'&'|'|'|'('|')'|$'\n')
+        split_words "$seg"; seg=""; j=0
+        while [ $j -lt ${#words[@]} ]; do
+          case ${words[j]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|'{'|'!') j=$((j+1)) ;; *) break ;; esac
+        done
+        [ $j -lt ${#words[@]} ] && [ "${words[j]}" = . ] && return 0 ;;
+      *) seg="$seg$c" ;;
+    esac
+  done
+  return 1
+}
+
 # Simple commands: split on ; & | ( ) and newlines.
 set -f
 segs=${cmd//[;&|()]/$'\n'}
@@ -619,7 +655,7 @@ while IFS= read -r seg; do
   args=("${words[@]:i+1}")
   sn=${seg//\'/}; sn=${sn//\"/}; sn=${sn//\\/}
   smention=0; [[ $sn =~ $re_name ]] && smention=1
-  case $verb in eval|source|.) deny "$verb" ;; esac
+  case $verb in eval|source) deny "$verb" ;; .) qdot && deny "$verb" ;; esac
   rec=0
   for a in ${args[@]+"${args[@]}"}; do case $a in -*[rR]*|--recursive) rec=1 ;; esac; done
   case $verb in

@@ -88,6 +88,35 @@ for tool in Write Edit Bash; do
 done
 [ $bad -eq 0 ] && pass || fail "see above"
 
+t "S-3 (round 2): over the cap, a twin is denied and a main session allowed, each within 2 s"
+bad=0
+for who in twin main; do
+  for tool in Write Bash; do
+    case $tool in
+      Write) ti="{\"file_path\":\"$(js "$seat/notes.md")\",\"content\":\"$pad\"}" ;;
+      Bash) ti="{\"command\":\"echo x # $pad\"}" ;;
+    esac
+    tail_f=""; [ $who = twin ] && tail_f=",\"agent_id\":\"a\",\"agent_type\":\"$TWIN\""
+    printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"%s","tool_input":%s,"tool_use_id":"c2"%s}' \
+      "$(js "$seat")" "$tool" "$ti" "$tail_f" > "$tmp/big.json"
+    s0=$SECONDS
+    r=$(TMPDIR="$tmp/snaps" "$B" "$GUARD" < "$tmp/big.json")
+    el=$((SECONDS - s0))
+    case $who:$r in
+      twin:*'"permissionDecision":"deny"'*|main:) ;;
+      *) bad=1; echo "    $who $tool: ${r:0:120}" ;;
+    esac
+    [ $el -le 2 ] || { bad=1; echo "    $who $tool took $el s"; }
+  done
+done
+[ $bad -eq 0 ] && pass || fail "see above"
+
+t "S-3 (round 2): a main session over the cap whose content quotes a twin's agent_type is allowed"
+printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x.md","content":"%s \\"agent_type\\":\\"%s\\""},"tool_use_id":"c3"}' \
+  "$(js "$seat")" "$pad" "$TWIN" > "$tmp/big2.json"
+r=$(TMPDIR="$tmp/snaps" "$B" "$GUARD" < "$tmp/big2.json")
+[ -z "$r" ] && pass || fail "got: ${r:0:120}"
+
 t "S-3: a PostToolUse over the cap is alerted for a twin and quiet for a main session"
 gk "" PreToolUse "$seat" true s3p > /dev/null
 o1=$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"true"},"tool_response":{"stdout":"%s"},"tool_use_id":"s3p","agent_id":"agentr","agent_type":"%s"}' \
@@ -95,6 +124,19 @@ o1=$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PostToolUse","tool
 o2=$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"true"},"tool_response":{"stdout":"%s \\"agent_type\\":\\"%s\\""},"tool_use_id":"m1"}' \
   "$(js "$seat")" "$pad" "$TWIN" | TMPDIR="$tmp/snaps" "$B" "$GUARD")
 case $o1 in *'TWIN-GUARD ALERT: hook input over the 512 KiB cap'*) [ -z "$o2" ] && pass || fail "main session: ${o2:0:160}" ;; *) fail "twin: ${o1:0:160}" ;; esac
+
+# ---------------------------------------------------------------- quoted dot
+t "round 2: a quoted ' . ' (perl concatenation) is not a source; a real . still is"
+bad=0
+for c in "perl -e 'print q(a) . q(b)'" "echo 'a; . b'" "awk 'BEGIN { x = \"a\" \" . \" }'"; do
+  r=$(gk "" PreToolUse "$seat" "$c" qd1)
+  case $r in *'"permissionDecision":"deny"'*) bad=1; echo "    denied: $c" ;; esac
+done
+for c in ". ./x.sh" "true; . ./x.sh" "x=1 . ./y" "(. ./z)"; do
+  r=$(gk "" PreToolUse "$seat" "$c" qd2)
+  case $r in *'"permissionDecision":"deny"'*) ;; *) bad=1; echo "    allowed: $c" ;; esac
+done
+[ $bad -eq 0 ] && pass || fail "see above"
 
 # ---------------------------------------------------------------- A-31
 # Shims count every run of the hash programs the guard may pick.
