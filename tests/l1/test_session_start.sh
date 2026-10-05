@@ -95,6 +95,32 @@ if command -v cygpath >/dev/null 2>&1; then wr=$(cygpath -w "$root"); else wr=$r
 out=$(printf '{"cwd":"%s"}' "$(jpath "$tmp/team/A - Dev")" | CLAUDE_PLUGIN_ROOT="$wr" bash "$root/hooks/session-start.sh"; echo "rc=$?")
 case $out in *'\reference'*) fail "backslash left in the reference dir" ;; *'/reference'*"rc=0") pass ;; *) fail "no reference dir" ;; esac
 
+t "10 a 32767-character cwd is bounded: exits 0 within 3 s"
+long=$(printf '%32767s' '' | tr ' ' 'a')
+start=$SECONDS
+out=$( (cd "$tmp/plain" && printf '{"cwd":"%s"}' "$long" | CLAUDE_PLUGIN_ROOT="$root" bash "$root/hooks/session-start.sh"; echo "rc=$?") )
+el=$((SECONDS - start))
+[ "$out" = "rc=0" ] && [ "$el" -le 3 ] && pass || fail "rc/out=$(printf '%s' "$out" | head -c 40) elapsed=${el}s"
+
+t "10b a 32767-character cwd full of escapes is bounded too"
+longe=$(printf '%16383s' '' | sed 's/ /\\\\/g')
+start=$SECONDS
+out=$( (cd "$tmp/plain" && printf '{"cwd":"%s"}' "$longe" | CLAUDE_PLUGIN_ROOT="$root" bash "$root/hooks/session-start.sh"; echo "rc=$?") )
+el=$((SECONDS - start))
+[ "$out" = "rc=0" ] && [ "$el" -le 3 ] && pass || fail "rc/out=$(printf '%s' "$out" | head -c 40) elapsed=${el}s"
+
+t "11 a UNC cwd is never probed and prints nothing, even from a team folder"
+# JSON for \\nohost.invalid\share\Seat ; the process sits in a seat folder, so
+# a fallback to PWD would print the kernel. It must not.
+start=$SECONDS
+out=$( (cd "$tmp/team/A - Dev" && printf '%s' '{"cwd":"\\\\nohost.invalid\\share\\Seat"}' | CLAUDE_PLUGIN_ROOT="$root" bash "$root/hooks/session-start.sh"; echo "rc=$?") )
+el=$((SECONDS - start))
+[ "$out" = "rc=0" ] && [ "$el" -le 3 ] && pass || fail "got: $(printf '%s' "$out" | head -c 60) elapsed=${el}s"
+
+t "11b a forward-slash UNC cwd is skipped the same way"
+out=$( (cd "$tmp/team/A - Dev" && printf '%s' '{"cwd":"//nohost.invalid/share/Seat"}' | CLAUDE_PLUGIN_ROOT="$root" bash "$root/hooks/session-start.sh"; echo "rc=$?") )
+[ "$out" = "rc=0" ] && pass || fail "got: $(printf '%s' "$out" | head -c 60)"
+
 t "9 kernel missing prints nothing and exits 0"
 mv "$root/hooks/kernel.md" "$root/hooks/kernel.md.off"
 out=$(run "$tmp/team/A - Dev"); [ "$out" = "rc=0" ] && pass || fail "got: $(printf '%s' "$out" | head -c 80)"
