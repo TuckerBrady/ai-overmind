@@ -552,6 +552,14 @@ t "A-39 a .gitattributes with only harmless attributes (binary, diff) does not t
 mkrepo "$tmp/atok"; printf '*.png binary\n*.md diff=markdown\n# text eol=lf is a comment\n' > "$tmp/atok/.gitattributes"
 git -C "$tmp/atok" add -A; git -C "$tmp/atok" commit -qm at; git -C "$tmp/atok" push -q 2>/dev/null
 expect_rc 0 --worktree "$tmp/atok"
+t "A-39 a CRLF file holding a NUL is not normalized, even when its LF form is on a remote -> 11"
+# Regression (macOS CI, 479048e): BSD awk returns "" for sprintf("%c", 0),
+# and index(line, "") matched every line, so no file was ever normalized.
+# The positive case is "a CRLF checkout of LF content ... -> 0" above; this
+# is its negative twin.
+mkrepo "$tmp/nulbyte"; printf 'a\000b\n' > "$tmp/nulbyte/n.bin"; git -C "$tmp/nulbyte" add n.bin; git -C "$tmp/nulbyte" commit -qm n; git -C "$tmp/nulbyte" push -q 2>/dev/null
+printf 'a\000b\r\n' > "$tmp/nulbyte/n.bin"
+expect_rc 11 --worktree "$tmp/nulbyte"
 t "A-39 a CRLF file with a lone CR is not normalized -> 11"
 mkrepo "$tmp/lone"; printf 'a\r\nb\rc\n' > "$tmp/lone/a.txt"
 expect_rc 11 --worktree "$tmp/lone"

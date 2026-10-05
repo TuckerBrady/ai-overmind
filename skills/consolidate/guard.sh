@@ -279,13 +279,18 @@ check_tree() { # $1 directory, $2 1 if this is a nested repository
       { P[++n] = $0 }
       END {
         CR = sprintf("%c", 13)
+        # A NUL can only be looked for where the awk can hold one: BSD awk
+        # gives "" for sprintf("%c", 0), and index(line, "") matches every
+        # line. Where it cannot, the size check below rejects a NUL the awk
+        # dropped.
+        NUL = sprintf("%c", 0); hasnul = (length(NUL) == 1)
         for (k = 1; k <= n; k++) {
           p = P[k]; if (!(p in SZ) || SZ[p] > cap) continue
           m = 0; ok = 1; total = 0; crs = 0
           while ((rc = (getline line < (top p))) > 0) {
             m++; L[m] = line; total += length(line) + 1
             if (substr(line, length(line), 1) == CR) { line = substr(line, 1, length(line) - 1); crs++ }
-            if (index(line, CR) || index(line, sprintf("%c", 0))) { ok = 0 }
+            if (index(line, CR) || (hasnul && index(line, NUL))) { ok = 0 }
             L[m] = line
           }
           close(top p)
