@@ -1,11 +1,30 @@
 #!/usr/bin/env bash
 # Build overmind-mcp for every supported platform into mcp/dist/.
-# Refreshes the embedded firmware copy first, then runs the tests.
+#
+# First the copy step: refresh the embedded doctrine (firmware/kernel.md and
+# firmware/reference/*.md) from ../hooks/kernel.md and ../reference/*.md,
+# deleting any stale copy whose source is gone. Then the tests, then the
+# binaries.
+#
+#   build.sh        copy, test, build
+#   build.sh copy   the copy step only (run it after editing the kernel or a
+#                   reference file, then commit the copies)
 set -euo pipefail
 cd "$(dirname "$0")"
 
+copy_doctrine() {
+  cp ../hooks/kernel.md firmware/kernel.md
+  mkdir -p firmware/reference
+  rm -f firmware/reference/*.md
+  cp ../reference/*.md firmware/reference/
+}
+
+copy_doctrine
+if [ "${1:-}" = copy ]; then
+  exit 0
+fi
+
 version=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' ../.claude-plugin/plugin.json | head -1)
-cp ../hooks/firmware.md firmware/firmware.md
 go test ./... -count=1
 
 rm -rf dist && mkdir -p dist

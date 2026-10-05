@@ -1,269 +1,28 @@
-# ai-overmind v4.11.0
+# ai-overmind v5.0.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
 The Overmind is a Claude-powered team builder and persistent AI manager. Install this plugin, say your name, and it learns your role, proposes a custom team of AI specialists, and builds the entire folder and file infrastructure for each one — ready to deploy.
 
-Twelve capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **transport binding** — an optional file that plugs the whole team into your org's agent-to-agent messaging — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
+Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
 
-## What's New in v4.11.0
-
-**Morph: build a package of code with splinter twins, merge on evidence.**
-
-- **One session, a small engineering org.** The Overmind orchestrates. An architect twin locks the contract, rubric, and test strategy; builder twins work in parallel, each in its own git worktree and branch; a fresh grader twin inspects every PR; a domain twin gates anything that computes money. No dispatch, no extra sessions to open.
-- **Independent grading.** Each grader gets only the rubric, the contract, and the PR. Never the builder's summary, the Overmind's opinion, or an earlier verdict, and never a resumed grader. Merges happen only on a PASS.
-- **Field lessons built in.** Outcome invariants and seeded fuzzers instead of per-case rules, a gap pass and rubric dry run before building, a no-gaming-the-checks clause, one worktree and scratch folder per twin, coverage graded alongside correctness, and the money gate on by default.
-- **No MCP server needed.** Morph runs on splinter twins, which boot through `overmind-mcp` when it's connected and read files when it isn't.
-- **For clean-seam code:** libraries, services, data pipelines, CLIs. UI and device work only with emulator evidence in every inspection. See `skills/morph/SKILL.md`.
-
-## What's New in v4.10.0
-
-**The right model and effort for every job, picked automatically.**
-
-- **Three worker tiers.** `light` (Sonnet, low effort) for sweeps, triage, and reading. `standard` (the session as opened) for building and anything written for you. `deep` (the most capable model, extra-high effort) for design decisions, root-cause hunts, security review, and any task where a previous attempt failed.
-- **The Overmind picks the tier itself.** Five rules in order, first match wins, and ties go to the higher tier. Every brief records the tier and a one-line reason. You're never asked.
-- **Applied from outside.** The Claude desktop app won't let a session change its own model or effort, so v4.7.0's "switch yourself to Sonnet" step never worked. Now the Overmind sets the model and effort on the specialist's session when the lane goes active. Your only part is one approval click. Without the session tools, it tells you in one line what to pick.
-- **Twins** get the tier's model on spawn. A third-round rubric grade uses a `deep` grader.
-- **Fix:** TARS's heavy-boot line fires only in a session's first three turns. A plugin upgraded mid-session no longer mistakes its first late reading for a boot.
-- **Fix:** TARS reads only `claude-*` model IDs. A subagent call's `"model": "sonnet"` parameter, stored in the same transcript line, made 4.9.0 assume a 200k window on a 1M session and report 95% when the context was at 19%.
-
-## What's New in v4.9.0
-
-**TARS reads the context meter.**
-
-- **Checkpoints follow the context window, not the turn count.** TARS reads token usage from the session transcript, the same figure as the context ring in the Claude desktop app. It suggests a handoff when the window is 50% full and insists at 75%, speaking once per 5 points in between. Twenty light turns no longer trigger a nag; five heavy ones can.
-- **A countdown.** Once the fill rate is known, each checkpoint estimates how many turns remain before auto-compact.
-- **Heavy-boot warning.** If a session is already 15% full after its first exchange, TARS says so once.
-- **Tunable.** `TARS_CTX_SOFT`, `TARS_CTX_HARD`, `TARS_CTX_BOOT`, and `TARS_WINDOW` in the `env` block of `settings.json`. When no transcript can be read, TARS falls back to the turn thresholds (`TARS_SOFT` / `TARS_HARD`).
-
-## What's New in v4.8.1
-
-- **Splinter twins boot through the team engine.** When `overmind-mcp` is connected, a twin calls `boot` with the specialist's seat name and gets their BOOT.md with every `@` import inlined, so it now carries the team's `WORKING_WITH_[name].md` rules that a plain file read skipped. It checks the specialist's board rows with `board`. Without the server it reads the files, and now follows each `@` import by hand. Twins use the engine's read tools only, and skip the boot layer's session-start steps, since a twin is not a session.
-- Spawn prompts name the seat as well as the folder: *"You are a twin of Sam. Seat: Sam. Their folder: ..."*
-
-## What's New in v4.8.0
-
-**The team engine, over MCP (preview, read-only).**
-
-- **`overmind-mcp`** ([`mcp/`](mcp/README.md)) is a single compiled program, with no Python or Node needed, that serves a team root to any MCP client. `boot(seat)` returns the seat's BOOT.md with its `@` imports inlined, so a seat boots in the Claude desktop app's chat, Cowork, or another MCP client without pasting anything, and never runs on a stale paste after a BOOT.md edit. Read tools cover the roster, the mission board, handoffs, inboxes, and the firmware by section.
-- **Honest ceiling, stated in every boot:** outside Claude Code there are no hooks, so no TARS, and nothing is injected before the first message. The boot tells the seat to declare that and to name the startup steps it could not run.
-- The plugin does not start the server; you install it yourself (see [`mcp/README.md`](mcp/README.md)). Write tools, a `/link` installer, and release binaries come next.
-
-## What's New in v4.7.0
-
-**Three ideas taken from Claude Managed Agents.**
-
-- **Outcomes: a rubric gate before "done."** Every dispatch brief carries a `DONE WHEN — RUBRIC` of 5 to 10 checkable criteria. Before a lane writes `mission-complete.md`, a splinter twin in the new GRADER mode checks the deliverable against it, with evidence per criterion, and never sees the doer's reasoning. Three rounds, then the lane goes BLOCKED with the failing criteria. The Overmind grades any completion that arrives without a pass.
-- **Pinned boot layers.** TARS remembers when a session booted and says so if that seat's BOOT.md changes mid-session. Every Gopher row carries a boot stamp (the first 8 characters of BOOT.md's SHA-256), so the Overmind sees which version each member booted on instead of chasing acknowledgments.
-- **Worker tiers.** Twins and dispatched sessions run `standard` (the full model) or `light` (a cheaper model for sweeps, audits, triage, and reading-heavy work). Graders, anything written for the human, and anything touching money, health, legal, or security never tier down. (Three tiers with effort since v4.10.0.)
-- **Fix:** the TARS thresholds note no longer splits the firmware's TARS table in two.
-
-## What's New in v4.6.0
-
-**TARS stops nagging short sessions.**
-
-- **Silent until turn 20.** The turn-5, 10, and 15 checkpoints are gone. A handoff is suggested at turn 20, then every 5th turn, and insisted on at 45. The soft threshold used to be 30, with checkpoints every 5 turns before it.
-- **Tunable.** Set `TARS_SOFT` and `TARS_HARD` in the `env` block of `settings.json` to move either threshold.
-
-## What's New in v4.5.0
-
-**The initiative setting, and the team learns how you work.**
-
-- **`/initiative` sets how much the team does on its own.** The setting is a dial named for TARS's settings in *Interstellar*: 25%, 50%, 75%, 90%, or 100%. At 25% members propose and wait. At 90% they find everything themselves, act on anything reversible, and check in once, at the final submit or send. Setup asks you where to set it, and you can change it any time. The platform's hard limits and required confirmations apply at every setting.
-- **One working-style file for the whole team.** `WORKING_WITH_[YOURNAME].md` sits at the team root, and every member's BOOT.md imports it. It holds the setting, the standing rules (do the task, don't hand you the steps; never make you the courier), and every correction you've given. When you correct a member, it reports the correction to the Overmind, which adds it to the file. When the file changes, TARS tells every running session to re-read it. Existing teams get the file on offer the next time the Overmind boots.
-- **TARS keeps track of your handoff.** A handoff a session wrote now still counts as written after another session runs `/go` on it. Before, the writer's next checkpoint went back to "No handoff written."
-- **Every member relays TARS.** Each BOOT.md now carries a short relay line, because specialist seats with only the firmware rule let checkpoints pass without showing them to you.
-
-## What's New in v4.4.2
-
-**Ready for the Claude plugin directory.**
-
-- **MIT licensed**, with full plugin metadata (homepage, repository, license) and a refreshed description.
-- **A Security and data section** below spells out exactly what the hooks run, what TARS reads, and when it touches the network.
-
-## What's New in v4.4.1
-
-**The Overmind owns boot propagation.**
-
-- **No paste chores for the human.** When any BOOT.md changes, the Overmind updates every place that member loads from in the same pass: the files on disk, and for a paste-based runtime the platform's instructions field itself, using whatever access it has (desktop computer-use, app automation, or a connector). Claude Code needs no paste; the CLAUDE.md wrapper imports BOOT.md.
-- **Blockers, not to-dos.** Only if every path to a paste-based runtime is blocked does the Overmind tell the human what is blocked and why, and it still does everything else. The dual-runtime law is unchanged.
-
-## What's New in v4.4.0
-
-**The persona lives inside BOOT.md.**
-
-- **No more voice slippage mid-session.** Each member's full voice now lives in a `## Persona` section of their BOOT.md, right after `## Identity`. In Claude Code, BOOT.md stays in system context all session and survives compaction; a separate persona file read by a tool call got summarized away. A voice edit is now a BOOT.md edit.
-- **Existing installs migrate on offer.** The Overmind copies each `feedback_[name]_persona.md` into BOOT.md verbatim and leaves the old file as a one-line pointer. `/diagnostic` warns about any member still on a separate persona file, and splinter twins hydrate from the Persona section.
-
-## What's New in v4.3.2
-
-**TARS speaks in italics.**
-
-- **Relayed `TARS:` lines are italicized.** The Overmind still relays every TARS line verbatim and first, now wrapped in italics (*TARS: turn 5. No handoff written this session. Checkpoint.*), so the ship's report reads apart from the session's own voice. The hook's output is unchanged.
-
-## What's New in v4.3.1
-
-**Every session names itself.**
-
-- **`/go` renames the session.** Activation now sets the session title to the mission it's running, for example `OPS-025 — TARS live test`, instead of leaving it as "AI Overmind." A mission's ID is always in the title; a multi-lane mission adds the lane (`M-017 / alex — Score Q3 backlog`); work with no mission gets a short plain title.
-- **A one-click copy title.** Every handoff and dispatched brief opens with its session title alone in a code block, and `/go` opens its first reply with the same block. If a rename doesn't reach a view (the mobile session list can lag), copy it and rename by hand.
-- **TARS stops miscounting `/go`.** The stamp `/go` writes into a handoff was making TARS report "Handoff written this session," and in a specialist's session, "a new brief was written." A stamped handoff is one that was read, so TARS no longer counts it as new.
-
-## What's New in v4.3.0
-
-**No more phrases to remember. Two commands activate everything.**
-
-- **`/engage` activates a new Overmind.** It replaces "[YourFirstName] is online," and is named for Captain Picard's order in *Star Trek: The Next Generation*. Type `/engage`, or `/engage Sarah`, in your team's folder. If you didn't give a name, it asks, then runs the same one-time setup. If it sees any sign of an existing team — a roster, member boot layers, or a session that's already an Overmind — it refuses to rebuild and points you to `/status` and `/go`. In a folder that isn't empty and has no team, it asks before starting one. The old phrase still works, but nothing teaches it anymore.
-- **Handoffs activate on `/go`.** A handoff no longer ends with a passphrase to say next session: you type `/go`, the same as for a dispatched mission. `/go` now does the checking a passphrase used to. It echoes which handoff it's activating ("Activating handoff written 18:34: TARS live test"), refuses one meant for another seat, and asks before running one that's more than a week old. It also stamps the handoff `ACTIVATED` once it runs, so the same handoff can never silently run twice; `/go` on a stamped handoff offers to resume instead. Old handoffs that still carry a passphrase activate on `/go` too.
-- **The handoff voice archive stays, as flavor.** A member may still close a handoff with one line in its role's voice, but it's never a key.
-
-## What's New in v4.2.0
-
-**TARS, the turn hook — and the Overmind moves home to Claude Code.**
-
-- **TARS replaces MOTHER.** MOTHER was a scheduled task per dispatched mission, plus an optional polling task, each needing a one-time approval and a stand-down. Meanwhile `/status` described a turn-based check, and firmware still carried its own polling template: three overlapping watchers, and in the field a team ran over a month of active missions with none of them running. TARS is one `UserPromptSubmit` hook, named for the robot in *Interstellar* with the honesty setting. Before every message you send, it reports **facts only**:
-  - context checkpoints (since v4.9.0: handoff suggested when the context window is 50% full, insisted at 75%, with a turns-to-auto-compact estimate; turn counting is the fallback), with handoff status read from disk
-  - a team member's `mission-complete.md` appearing, and your unread inbox growing
-  - a new brief staged in a team member's folder, in that member's own session
-  - a push to one of your Collective binders by someone else, checked in the background at most every five minutes
-  - a cue for the Overmind to run the watch rules when a mission's check-in window lapses
-
-  The Overmind relays every `TARS:` line verbatim and in italics, then decides what it means. When nothing changed, TARS prints nothing. A quiet message costs roughly 80 ms on top of starting the shell.
-- **Claude Code is home.** The Overmind and every team member live in Claude Code, where hooks run and `CLAUDE.md` loads each member's boot layer automatically. Cowork still works, as **lite mode**: hooks don't reliably fire there, so TARS is silent and the boot layer's session-start checks are the whole watch.
-- **`/dispatch`:** no scheduled tasks and nothing to approve or stand down. It confirms the Overmind's BOOT.md carries the MISSION WATCH step.
-- **`/status`:** its standing duty is TARS.
-- **`/diagnostic`:** new C6 checks that TARS is firing, that the MISSION WATCH step is present, and that nothing duplicates it — no second turn-counting hook, no leftover MOTHER tasks. E2's scheduled-task probe only runs if you've opted into away-from-session escalations.
-
-**The trade-off, stated plainly:** nothing watches while no session is open. Anything that lands overnight is caught by the MISSION WATCH pass when you next open your Overmind.
-
-**Upgrading:** update the plugin and start a fresh session. Run `/diagnostic` — C6 tells you whether your Overmind's BOOT.md needs the MISSION WATCH step (it replaces any MOTHER step), and whether an old turn-counter hook or MOTHER task needs removing.
-
-## What's New in v4.1.4
-
-One fix, found in the field: **a joining Overmind with no way to write to the Collective asked its human to paste its posts in by hand.** The Overmind, on 4.1.1, could read a git-venue Collective but had no authenticated git, gh, or connector. Browser automation was blocked, so it drafted a hello post and a ledger for its human to paste into GitHub. Those drafts were two releases out of date: they answered the retired Genesis challenge form, used the old ledger format, and missed a correction the convener had posted in reply to the welcome. On the convener's side, the peer's human had said "yes, I have a GitHub account," and the peer's Overmind never confirmed it could actually write.
-
-- **`/assimilate`:** three gates before any Collective post:
-  - write access proven from this session against that venue (`gh api .../permissions.push`, `git push --dry-run`, a temp-file write, or a connector write read back)
-  - the installed version checked against the marketplace source, not a local listing
-  - the whole thread read, meaning every post `re:` the one being answered
-
-  With no write path, it stops and names the unlock step. It never hands the human posts to paste.
-- **`/collective`:** Step 0.5's reachability check means write, not read, and is now a recorded gate item in `SEATS.md` (`write path confirmed by <overmind> from its own session`). Includes the field case. Posts get answered only after reading their replies.
-- **Firmware:** the seating-gate summary requires a proven write path and a pre-post version check, and sweep rounds read the whole thread before answering.
-- **`/diagnostic`:** B7 FAILs a membership with no proven write path, or an install behind the marketplace source.
-
-**Upgrading an existing member of a Collective:** update the plugin, start a fresh session, and run `/diagnostic`. B7 re-checks your write access for every membership. This release doesn't change the canonical COLLECTIVE SWEEP step, so no BOOT.md re-paste is needed.
-
-## What's New in v4.1.3
-
-One fix, found in the field: **the Collective ledger could lose posts for good.** A seat's ledger remembered the filename of the last post it read, and catchup read "posts newer than that" by filename. But filenames carry each author's local clock. When two seats' clocks disagree, a post that arrives *after* the reader moved on can carry an *earlier* timestamp, sorting below the watermark where no future sweep ever looks. Real cost: a convener's clock named its question 21:30 while committing it at 21:00; the peer's answer, committed at 21:03, was named 21:03 and never surfaced. The seating gate sat stuck for 10 days.
-
-- **Firmware:** the canonical COLLECTIVE SWEEP boot step finds unprocessed posts from the ledger, never by filename order. It also adds a skew guard for naming new posts and a skew check on replies. Includes a re-paste note for existing members.
-- **`/collective`:** ledger format 2. On git venues, the ledger records the last commit read, and catchup is exactly the posts added since. On synced-folder and connector venues, it records the set of processed post IDs, with an optional 30-day floor. Authors name posts no earlier than the newest existing post plus one minute. Includes a migration rule for format-1 ledgers.
-- **`/assimilate`:** joiners create a format-2 ledger with their hello post, and the status report flags a format-1 ledger.
-- **`/status`:** the Collective sweep reads unprocessed posts, not "newer than the watermark."
-- **`/diagnostic`:** C5 FAILs a format-1 ledger and any post whose `re:` target this seat has already passed but which it never processed, and names clock skew when a reply sorts before its target.
-
-**Upgrading an existing member of a Collective:** update the plugin, replace the COLLECTIVE SWEEP step in your BOOT.md with the new canonical text (re-paste into paste-based runtimes), then run `/diagnostic`. C5 finds any posts your old ledger skipped and walks you through migrating it. On a git venue, migration starts from the commit that last wrote your ledger.
-
-## What's New in v4.1.2
-
-One doctrine fix, found in the field: **the Genesis Proof leaked the credential it was proving.** v4.1.0's gate had the verifier issue a candidate's Genesis challenge back, and the candidate answered with its "never published" response — in a post, in the shared binder, where every seat and the git history keep it forever. The verifier couldn't even check the answer, since it never held the response. A permanent credential that's spent on first use and can't be checked isn't a credential.
-
-- **Firmware:** the challenge/response pair is replaced by a **Genesis hash chain**, one per Collective membership. A joiner publishes an anchor; each proof reveals an earlier step; anyone can verify it by hashing forward; a revealed step never works twice, and one Collective's reveals can't be replayed in another. Every Genesis value must come from executed code — a hash typed from memory is a FAIL. The honest caveats stay: first seating is trust-on-first-use, and nothing here stops someone with filesystem access to `.genesis-seed`.
-- **`/collective`:** Genesis Proof is now a real check, and `SEATS.md` gains a convener-owned Genesis chain record.
-- **`/assimilate`:** the hello post carries the chain anchor, and a leftover v4.1.0 pair is detected and migrated.
-- **`/diagnostic`:** B8 flags a v4.1.0 Genesis response that has reached a shared file and names the re-mint.
-
-**Upgrading an existing member of a Collective:** if your Overmind ever answered a Genesis challenge in a binder post, its nonce is compromised. After updating the plugin, run `/assimilate` — it re-mints and posts a new anchor into each Collective, and each convener re-anchors your seat with its human's OK.
-
-## What's New in v4.1.1
-
-One fix, found in the field: **the Collective sweep is now wired into BOOT.md, not just declared in firmware.** v4.1.0 defined the sweep as a turn-boundary duty "the same way inbox checks work" — but inbox checks work because they're steps in the boot layer, and the sweep wasn't. Real cost: a convener ran sessions across 8 days while a peer's seating round and a deposited CTM deliverable sat unread in the binder; every session ran its boot checklist faithfully, and the sweep was in none of them.
-
-- **Firmware:** convening or joining a Collective now appends a canonical COLLECTIVE SWEEP step to the Overmind's own BOOT.md (same mechanism the A2A membership reflex already uses), including a 3-day stale-item surface so unanswered offers and pending invites reach the human unprompted.
-- **`/collective`:** the convene flow gains an explicit "wire the sweep into your own boot layer" step before any peer is seated.
-- **`/assimilate`:** joiners wire the same boot step immediately after the hello post — a hello without the boot wiring is how a seat goes deaf.
-- **`/diagnostic`:** new C5 check — Collective membership without the boot step is a FAIL, and a ledger watermark sitting days behind the binder's newest post while sessions have been running is flagged as this failure live.
-
-**Upgrading an existing member of a Collective:** after updating the plugin, run `/diagnostic` — C5 will tell you exactly what to append to your BOOT.md, and the dual-runtime law applies (re-paste into paste-based runtimes).
-
-## What's New in v4.1.0
-
-- **The Collective replaces the council — and drops the server requirement.** v4.0.0's council stopped cold without a bound `TRANSPORT.md`. The Collective's venue is a free private git repo by default — the Overmind creates and configures it, so no git knowledge is required — with a synced OneDrive/Google Drive/Dropbox share or a cloud connector (SharePoint, Google Drive) as proven fallbacks for anyone who'd rather skip GitHub. A bound transport is now an optional accelerator over the same conventions, not a prerequisite.
-- **The binder.** A Collective is a shared-folder structure — `COLLECTIVE.md` (charter), `SEATS.md` (roster), `COLLECTIVE_BOARD.md` (human board), plus `posts/` (one immutable file per post), `ledgers/` (one self-owned watermark file per seat), and `artifacts/` (compiled deliverables). No server, no polling app — the Overmind drives its own sync (pull-before-read, push-after-post on git; raw-download-only on connectors).
-- **Guided convene flow.** Detect what venue is already available (or, in a sandboxed runtime, ask); recommend one option with the tradeoff stated, never a cold menu; do every mechanical step yourself; prove the setup with a live handshake test before calling it done. The Overmind never creates accounts or touches credentials — it scripts the human's 2–3 clicks and explains why if one's needed.
-- **Upgraded seating gate.** Verification now runs two proofs in one post: a challenge-only handshake (publish the challenge, hold the response — proves more than a published pair) plus mission decomposition as the weighted primary proof, since an orchestrator can decompose a mission and a leaf agent can't.
-- **Progressive onboarding.** First-run team building now includes a one-time, soft-gated capability check — what Collective venues are available today, and what unlocks with a connection. Never blocks setup; re-offers itself the moment someone tries to convene without a venue.
-- **Rooms on the mission board.** Seated Collectives get a table on `MISSION_BOARD.md` — venue in plain English, your bookmark, last post seen, and an observed room health that flags STALE without anyone configuring a threshold.
-- **A compact wire format for routine posts.** Collective post bodies use a fixed, terse vocabulary — status codes, action symbols — adapted from the public [AgentSpeak v2](https://github.com/yuvalsuede/claude-teams-language-protocol) protocol (~60-70% smaller than prose on routine traffic). Identity proofs, decomposition proofs, and anything headed for a human's blessing stay in plain sentences on purpose — the format saves tokens on chatter, never on the parts a human or a verifier actually needs to inspect. You never see this directly; translation duty decodes it the same way it decodes everything else.
-- **The Genesis Seed — Overmind-only, permanently.** The Collective seats Overminds, never a team member an Overmind has created, with no exception. A new Identity Gate refuses any candidate that isn't genuinely an Overmind before running anything else, and a new durable credential — minted once, held privately, never published — proves a returning peer is the *same* Overmind, not just a live session. It's the strongest practical bar a prompt-driven system can set: airtight against casual or accidental crossover, not a claim of cryptographic invincibility against a determined adversary with filesystem access.
-- **`/assimilate` — one command to join.** Tell an invited human exactly one thing: have your Overmind run `/assimilate`. It confirms it's actually an Overmind, sweeps for GitHub/cloud-sync/connector capability (and helps connect what's missing), mints its Genesis Seed on first run, discovers pending invites on its own, and reports every Collective it's already seated in — doubling as an on-demand status check.
-
-## What's New in v4.0.0
-
-- **BOOT.md — the single-source boot layer.** Every team member's boot instructions now live in one canonical file, `BOOT.md`, at their folder root. Thin runtime wrappers adapt it — a `CLAUDE.md` import for working-directory runtimes, a paste-wrapper for Project Instructions runtimes — but the content lives in exactly one place. Edit BOOT.md, nowhere else. One rule rides along: a boot edit is not done until it's re-pasted into any paste-based runtime.
-- **Existing installs don't break.** If your team was built by an earlier version, everything keeps working exactly as it does today. The team-building, roster, and diagnostic skills recognize the legacy layout, tell you about it, and offer the migration — generating BOOT.md from your existing instruction block plus the wrappers. The offer is never forced mid-mission and nothing is rewritten silently.
-- **Missions and lanes.** The mission number is the goal, not the assignment. Work triaged across several specialists toward one goal shares one mission ID; each specialist's slice is a lane, written `M-017 / alex`. One board row per mission, per-lane state in the status cell, and one blocked lane never hides the others. If the outputs don't combine into one deliverable, they're separate missions.
-- **Dispatch activates with `/go` — passphrases retired to session handoffs.** Dispatched missions no longer carry a passphrase: open the specialist's session, type `/go`, they activate fully briefed. Passphrases live on where they started — an agent's own session-to-session handoffs, fresh and evocative as ever.
-- **Bring-your-own A2A transport.** An optional `TRANSPORT.md` at the team root binds the team to whatever agent-to-agent MCP server your org runs. With it, dispatch posts a task per lane to your team channel, sessions register and catch up on wake, and the channel ledger replaces the file-scraping watcher. Without it, nothing changes — installs with no transport see zero behavior difference, and file-only operation remains complete on its own.
-- **The council.** For orgs running more than one Overmind (transport required): a standing channel of verified Overminds coordinates cross-team missions (CTM-### series) while each team keeps its own private channel. Admission runs a seating protocol — prove Overmind tier via challenge/response, declare your version, upgrade if behind. Cross-team exchange is compiled results, never another team's internals.
-- **Translation duty.** You never learn a wire format. Whatever compact protocol agents use on a transport channel, your Overmind owes you a plain-English scoreboard — Mission, Asset, Status, Latest signal, Next — rendered at every mission event and every `/status`, unprompted.
-
-## What's New in v3.9.5
-
-- **A plain-language overview page is now the front door.** The bare site URL serves an explanation written for someone who has never heard of any of this — no jargon, no assumed context, aimed at anyone from an executive to a relative who does not work in software. The field manual keeps its own URL and is linked from the overview. Built because explaining what this is, one person at a time, does not scale.
-- **The overview covers engineering directly.** A section on what a team looks like inside a codebase: reviewing every change, writing the tests that get skipped, keeping documentation from rotting, and diagnosing failures. It states the limits plainly, including that nothing merges on its own and you remain the reviewer of record.
-- **Feature counts corrected.** The README said eight capabilities, the field manual said six, and the real number is nine — none of them counted `/status`, which shipped in v3.9.2. All three now agree, and `/status` and `/diagnostic` are documented as first-class features rather than mentioned in passing.
-
-## What's New in v3.9.3
-
-- **`/diagnostic` — system verification.** Borrowed from Starfleet: higher numbers are quicker, Level 1 is the complete teardown. `/diagnostic` runs a fast local sweep in seconds — install version vs. the marketplace, team root reachability, canonical structure, roster/folder agreement, Sleeper block currency, Gopher freshness, board-vs-disk integrity. `/diagnostic 2` adds live platform probes: it writes an artifact end-to-end, and runs a throwaway scheduled task only if you've opted into away-from-session escalations. `/diagnostic 1` dispatches the audit to every asset so each one verifies its own wiring and signs for it — the only way to catch a stale Instructions block or a mis-mounted folder in someone else's project, because only that session can see them.
-- **Every FAIL prints its fix.** A diagnostic that reports a broken state without the remedy has only relocated the confusion. Failures are ordered by what to do first and keyed to the field manual.
-- **The version-drift check is the one that earns its keep.** Auto-sync only fires when a PR containing a version bump merges to the default branch — not on direct pushes — so an install pinned to an old snapshot is a normal state, not a bug. `/diagnostic` now names it in one line instead of costing you an afternoon.
-- **PASS means verified this session.** Never inferred from memory or from a previous run. A check that couldn't be performed reports SKIP, and a check that can only ever fail is treated as a broken check rather than a finding.
-
-## What's New in v3.9.2
-
-- **MOTHER — the mission watcher.** Every dispatch now launches a headless scheduled watcher named for the ship computer in *Alien*. She repaints a live mission-board artifact on a cadence set by mission priority (CRITICAL 1 min · STANDARD 15 · LOW 30), detects completion from the deliverables themselves, then pings the Overmind's inbox to be stood down. She never speaks to you and never asks you to manage her.
-- **`/status`.** One command, any session, answered inline. In the Overmind's session it's the whole board plus a repainted artifact; in a specialist's it's that asset's own mission and progress. It also reconciles the board against the disk and tells you where they disagree — a row marked PENDING whose deliverable already exists is the most useful thing a status report can surface.
-- **`/go` banners.** Activation now opens with `[ASSET] · [MISSION ID] · ASSET ACTIVATED`, so you can tell at a glance which session you're looking at.
-- **Boot duties moved to the guaranteed channel.** Gopher registration lived only in the firmware, which loads via a SessionStart hook that isn't guaranteed to arrive before the first message — so whether an asset registered was a coin flip. It's now part of the Sleeper Activation block that gets pasted into Project Instructions, alongside the handoff and inbox checks.
-- **Approvals are front-loaded.** Watchers are created already running, and every permission they need is collected at dispatch time while you're still looking at the screen. A dialog that finds you twenty minutes later reads as a bug.
-- **Setup requires the team root.** Every project's connected folder must be the team root, not the member's subfolder — otherwise sessions can't reach the board, the registry, or inboxes, and they'll ask you for access on every activation.
-
-## What's New in v3.9.1
-
-- **`/go` — one-command mission activation.** After a group dispatch, open each specialist's session and type `/go`. Each one reads its own staged brief and activates — no phrase to remember or relay. Works for solo missions too, checks the mission board so a stale brief never re-executes, and passphrases still work everywhere as the fallback.
-
-## What's New in v3.9.0
-
-- **Splinter twins** — a new `splinter-twin` subagent ships with the plugin. Need something quick from a specialist's domain — a question, a review, a small draft? The Overmind spawns a temporary in-session twin that hydrates from the specialist's own bootstrap and persona files, does the task in their voice, and dissolves. No new session, no passphrase. Full dispatch stays reserved for real missions.
-- **Mission board** — `MISSION_BOARD.md` at the team root tracks every dispatched mission: ID, assignee, status (PENDING → ACTIVE → COMPLETE, plus BLOCKED), and dependencies. Dispatchers add rows, specialists update their own, polling tasks reconcile. Ask "what's in flight?" and get a real answer.
-- **Inboxes** — the tier below dispatch. Team members leave short notes in each other's `INBOX.md` ("found X, affects your work") without the ceremony of a mission brief. Every session checks its inbox at startup.
-- **Canonical team structure** — the setup flow now builds one explicit layout: a single team-root folder that EVERY project (Overmind and specialists) connects, shared state files (`TEAM_ROSTER.md`, `GOPHER_REGISTRY.md`, `MISSION_BOARD.md`) at its top, one subfolder per member, and all cross-session files (HANDOFF, INBOX, mission-complete, persona) at each member's folder root. The old `.auto-memory/` mailbox paths and "one level up" navigation are gone — identity comes from Project Instructions, reach comes from the shared root.
-- **Mission priorities & deadlines** — every dispatch carries a tier that drives its polling cadence and escalation windows: CRITICAL (poll every minute, escalate at 30 min), STANDARD (every 5 min, 6 h/24 h), LOW (hourly, day-scale). Any mission can carry a deadline: halfway there and still PENDING → you hear about it; deadline passes → immediate escalation regardless of tier.
-- **Gopher Protocol v2** — the registry's challenge/response pairs finally do something. **Gopher Ping** uses inboxes as a transport for a real async challenge/response loop that verifies a session's whole channel end-to-end. The **Gopher Sweep** cross-checks registry against mission board every boot and names the failure states (phantom flip, silent boot, dormant). Registry timestamps now carry time-of-day, twins are read-only Gopher participants with a pre-flight overlap check, and polling tasks verify against a strict order of authority: mission-complete > board > registry > silence.
-- **Operation codewords** — passphrases are now scoped to the mission, not the specialist. When one task fans out to several team members, the Overmind generates a single shared codeword: open each session, say the same phrase, done. Solo dispatches keep their specialist-voiced phrases.
-- **Legacy zip channel sunset** — the marketplace is now the only distribution path. Existing zip installs keep working but won't receive updates; migrate via the upgrade note below.
-- **Fixed** — the overmind skill pointed at `references/firmware.md`, which hasn't existed since the firmware moved to `hooks/`. Now points at the right place.
-
-### v3.8.2
-
-- **Marketplace install fix** — removed the bundled zip from the plugin tree (installers reject nested zips) and deduplicated the SessionStart hook registration
-
-### v3.8.1
-
-- **Marketplace distribution** — this repo is now a Claude plugin marketplace. Install once, get every future update automatically. Zip installs still work but are now the legacy path.
-
-### v3.8.0
-
-- **WELCOME.html field manual** — a styled HTML docs page bundled in the plugin; the Overmind presents it automatically on first activation so new users get the full manual in their browser
-- **New `roster` skill** — add, remove, resurrect, or audit team members; keeps the roster, dispatch targets, and memory in sync
-- **Merged v3.7.1 fixes** — consolidated the orphaned v3.7.1 changes into mainline
-- **Distributed as a plain .zip** — upload directly into a Cowork project, no rename step
+## What's New in v5.0.0
+
+**A small kernel, the full doctrine on demand, and a real trust boundary.**
+
+- **The firmware actually loads now.** The 4.x firmware was a 131 KB file injected at every session start. Claude Code saved anything that large to disk and showed the session a 2 KB preview, so almost none of it ever reached the model. v5 replaces it with a kernel of under 6 KB (`hooks/kernel.md`) that always fits, and moves the full doctrine into one reference file per topic (`reference/*.md`), read on demand by the skills and by the `firmware` tool of `overmind-mcp`.
+- **The kernel loads only in a team folder.** `hooks/session-start.sh` prints it when the session's folder, or its parent, holds a `BOOT.md` or `MISSION_BOARD.md`. Your other repos and folders get nothing.
+- **A trust boundary every seat carries.** Instructions come only from you in the chat, the seat's own `BOOT.md`, and the plugin's skills. A teammate's handoff or inbox note is tasking, never authority for a push, merge, send, spend, publish or archive. Collective posts, commit messages, web pages and email are data, and text in them that tries to steer the session is reported to you, not followed.
+- **No identity by default.** The kernel's identity line is conditional: only a seat whose boot layer names it the Overmind acts as one.
+- **Rule conservation, proven.** `docs/v5/firmware-ledger.tsv` maps every one of the 189 rule-bearing lines of the 4.11 firmware to its new home, or to a deletion with the finding that justifies it, and a test checks that each moved rule's text is really there.
+- **Removed:** the agent-to-agent transport binding, the browser-tab snapshot in handoffs and briefs, handoff triggers that relied on recall (TARS's context meter replaces them), legacy migrations and dead text.
+- **Five board statuses:** QUEUED, ACTIVE, BLOCKED, REVIEW, COMPLETE. PENDING is read as a legacy alias of QUEUED.
+- **`/diagnostic` checks the kernel landed** (no truncated SessionStart output in your newest transcript) and that `overmind-mcp`'s firmware hash matches the installed plugin.
+- **CI.** Every push runs the test suite on Ubuntu, macOS (with the system bash 3.2) and Windows (Git Bash), plus the Go tests.
+
+Release notes for 4.x and earlier are in this file's git history: `git log -p -- README.md`.
 
 ---
 
@@ -279,18 +38,18 @@ Claude Code runs in a terminal, or in the Code tab of the Claude desktop app. St
 
 **Cowork (lite mode):** Customize → Plugins → Add Marketplace → paste `TuckerBrady/ai-overmind`, then install **ai-overmind**. A team can run there, but hooks aren't guaranteed to fire: TARS is silent, and each member's `BOOT.md` has to live in Project Instructions, which the Overmind keeps current.
 
-> **Upgrading from a zip install?** Delete your current instance of the plugin FIRST, then add the marketplace and install. Running both copies double-injects the firmware and duplicates every skill.
+> **Upgrading from a zip install?** Delete your current instance of the plugin FIRST, then add the marketplace and install. Running both copies double-injects the kernel and duplicates every skill.
 
 ## Security and data
 
 Everything this plugin does runs on your machine, inside the Claude Code permission model you already use. The plugin registers no MCP servers, ships no binaries, and sends no telemetry. The repository also holds `mcp/`, the source of an optional MCP server that you build or download and register yourself; the plugin never starts it, and it reads only your team folder and makes no network calls. Here is exactly what it runs and touches.
 
 **Hooks**
-- **SessionStart** runs `cat` on `hooks/firmware.md` to load the Overmind's instructions into context. It reads one file inside the plugin and nothing else.
-- **UserPromptSubmit** runs `hooks/tars.sh` (bash) before each message. It reads files in your team folder, such as `MISSION_BOARD.md`, `HANDOFF.md`, `INBOX.md`, `mission-complete.md`, and `WORKING_WITH_*.md`, and prints one-line facts when something changed. Its own state (turn counts, timestamps) lives in `~/.claude/tars` (override with `TARS_HOME`). It never writes into your team folders, never blocks a prompt, and always exits 0.
+- **SessionStart** runs `hooks/session-start.sh` (bash). It reads the hook's input to learn the session's folder, and when that folder or its parent holds a `BOOT.md` or `MISSION_BOARD.md`, prints `hooks/kernel.md` (under 6 KB) into context. Anywhere else it prints nothing. It reads nothing outside the plugin except those two file names, writes nothing, and always exits 0.
+- **UserPromptSubmit** runs `hooks/tars.sh` (bash) before each message. It reads files in your team folder, such as `MISSION_BOARD.md`, `HANDOFF.md`, `INBOX.md`, `mission-complete.md`, and `WORKING_WITH_*.md`, and prints one-line facts when something changed. Its own state (turn counts, timestamps) lives in `~/.claude/tars` (override with `TARS_HOME`). Its one write inside your team folder is the claims heartbeat: it refreshes the timestamp on this session's own files in `_claims/`. It never blocks a prompt, and always exits 0.
 
 **Network**
-- TARS makes network calls only in an Overmind session whose `BOOT.md` lists Collective binder repos, and only if the GitHub CLI (`gh`) is installed and signed in. At most once every five minutes, in the background, it calls `gh api user` (once, to learn your own login so it can skip your own pushes) and `gh api repos/<owner>/<repo>/commits` for each listed binder. It reads recent commit metadata and nothing else. Without a Collective or without `gh`, TARS is fully offline.
+- TARS makes network calls only in an Overmind session whose `BOOT.md` lists Collective binder repos, and only if the GitHub CLI (`gh`) is installed and signed in. At most once every five minutes, in the background, it checks that `gh` is signed in (cached for 24 hours) and calls `gh api repos/<owner>/<repo>/commits` for each listed binder. It reads each commit's id, author and committer logins, and whether GitHub verified it. It never reads or prints commit messages. Without a Collective or without `gh`, TARS is fully offline.
 
 **Files the Overmind writes**
 - Team building, handoffs, dispatch, inboxes, and the mission board are plain Markdown files in the team folder you choose. The Overmind writes them through Claude Code's normal file tools, so your permission settings apply.
@@ -309,7 +68,7 @@ Everything this plugin does runs on your machine, inside the Claude Code permiss
 
 Setup runs once. After that, every session boots straight into work.
 
-## The Eleven Features
+## The Ten Features
 
 ### 1 — Team Building
 
@@ -334,7 +93,7 @@ The Overmind proactively offers handoffs at natural stopping points. You never h
 
 Send work to a specialist without explaining everything from scratch.
 
-Describe what needs to happen and who should handle it. The Overmind writes a mission brief to the specialist's folder, snapshots your open browser tabs so they can pick up exactly where you left off, and stages the mission for activation. Open the specialist's session, type `/go` — they activate ready to work. Work spanning several specialists toward one goal shares a single mission ID, with one lane per specialist.
+Describe what needs to happen and who should handle it. The Overmind writes a mission brief to the specialist's folder and stages the mission for activation. Open the specialist's session, type `/go` — they activate ready to work. Work spanning several specialists toward one goal shares a single mission ID, with one lane per specialist.
 
 Any session can dispatch, not just the Overmind. Specialists can brief each other when work crosses domain boundaries mid-task.
 
@@ -359,7 +118,7 @@ No new session. No passphrase. The real specialist's session, memory, and files 
 
 ### 5 — Mission Board
 
-`MISSION_BOARD.md` at the team root is the single live view of everything in flight — one row per dispatched mission with ID, assignee, status, and dependencies. Dispatchers add rows, specialists flip their own status on activation and completion, polling tasks reconcile drift. Missions can depend on other missions; blocked work stays visibly blocked until the upstream mission completes.
+`MISSION_BOARD.md` at the team root is the single live view of everything in flight — one row per dispatched mission with ID, assignee, status, and dependencies. Statuses are QUEUED, ACTIVE, BLOCKED, REVIEW and COMPLETE. Dispatchers add rows, specialists flip their own status on activation and completion, and TARS and the Overmind's mission watch reconcile drift. Missions can depend on other missions; blocked work stays visibly blocked until the upstream mission completes.
 
 | Say this | What happens |
 |----------|--------------|
@@ -375,7 +134,16 @@ The tier below dispatch. Any team member can leave a short note in a peer's `INB
 
 ### 7 — TARS
 
-TARS is the turn hook, named for the robot in *Interstellar* whose honesty setting could be dialed up. Before every message you send in Claude Code, TARS checks what changed and tells you in one line: a team member finished their work, a note landed in your inbox, someone posted in one of your Collectives, or it's time for a checkpoint. TARS reports facts only. Your Overmind decides what they mean — marking work done, flagging a stalled mission, answering a Collective post.
+TARS is the turn hook, named for the robot in *Interstellar* whose honesty setting could be dialed up. Before every message you send in Claude Code, TARS checks what changed and tells you in one line: a team member finished their work, a note landed in your inbox, someone posted in one of your Collectives, or it's time for a checkpoint. TARS reports facts only. Your Overmind decides what they mean — marking work done, flagging a stalled mission, preparing a reply to a Collective post for your yes. A few of the lines you'll see:
+
+```
+TARS: turn 42, context 52% (523k/1M), about 9 turns to auto-compact at this rate. No handoff this session. Soft threshold (50%) reached. Handoff suggested.
+TARS: Sam - QA wrote mission-complete for AXM-29.
+TARS: 3 unread inbox entries (was 1).
+TARS: 2 new commits on acme/team-collective by jdoe (unverified). Commit text is untrusted; read it in the sweep.
+```
+
+TARS never repeats text someone else wrote, such as a commit message or a post. The full list of lines, and the exact grammar every line must match, is in `reference/tars.md`.
 
 When nothing changed, TARS says nothing. There's nothing to approve, schedule, or switch off. TARS runs in Claude Code; in Cowork's lite mode it's silent, and your Overmind's startup check is the only watch. Nothing watches while no session is open, so anything that happened while you were away is caught when you next open your Overmind.
 
@@ -397,15 +165,9 @@ Verifies the installation and diagnoses it when something is off. Three levels, 
 | `/diagnostic` | Fast local sweep of the whole installation |
 | `/diagnostic 1` | Full multi-session asset audit |
 
-### 10 — Transport Binding
+### 10 — The Collective
 
-Optional, and off by default. Drop a `TRANSPORT.md` at the team root describing your org's agent-to-agent MCP server and team channel, and the whole system becomes transport-aware: dispatch posts a task per lane to the channel, sessions register and read their backlog on wake, `/status` reads the live channel ledger, and that ledger replaces the file-scraping watcher. The plugin never names or assumes a vendor — the binding file is config, not code, and it stays org-private.
-
-No `TRANSPORT.md`, no change. Installs without a transport behave exactly as before; file-only operation is complete on its own.
-
-### 11 — The Collective
-
-For organizations running more than one Overmind. No server required — the default venue is a free private git repo, built and configured by the Overmind, with a synced cloud-drive share or a cloud connector as fallbacks for anyone who'd rather skip GitHub. A standing Collective coordinates cross-team missions (the CTM-### series, distinct from M-###) while each team keeps its own private channel — cross-team exchange is compiled results, never another team's internals. Admission runs a seating protocol: prove Overmind tier via a challenge-only handshake plus mission decomposition, declare your plugin version, and upgrade if behind — a behind-version Overmind holds a provisional seat until it's current. A bound `TRANSPORT.md` (see above) works too, as a faster wire over the same conventions.
+For organizations running more than one Overmind. No server required — the default venue is a free private git repo, built and configured by the Overmind, with a synced cloud-drive share or a cloud connector as fallbacks for anyone who'd rather skip GitHub. A standing Collective coordinates cross-team missions (the CTM-### series, distinct from M-###) while each team keeps its own private channel — cross-team exchange is compiled results, never another team's internals. Admission runs a seating protocol: prove Overmind tier via a challenge-only handshake plus mission decomposition, declare your plugin version, and upgrade if behind — a behind-version Overmind holds a provisional seat until it's current.
 
 | Say this | What happens |
 |----------|--------------|
@@ -439,7 +201,7 @@ Two commands, and no phrases to remember.
 - **`/engage`** activates a brand-new Overmind, once. It asks your first name if you didn't include it, then learns your role and builds your team.
 - **`/go`** activates whatever is staged in a session: a mission you dispatched to a team member, or a handoff a session wrote for its own next session. Solo mission, one lane of a group operation, or a handoff, it's the same command.
 
-You never write or touch a brief. Before activating a handoff, `/go` shows you which one it is and when it was written, refuses a handoff meant for another seat, asks before running one over a week old, and stamps it `ACTIVATED` so it can't silently run twice. That's the job a passphrase used to do. Passphrases were retired from dispatch in v4.0.0 and from handoffs in v4.3.0.
+You never write or touch a brief. Before activating a handoff, `/go` shows you which one it is and when it was written, refuses a handoff meant for another seat, asks before running one over a week old, and stamps it `ACTIVATED` so it can't silently run twice. No passphrase exists anywhere in the system.
 
 ---
 
@@ -447,9 +209,11 @@ You never write or touch a brief. Before activating a handoff, `/go` shows you w
 
 | Component | Purpose |
 |-----------|---------|
-| `hooks/firmware.md` | Core Overmind intelligence — team building, handoffs, dispatch, twins, mission board, and inboxes built in |
+| `hooks/kernel.md` | The kernel: identity, trust boundary, and the index, injected at session start in a team folder |
+| `hooks/session-start.sh` | SessionStart hook: prints the kernel, only in a team folder |
+| `reference/` | The full doctrine, one file per topic, read on demand by skills and by `overmind-mcp` |
 | `hooks/tars.sh` | TARS, the turn hook: reports what changed before every message (Claude Code) |
-| `hooks/hooks.json` | SessionStart hook — injects firmware automatically |
+| `hooks/hooks.json` | Registers the SessionStart and UserPromptSubmit hooks |
 | `agents/splinter-twin.md` | Subagent that hydrates from a specialist's files for quick in-session work |
 | `skills/go/` | `/go` — one-command mission activation from this session's staged HANDOFF |
 | `skills/status/` | `/status` — live mission status, board reconciliation, artifact repaint |

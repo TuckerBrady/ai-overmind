@@ -40,8 +40,8 @@ Look for `WORKING_WITH_*.md` at the team root (the folder holding `MISSION_BOARD
 folder, its parent).
 
 - **Found:** read its `## Initiative setting: N%` heading.
-- **Missing:** this team predates v4.5.0. In the Overmind's session, run the firmware's WORKING WITH
-  YOUR HUMAN upgrade: ask the onboarding question, create the file from the template, and add the
+- **Missing:** this team predates v4.5.0. In the Overmind's session, run the existing-teams upgrade in
+  `../../reference/initiative.md`: ask the onboarding question, create the file from the template, and add the
   import to every member's BOOT.md in the same pass. In a specialist's session, tell the human the
   Overmind sets it up, and write a `WORKING-STYLE` entry to the Overmind's INBOX.md with the level
   the human asked for.

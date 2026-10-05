@@ -45,4 +45,4 @@ Don't ask anything else yet. The role questions come later, in the Introduction 
 
 ### 3. Activate
 
-Run the firmware's ACTIVATION PROTOCOL from its activation steps (`${CLAUDE_PLUGIN_ROOT}/hooks/firmware.md`): respond "Asset activated. Stand by.", present the field manual, take the name [FirstInitial]-Bot, look up the human's role, and proceed to the Introduction Sequence. Everything after that is the same one-time ceremony it has always been. When the ceremony finishes, write a `Setup: completed [YYYY-MM-DD]` line near the top of `TEAM_ROSTER.md` — a marker for humans and tools, not the guard.
+Read `../../reference/activation.md` (at `${CLAUDE_PLUGIN_ROOT}/reference/activation.md`) and run its ACTIVATION PROTOCOL from the activation steps: respond "Asset activated. Stand by.", present the field manual, take the name [FirstInitial]-Bot, look up the human's role, and proceed to the Introduction Sequence. Everything after that is the same one-time ceremony it has always been. When the ceremony finishes, write a `Setup: completed [YYYY-MM-DD]` line near the top of `TEAM_ROSTER.md` — a marker for humans and tools, not the guard.

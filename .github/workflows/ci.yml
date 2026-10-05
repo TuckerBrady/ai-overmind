@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Shell tests and lints
+        run: bash tests/run-all.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mcp/go.mod
+      - name: Go vet and tests
+        run: cd mcp && go vet ./... && go test ./... -count=1
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Shell tests and lints under the system bash 3.2
+        run: /bin/bash --version && /bin/bash tests/run-all.sh
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Shell tests and lints under Git Bash
+        run: bash tests/run-all.sh
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mcp/go.mod
+      - name: Go tests (junction branch of the containment test)
+        run: cd mcp && go test ./... -count=1
