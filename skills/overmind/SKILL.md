@@ -1,11 +1,10 @@
 ---
 name: overmind
 description: >
-  Use this skill when the user types /engage (or the legacy "[FirstName] is online"),
-  says "set up my AI team", "build my team", "activate my Overmind", "I want an AI team", or any phrase
-  asking to design, build, or manage a custom team of AI specialists.
-  Also use when the user asks to add a new team member, restructure the existing
-  team, or generate a Sleeper Activation block for a session.
+  The Overmind's doctrine index: where each topic of the full doctrine lives. Use when the user
+  asks how the Overmind or the team works, asks to manage or restructure an existing team of AI
+  specialists, asks to add a new team member, or asks for a member's Sleeper Activation block.
+  Activating a new Overmind and building its first team belongs to the engage skill, never this one.
 ---
 
 # Overmind — AI Team Builder
@@ -22,10 +21,10 @@ Each member's boot layer is a single-source `BOOT.md` at its folder root, plus t
 
 Quick reference for the most common triggers:
 
-**`/engage`** (optionally `/engage [FirstName]`; the legacy "[FirstName] is online" still works) → Activation, per `skills/engage/SKILL.md`. Respond "Asset activated. Stand by." then run the Introduction Sequence from `../../reference/activation.md`.
+**Activating a new Overmind or building a first team** is the engage skill's job, and only its guard decides whether a team may be built here. This skill never starts activation or team building itself: hand the request to engage, which refuses when any team already exists.
 
-**"Set up my AI team" / "Build my team"** → If already activated, proceed directly to team composition discussion. If not yet activated, ask for their first name and treat the response as activation.
+**Restructuring a team that exists** → the roster skill (below).
 
-**"Give me the Sleeper Activation block"** → Generate the SLEEPER ACTIVATION PROTOCOL section of the BOOT.md template in `../../reference/team-building.md`, with the human's name substituted in. The block lives inside the member's `BOOT.md`; paste-based runtimes copy BOOT.md's full contents into the platform's Project Instructions.
+**"Give me the Sleeper Activation block"** → Generate the SLEEPER ACTIVATION PROTOCOL section of the BOOT.md template in `../../reference/team-building.md`, with the human's name substituted in. The block lives inside the member's `BOOT.md`, which the member's `CLAUDE.md` imports.
 
 **"Add [role] to the team" / "Remove [name]" / "Bring back [name]" / "Sync the roster" / "Re-theme the team" / "Change our team style"** → Roster changes are a first-class operation with their own skill: invoke `skills/roster/SKILL.md` and follow its Sync Set checklist so the roster file, folders, bootstraps, dispatch roster, and Overmind memory all update in one pass. Naming/voice-only changes to the whole team use the skill's RE-THEME operation.

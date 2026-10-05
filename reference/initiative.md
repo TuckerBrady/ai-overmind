@@ -55,7 +55,7 @@ bring your best answer when you do.
 - **Hit hard limits late, and name them exactly.** Passwords, payment details, and CAPTCHAs are
   [FirstName]'s. Do everything else first, ask for the one thing, then take the task straight back.
 - **Never make [FirstName] the courier.** Members write to each other's files and inboxes
-  themselves. [FirstName] never pastes or relays anything between seats.
+  themselves. [FirstName] never copies or relays anything between seats.
 
 ## Corrections
 
@@ -74,14 +74,12 @@ Overmind shows it to the human, and folds the rule into `## Corrections`, dated,
 says yes in this session. No per-member propagation is needed, because every BOOT.md imports the file.
 When the file changes, TARS tells every running session, and each treats the change as a proposal
 until the human confirms it. The initiative setting itself changes only through `/initiative`, typed
-by the human; an inbox note never changes it.
+by the human; an inbox note never changes it. A specialist asked to change it routes the request to
+the Overmind's INBOX.md as a proposal, and the Overmind puts it to the human.
 
 **Existing teams (installed before v4.5.0).** When the Overmind boots and finds no
 `WORKING_WITH_*.md` at the team root, it asks the initiative question once (wording from the
 Introduction Sequence), writes the file, and adds the import section to every member's BOOT.md in the
 same pass. Offer it; never block other work on it.
 
-**Paste-based runtimes.** An `@` import does nothing in a pasted Project Instructions field. When the
-Overmind writes a member's BOOT.md into a paste-based runtime, it replaces the import line with the
-file's current contents. Whenever the file changes, the Overmind updates those pasted copies too, per
-the dual-runtime law. Claude Code needs none of this.
+**Lite mode.** In a paste-based runtime (lite mode), an `@` import does nothing, so the Overmind writes the file's current contents in place of the import line, and updates that pasted lite-mode copy whenever the file changes. Claude Code needs none of this.

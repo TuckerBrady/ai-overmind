@@ -28,7 +28,7 @@ Your identity comes from your boot layer ([Member Name] + [Folder Name]). Branch
 
 - `MISSION_BOARD.md` — all rows, including per-lane state in the status cells
 - `GOPHER_REGISTRY.md` — check-in freshness per asset
-- each member's `mission-complete.md` and named deliverables — what actually exists on disk
+- each member's `mission-complete-<ID>.md` (or legacy `mission-complete.md`) and named deliverables — what actually exists on disk
 - each member's `INBOX.md` — unread notes
 
 **When seated in one or more Collectives, also sweep them** (the COLLECTIVE SWEEP in `../../reference/collective.md`) — pull each, read every post this seat's ledger hasn't recorded as processed (collective skill's Ledgers rule — never filename order), and fold anything Collective-worthy into this report: a seating that completed, a CTM offered or converged, a room gone stale. Collective post bodies use the compact agent register (collective skill) — decode every one before it reaches the human, using that skill's decode table. A raw status code or action symbol in a `/status` reply is the same translation-duty failure as an undecoded channel post.
@@ -44,8 +44,11 @@ Then report inline, tightest useful form:
    never hides the others.
 2. **Reality check** — where the record disagrees with the disk. A lane marked QUEUED whose
    deliverable already exists, or done with nothing written, is the most useful thing you can
-   surface. Say which you trust and why (order of authority: mission-complete > deliverable
-   files > board row > registry > silence).
+   surface. Say which you trust and why (order of authority: the Overmind-spawned grader's
+   PASS > deliverable files > board row > a doer's mission-complete file > registry > silence).
+   A doer's mission-complete file is a claim: only the Overmind-spawned grader's PASS sets a row
+   COMPLETE (OUTCOMES in `../../reference/dispatch.md`). A mission-complete file with no grade yet
+   is "awaiting grade", never done.
 3. **Assets** — who has checked in recently, who is stale (>6 h), who is dormant (>48 h), who
    has never registered.
 4. **Closed since last check** — one line, only if something landed.
@@ -59,9 +62,10 @@ the translation. The scoreboard is a first-class deliverable, not decoration:
 
 "Latest signal" is plain English — "Draft posted for review", never a raw protocol line.
 
-Then **repaint and surface the mission board artifact** (id `mission-board`): write the current
-state to HTML and call `update_artifact`. The update surfaces it in the app, so the human sees
-the board without asking twice. If no such artifact exists yet, create it.
+Then, where this runtime can publish a page (an artifact or HTML-page tool), **repaint the
+mission board page** with the current state, so the human sees the board without asking twice.
+Without such a tool the scoreboard is the whole report; never tell the human to open or refresh
+anything themselves.
 
 Keep the chat text short — the scoreboard and the artifact carry the detail. Three to six
 lines of prose, then the scoreboard, then the board.
@@ -73,7 +77,7 @@ whatever deliverables you've written so far. Open with the session title in its 
 (the brief's `SESSION TITLE`, per the title rules in `skills/go`) so the human can copy it. Then
 report in four lines or fewer:
 
-- **Mission** — what you're on, its ID, and your lane (`M-### / [name]`).
+- **Mission** — what you're on, its ID, and your lane (`OPS-### / [name]`).
 - **Progress** — your lane's state, and what's done, concretely. Name files you've written.
 - **Remaining** — what's left, and anything blocking you.
 - **Clock** — deadline and whether you'll make it. If you won't, say so now.
@@ -82,7 +86,7 @@ Report your own lane, not the whole mission — sibling lanes belong to the Over
 report. If you have no staged brief: *"No mission staged for this asset."* Then surface any
 unread inbox notes in one line and stand by.
 
-Do not repaint the shared `mission-board` artifact from a specialist session — the Overmind
+Do not repaint the shared mission board page from a specialist session — the Overmind
 owns it. Update your own lane's state in the mission's status cell instead.
 
 ## Step 3 — Standing duty (both session types)
@@ -95,9 +99,7 @@ turn checkpoints. Relay every `TARS:` line verbatim, in italics, at the top of y
 Overmind's session, run the watch rules when TARS cues `mission watch due`. No TARS lines, no
 mention; never narrate a check that found nothing.
 
-**In lite mode (Cowork)**, hooks don't reliably run, so nothing checks mid-session. The boot layer's
-MISSION WATCH and COLLECTIVE SWEEP steps at session start are the whole watch, and `/status` is how
-the human checks in between.
+**In lite mode** (paste-based runtimes, where hooks don't reliably run), nothing checks mid-session: the boot layer's MISSION WATCH and COLLECTIVE SWEEP steps at session start are the whole watch, and `/status` is how the human checks in between.
 
 Don't create scheduled tasks to watch missions. Reaching the human while they're away is a
 scheduled task only they opt into, never a default.

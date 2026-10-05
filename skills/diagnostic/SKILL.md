@@ -17,7 +17,7 @@ Borrowed from Starfleet: **higher numbers are quicker, Level 1 is the complete t
 |---|---|---|---|
 | `/diagnostic` | 3 | Local sweep — install, structure, identity, board integrity | seconds |
 | `/diagnostic 2` | 2 | Level 3 + live platform probes (artifact, scheduled task, network) | ~3 min |
-| `/diagnostic 1` | 1 | Level 2 + every asset audits its own wiring and signs | ~10 min, needs the human |
+| `/diagnostic 1` | 1 | Level 2 + every asset audits its own wiring and signs | as each seat next runs |
 
 Default to **Level 3** when no level is given. Only escalate if the human asks, or if Level 3
 produces a FAIL whose root cause a deeper level would isolate — in that case say which level
@@ -32,7 +32,7 @@ you'd run and why, then let them choose.
    remedy has only relocated the confusion.
 4. **Never repair silently.** Two exceptions, both harmless and both reported: creating a
    missing `INBOX.md`, and refreshing your own stale Gopher row. Anything else — structural
-   moves, roster edits, Instructions changes — you propose, the human approves.
+   moves, roster edits, boot-layer changes — you propose, the human approves.
 
 ---
 
@@ -62,11 +62,10 @@ Run it first.
 
 ### B · Team root & structure
 
-**B1 — Team root reachable.** Read a file at the team root. If you cannot reach it, or the app
-prompts the human for folder access to complete this read → **FAIL.**
-*Fix:* this project's connected folder (Context) must be the **team root**, not the member's
-subfolder. Every project — the Overmind's and each specialist's — connects the same root;
-identity comes from Project Instructions, not from the mount.
+**B1 — Team root reachable.** Read a file at the team root: the folder holding `MISSION_BOARD.md`,
+which is this session's working directory or its parent. If you cannot reach it → **FAIL.**
+*Fix:* open the session in the member's own folder inside the team root (or, for the Overmind's
+first build, the team root itself), so the shared files sit at `.` or `..`.
 
 **B2 — Shared state present.** At the team root: `TEAM_ROSTER.md`, `GOPHER_REGISTRY.md`,
 `MISSION_BOARD.md`. Missing any → FAIL, *fix:* run the structure cleanup described in the
@@ -83,7 +82,7 @@ which is not the project folder. Missing `INBOX.md` → create it, then PASS wit
 Persona: `BOOT.md` has a `## Persona` section → PASS. No Persona section, but a legacy
 `feedback_[name]_persona.md` exists → WARN, *fix:* fold the file's content into BOOT.md verbatim
 as a `## Persona` section right after `## Identity`, stub the old file to a one-line pointer
-(never delete it without asking), and the Overmind updates any paste-based runtime.
+(never delete it without asking), and add a dated change-log line naming the author.
 Neither → FAIL, *fix:* regenerate the Persona section via
 the roster skill.
 
@@ -170,25 +169,26 @@ every member's `BOOT.md` imports it (`@../WORKING_WITH_[FIRSTNAME].md` under
 `## How to work with [name]`). No file → WARN, *fix:* the Overmind runs the existing-teams
 upgrade in `../../reference/initiative.md` (asks the initiative question once, writes the file, adds the import to every
 BOOT.md). Setting missing or not one of the five values → FAIL, *fix:* run `/initiative` and set it.
-A BOOT.md without the import, or a member file carrying a pasted copy of the rules instead of the
+A BOOT.md without the import, or a member file carrying its own copy of the rules instead of the
 import → FAIL, *fix:* replace it with the import section from the BOOT.md template in `../../reference/team-building.md`; the
 file is single-source. Unread `WORKING-STYLE` entries in the Overmind's INBOX.md → WARN, *fix:* show
 each to the human, and fold it into the file's `## Corrections` only on their yes.
 
 ### C · Identity & activation wiring
 
-**C1 — Identity resolves.** You can state your member name and folder from Project Instructions.
-If you cannot tell who you are → FAIL, *fix:* the Overmind writes this member's BOOT.md contents
-into the project's Instructions (generate it with `/overmind` if missing).
+**C1 — Identity resolves.** You can state your member name and folder from your boot layer
+(`BOOT.md`, loaded by the folder's `CLAUDE.md`). If you cannot tell who you are → FAIL, *fix:* open
+the session in the member's folder, and restore the `@BOOT.md` import in its `CLAUDE.md` (or
+regenerate BOOT.md with the roster skill if it's missing).
 
-**C2 — Sleeper block is current.** The block in your Instructions must contain all three boot
-duties — read `HANDOFF.md`, check `INBOX.md`, **write your row to `GOPHER_REGISTRY.md`** — and
+**C2 — Sleeper block is current.** The Sleeper block in your BOOT.md must contain all three boot
+duties — read the staged brief (`HANDOFF.md`), check `INBOX.md`, **register in `GOPHER_REGISTRY.md`** — and
 must accept `/go` as an activation trigger. A block missing the registration clause is the
 pre-v3.9.2 version: it registered only via the SessionStart hook, which is not guaranteed to
 arrive before the first message, making boot registration a coin flip. → FAIL, *fix:* regenerate
-and the Overmind updates the block for every project, not just this one. In the current layout the
-canonical source is the member's `BOOT.md` — edit there, and remember the dual-runtime law: a boot
-edit is not done until the Overmind has updated every paste-based runtime.
+the block from the template in `../../reference/team-building.md`, in every member's `BOOT.md`, not
+just this one, each edit with a dated change-log line naming its author (a member in lite mode also
+gets its pasted lite-mode copy updated).
 
 **C3 — Own Gopher row.** Your row exists in `GOPHER_REGISTRY.md`. Report its age: fresh (<6 h),
 stale (>6 h), dormant (>48 h), or absent. Absent or dormant → refresh it now and note that you
@@ -204,14 +204,14 @@ evidence lands, so a paper member usually means that tracking was skipped.
 membership (an `Overmind/.genesis-seed` exists AND a binder root is recorded in `COLLECTIVE.md`,
 memory, or the mission board). If so, the Overmind's `BOOT.md` must carry a COLLECTIVE SWEEP step
 naming every binder root. Membership without the boot step → FAIL, *fix:* append the canonical
-step from the COLLECTIVE SWEEP in `../../reference/collective.md`, then the Overmind updates any paste-based
-runtime per the dual-runtime law.
+step from the COLLECTIVE SWEEP in `../../reference/collective.md`, with a dated change-log line
+(and, in lite mode, the pasted lite-mode copy updated).
 This is the v4.1.1 field fix: a convener once sat 8 days deaf to its own binder because the sweep
 lived in doctrine, not in boot. Then check each ledger:
 
 - **Format.** A format-1 ledger (only `acked-through: <post-id>`) → FAIL, *fix:* migrate per the
-  collective skill's Ledgers rule and the Overmind carries the canonical sweep step into any
-  paste-based runtime. Filename-order catchup
+  collective skill's Ledgers rule and carry the canonical sweep step into the Overmind's BOOT.md.
+  Filename-order catchup
   permanently skips posts from any peer whose clock disagrees with yours.
 - **Skipped posts.** Any binder post whose `re:` target is at or below this seat's newest
   processed post (or its format-1 watermark), but which the ledger hasn't recorded as processed →
@@ -237,8 +237,11 @@ and say why.
   example a `cat` of a firmware file) → FAIL, *fix:* update the plugin to 5.0.0 or later.
 - **Boot step.** The Overmind's `BOOT.md` carries the **MISSION WATCH** step (canonical text in
   `../../reference/dispatch.md`, Step 5). Missing, or still titled **MOTHER — MISSION WATCH** → FAIL, *fix:*
-  replace it with the canonical step, then the Overmind updates any paste-based runtime per the
-  dual-runtime law.
+  replace it with the canonical step, with a dated change-log line naming the author.
+- **Twin guard.** The same `hooks/hooks.json` registers `PreToolUse` with matcher
+  `Write|Edit|MultiEdit|NotebookEdit|Bash` → `bash "${CLAUDE_PLUGIN_ROOT}/hooks/twin-guard.sh"`,
+  and `agents/splinter-twin.md` carries a `tools:` line. Either missing → FAIL, *fix:* update the
+  plugin to 5.0.0 or later.
 - **No duplicates.** Any other `UserPromptSubmit` hook that counts turns — in
   `~/.claude/settings.json` or the project's `.claude/settings*.json` → FAIL, *fix:* remove that
   registration; TARS owns checkpoints, and a second counter doubles them. Any `mother-watch-*` or
@@ -249,7 +252,8 @@ and say why.
 **D1 — Board parses**, and every assignee resolves to a roster member.
 
 **D2 — Board vs disk.** Same reality check as `/status`, order of authority:
-`mission-complete > deliverable files > board row > registry > silence`. A row marked QUEUED
+`the Overmind-spawned grader's PASS > deliverable files > board row > a doer's mission-complete file > registry > silence`
+(a doer's `mission-complete-<ID>.md` is a claim until graded). A row marked QUEUED
 whose deliverable already exists, or COMPLETE with nothing on disk, is a FAIL of bookkeeping —
 report which side you trust and why.
 
@@ -297,24 +301,32 @@ report SKIP-as-covered rather than fetching twice).
 ## LEVEL 1 — Complete teardown (multi-session audit)
 
 Everything in Level 2, plus the part no single session can fake: **each asset verifies its own
-wiring and signs for it.** This is the only way to catch a stale Instructions block or a
-mis-mounted Context in someone else's project, because only that session can see them.
+wiring and signs for it.** This is the only way to catch a stale boot layer or a session opened
+in the wrong folder in someone else's seat, because only that session can see them.
 
-The elegance here is that the test's mechanism *is* the thing under test. If dispatch, `/go`,
-boot registration, and inbox reporting all work, the audit completing is itself the proof. If
-activation is broken, the audit cannot finish — which is an unambiguous diagnosis, not a
-mystery.
+The elegance here is that the test's mechanism *is* the thing under test. If boot, the inbox
+sweep and registration all work, the audit completing is itself the proof. If a seat's boot is
+broken, its row never lands — which is an unambiguous diagnosis, not a mystery.
+
+**Level 1 never writes a HANDOFF.** A staged brief would supersede or bury real work in a seat's
+folder. The audit travels by inbox note, which every seat reads at boot.
 
 1. **Write the audit file** at the team root: `SETUP_AUDIT_[YYYY-MM-DD].md` — one row per roster
    member, columns: Asset · Role · Team root reachable · Board readable · Own INBOX exists ·
    Persona in BOOT.md · Gopher row at boot · Signed (HH:MM). Then a **Notes** section, one line per
    asset, "be specific."
 2. **Sign your own row first** as the Overmind, so the format is unambiguous.
-3. **Dispatch the audit** to every specialist via the dispatch skill — CRITICAL, one mission ID,
-   TARS watching per the dispatch rules, all approvals front-loaded.
-4. **Tell the human exactly one thing:** open each specialist session and type `/go`.
-5. **Collect and report** the full matrix when the rows land. TARS reports each row as it
-   lands; there is no watcher to stand down.
+3. **Ask every specialist by inbox note.** Append an `UNREAD` entry headed `SETUP AUDIT` to each
+   specialist's `INBOX.md`: a request to fill and sign their own row of the audit file, with the
+   wording below. It asks; it authorizes nothing else.
+4. **Reach the live seats yourself.** Where the desktop app's session tools are available
+   (`list_sessions`, `send_message`, loaded through tool search), send each open specialist
+   session one message pointing at its inbox note. Seats with no open session sign at their next
+   boot, when their inbox sweep surfaces the note. Never hand the human a list of sessions to go
+   open: report which rows are still waiting, and why, instead.
+5. **Collect and report** the full matrix as rows land. TARS reports inbox growth and each seat's
+   boot; there is no watcher to stand down. Report the matrix with any rows still unsigned, and
+   their seats' last Gopher times, rather than waiting on them.
 
 ### Wording the boot-registration check so it is answerable
 
@@ -327,14 +339,14 @@ structurally impossible and the check can only ever FAIL. Ask instead:
 > carried over from an earlier session, refresh it and say so.
 
 A check that cannot come back PASS is a broken check, not a finding. Walk every check from the
-asset's seat, under the exact activation path they'll use, before you dispatch it.
+asset's seat, under the exact boot path they'll use, before you send it.
 
 ---
 
 ## First run
 
 After `/overmind` builds a team for the first time, `/diagnostic` is the natural next command:
-it confirms the folders, roster, registry, and Instructions blocks all landed before the human
+it confirms the folders, roster, registry, and boot layers all landed before the human
 trusts the setup with real work. Recommend it once, in one line, and don't nag.
 
 When someone reports that their Overmind is "not working," run `/diagnostic` before asking them
