@@ -14,7 +14,7 @@ It needs no Python or Node, reads your team folder on your own disk, and sends n
 | `roster()` | Every seat: name, role, folder. |
 | `board(seat?, all?)` | Active rows of `MISSION_BOARD.md`, optionally only one seat's. |
 | `handoff(seat)` | The seat's staged `HANDOFF.md`: the newer of the folder-root copy and the legacy `.auto-memory` copy, with WRITTEN and ACTIVATED stamps. The other copy is reported. |
-| `inbox(seat, unread_only?)` | `INBOX.md` entries. An entry is read only when its header's last segment is `READ`; untagged counts as unread. |
+| `inbox(seat, unread_only?)` | `INBOX.md` entries. The status is the first ` — `-separated segment of the header whose first word is `READ` or `UNREAD` (brackets allowed); untagged counts as unread. |
 | `firmware(section?)` | The firmware this binary was built with: the topic index, or one topic. |
 
 It also serves each seat's boot as a resource, `overmind://seat/<seat>/boot`, and as a `boot`

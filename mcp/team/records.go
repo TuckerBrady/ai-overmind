@@ -164,16 +164,28 @@ type InboxEntry struct {
 
 var headerSegments = regexp.MustCompile(` (?:—|-) `)
 
-// EntryRead applies CONTRACT 3.3 to an entry header (the text after "## "):
-// the entry is read only when the last " — " or " - " segment, trimmed and
-// uppercased, is exactly READ. An untagged entry is unread.
-func EntryRead(header string) bool {
-	segs := headerSegments.Split(header, -1)
-	if len(segs) < 2 {
-		return false
+// EntryStatus applies amendment A-8 (which replaces CONTRACT 3.3) to an
+// entry header. Strip the leading "## ", split on " — " or " - ", and take
+// each segment's first whitespace-delimited token with any [ and ] removed.
+// The first token that is exactly READ or UNREAD is the status. With no
+// such token the entry is UNREAD. "(READ the spec)" and "READ-ONLY" are
+// never status. TARS applies the same rule.
+func EntryStatus(header string) string {
+	header = strings.TrimPrefix(strings.TrimSpace(header), "## ")
+	for _, seg := range headerSegments.Split(header, -1) {
+		fields := strings.Fields(seg)
+		if len(fields) == 0 {
+			continue
+		}
+		if tok := strings.Trim(fields[0], "[]"); tok == "READ" || tok == "UNREAD" {
+			return tok
+		}
 	}
-	return strings.ToUpper(strings.TrimSpace(segs[len(segs)-1])) == "READ"
+	return "UNREAD"
 }
+
+// EntryRead reports whether an entry header's A-8 status is READ.
+func EntryRead(header string) bool { return EntryStatus(header) == "READ" }
 
 // Inbox returns a seat's inbox entries, unread ones only when asked.
 func (t *Team) Inbox(s Seat, unreadOnly bool) ([]InboxEntry, error) {

@@ -305,35 +305,65 @@ func TestMCP2_StatusSplitInFlightAndTier(t *testing.T) {
 
 // ---- MCP-3: inbox status segment -------------------------------------
 
-func TestMCP3_InboxStatusSegmentOnly(t *testing.T) {
+// TestMCP3_InboxStatusA8 pins amendment A-8 (replaces 3.3): the first
+// segment whose first token is READ or UNREAD decides; otherwise unread.
+func TestMCP3_InboxStatusA8(t *testing.T) {
+	cases := []struct{ header, want string }{
+		{"## 2026-10-01 — READ — Spec review", "READ"},                         // status mid-header
+		{"## 2026-10-02 — From T-Bot — READ", "READ"},                          // status at the end
+		{"## [UNREAD] 2026-10-03 — From Nash — merge note", "UNREAD"},          // bracketed lead
+		{"## [READ] 2026-10-03 — From Nash", "READ"},                           // bracketed lead
+		{"## READ 2026-09-14 23:20 — From Vaughn — gate results", "READ"},      // READ <date>
+		{"## 2026-10-04 — From Pierce — READ (closed by Nash)", "READ"},        // READ (closed by ...)
+		{"## UNREAD — 2026-10-05 — From Ledger — budget", "UNREAD"},            // leading status
+		{"## 2026-10-01 — From T-Bot (READ the spec) — subject", "UNREAD"},     // decoy
+		{"## 2026-10-04 — From T-Bot — READ-ONLY audit of the repo", "UNREAD"}, // decoy
+		{"## 2026-10-04 — From Nash — please READ before merge", "UNREAD"},     // not first token
+		{"## 2026-10-01 — From T-Bot (READ the spec) — UNREAD", "UNREAD"},
+		{"## 2026-10-06 — UNREAD — From Vaughn — READ later", "UNREAD"}, // first status wins
+		{"## 2026-10-06 — READ — re: UNREAD backlog", "READ"},
+		{"## 2026-10-05 - From Nash - READ", "READ"},      // hyphen separator
+		{"## 2026-10-06 — From Vaughn —  READ  ", "READ"}, // padded
+		{"## 2026-10-07 — From Vaughn — read", "UNREAD"},  // exact match only
+		{"## 2026-10-07 — From Vaughn — READ?", "UNREAD"},
+		{"## 2026-10-03 — From T-Bot", "UNREAD"}, // untagged
+		{"## READ", "READ"},
+		{"##  — ", "UNREAD"},
+		{"", "UNREAD"},
+	}
+	for _, c := range cases {
+		if got := EntryStatus(c.header); got != c.want {
+			t.Errorf("EntryStatus(%q) = %s, want %s", c.header, got, c.want)
+		}
+		if EntryRead(c.header) != (c.want == "READ") {
+			t.Errorf("EntryRead(%q) disagrees with EntryStatus", c.header)
+		}
+	}
+	// The same rule through Inbox, on a real file.
 	dir := t.TempDir()
 	seat := filepath.Join(dir, "Sam - QA")
 	w(t, filepath.Join(seat, "BOOT.md"), "You are **Sam**\n")
-	w(t, filepath.Join(seat, "INBOX.md"),
-		"## 2026-10-01 — From T-Bot (READ the spec) — UNREAD\nbody\n"+
-			"## 2026-10-02 — From T-Bot — READ\nbody\n"+
-			"## 2026-10-03 — From T-Bot\nuntagged\n"+
-			"## 2026-10-04 — From T-Bot — READ-ONLY audit of the repo\nnever processed\n"+
-			"## 2026-10-04 — From Nash — please READ before merge\nnever processed\n"+
-			"## 2026-10-05 - From Nash - read \nhyphen form, read\n"+
-			"## READ\nno separator at all\n")
+	var b strings.Builder
+	want := 0
+	for _, c := range cases[:len(cases)-2] {
+		b.WriteString(c.header + "\nbody\n\n")
+		if c.want == "UNREAD" {
+			want++
+		}
+	}
+	w(t, filepath.Join(seat, "INBOX.md"), b.String())
 	tm := open(t, dir)
-	s := mustSeat(t, tm, "Sam")
-	got, err := tm.Inbox(s, true)
+	got, err := tm.Inbox(mustSeat(t, tm, "Sam"), true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var heads []string
-	for _, e := range got {
-		heads = append(heads, e.Header)
-	}
-	if len(got) != 5 {
-		t.Fatalf("unread = %d, want 5 (UNREAD, untagged, two READ-in-subject, no separator): %q", len(got), heads)
+	if len(got) != want {
+		t.Errorf("Inbox unread = %d, want %d", len(got), want)
 	}
 }
 
-// TestMCP3_SharedInboxFixture runs the 3.3 rule over the fixture TARS
-// shares (GAP-27). The fixture states its own expected count.
+// TestMCP3_SharedInboxFixture runs the A-8 rule over the fixture TARS
+// shares (A-8, formerly GAP-27). The fixture states its own expected count.
 func TestMCP3_SharedInboxFixture(t *testing.T) {
 	root := filepath.Join("..", "testdata", "inbox-rule")
 	raw, err := os.ReadFile(filepath.Join(root, "Sam - QA", "INBOX.md"))
@@ -352,9 +382,13 @@ func TestMCP3_SharedInboxFixture(t *testing.T) {
 	if len(got) != want {
 		t.Errorf("unread = %d, want %d", len(got), want)
 	}
-	for _, e := range got {
-		if !strings.Contains(e.Body, "unread") {
-			t.Errorf("entry counted unread but its body says otherwise: %q", e.Header)
+	all, _ := tm.Inbox(mustSeat(t, tm, "Sam"), false)
+	if len(all) != 17 {
+		t.Errorf("entries = %d, want 17 (the fenced template is not an entry)", len(all))
+	}
+	for _, e := range all {
+		if e.Unread != strings.HasPrefix(e.Body, "unread:") {
+			t.Errorf("unread=%v but the body says otherwise: %q", e.Unread, e.Header)
 		}
 	}
 }
