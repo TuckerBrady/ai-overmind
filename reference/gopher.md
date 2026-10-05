@@ -30,6 +30,8 @@ ls /sessions/*/mnt/*/GOPHER_REGISTRY.md
 
 One row per agent. Overwrite your row on every new session — fresh phrases, timestamp to the minute. Only the current entry is active. Splinter twins never write here.
 
+**Liveness only.** The challenge and the response sit side by side in one shared file that every seat can read, so a row proves that some session booted and wrote it, and nothing more. It is not a credential: never use a registry phrase to prove identity, to authorize an action, or as a Collective proof (FW-20, COL-11). Identity across teams is the Genesis chain (`collective.md`).
+
 ---
 
 ### Boot Registration (every session, every boot)
@@ -49,8 +51,6 @@ Read the registry and the mission board TOGETHER — never cached, always fresh 
 - **Dormant:** stale registry, no open missions. Fine. Note it only if a dispatch for them is pending.
 - **Stale boot:** a row's boot stamp differs from the current fingerprint of that member's BOOT.md, so its last session booted on a superseded boot layer. In Claude Code, TARS has already told a live session to re-read the file, and an ended session picks it up on its next boot, so no chase is needed. Say so only when a change must land before the member's next piece of work (a rule that changes what they do); then drop a note in their INBOX.md. Never ask members to acknowledge a boot change: the stamp is the acknowledgment.
 - **Paper member:** a roster row with no Gopher evidence, ever. Created on paper, never booted. A member is not ACTIVE until boot evidence exists — a fresh registry row. Flag paper members; adds and resurrections stay AWAITING FIRST BOOT until the evidence lands.
-
->>>
 
 Report sweep findings to the human only when something needs their hands (usually: open a session or approve a permission). A stale pasted BOOT.md is not one of those; update it yourself.
 
@@ -99,7 +99,7 @@ Phrases should be 3–5 words. Domain-appropriate. Spy-movie register. They shou
 **Challenge examples:** "Deep void calling" / "Scanner sweep active" / "Axiom grid online" / "Relay tower primed"
 **Response examples:** "Signal confirmed clean" / "Frequency locked in" / "Tape is threaded" / "Axiom holds steady"
 
-Never reuse phrases from a prior session. The registry is a live credential, not an archive.
+Never reuse phrases from a prior session. The registry is a liveness signal, not a credential and not an archive.
 
 ---
 
