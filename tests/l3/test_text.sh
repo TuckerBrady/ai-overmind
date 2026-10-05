@@ -123,4 +123,18 @@ b=$(printf '{"cwd":"%s"}' "$tmp/team/Seat" | CLAUDE_PLUGIN_ROOT="$root" bash "$r
 echo "  emitted=$b bytes"
 [ "$b" -gt 0 ] && [ "$b" -le 5940 ] && pass || fail "$b bytes"
 
+t "A-19: diagnostic B8/C5 use the v5 seed path and drop the ledger floor check"
+d=$(tr -d '' < skills/diagnostic/SKILL.md)
+b8=$(printf '%s
+' "$d" | awk '/^\*\*B8 /{on=1} /^\*\*B9 /{on=0} on')
+c5=$(printf '%s
+' "$d" | awk '/^\*\*C5 /{on=1} /^\*\*C6 /{on=0} on')
+case $b8 in *'`~/.claude/overmind/genesis-seed`'*) ;; *) fail "B8 path" ;; esac
+case $c5 in *'~/.claude/overmind/genesis-seed'*) ;; *) fail "C5 path" ;; esac
+printf '%s
+' "$c5" | grep -n 'floor' | none "C5 floor check"
+
+t "A-19: reference/activation.md notes the CTM-LANE board limit"
+tr -d '' < reference/activation.md | grep -q 'v5 limit, CTM lanes.*COLLECTIVE_BOARD.md. at the team root' && pass || fail "note missing"
+
 finish

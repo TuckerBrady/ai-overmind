@@ -102,7 +102,7 @@ if [ $dispatched -eq 1 ] && [ "$mission" = NONE ]; then
   refuse NO_BOARD_ROW "a dispatched brief must name its mission ID"
 fi
 if [ "$mission" = INVALID ]; then
-  refuse NO_BOARD_ROW "MISSION '$HDR_MISSION_RAW' holds no mission ID (2-10 character prefix, dash, number)"
+  refuse NO_BOARD_ROW "MISSION '$HDR_MISSION_RAW' holds no mission ID (a capital letter, up to nine more capitals or digits, a dash, a number)"
 fi
 
 parent=$(cd "$seatdir/.." 2>/dev/null && pwd -P) || parent=""

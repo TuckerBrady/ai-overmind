@@ -82,8 +82,13 @@ brief "$b/lane.md" DISPATCH Nash OPS-031 "2026-10-05 09:00" "DISPATCHED BY: T-Bo
 refusal "this seat's lane is COMPLETE" NO_BOARD_ROW "$b/lane.md"
 brief "$b/nodisp.md" DISPATCH Nash NONE "2026-10-05 09:00" "DISPATCHED BY: T-Bot"
 refusal "a dispatch with no mission ID" NO_BOARD_ROW "$b/nodisp.md"
-brief "$b/legacyid.md" DISPATCH Nash "M-017" "2026-10-05 09:00" "DISPATCHED BY: T-Bot"
-refusal "a single-letter legacy ID" NO_BOARD_ROW "$b/legacyid.md"
+for bad in "m-017" "-17" "M-" "xM-017"; do
+  brief "$b/badid.md" DISPATCH Nash "$bad" "2026-10-05 09:00" "DISPATCHED BY: T-Bot"
+  t "A-17 refuses: MISSION '$bad' is not a mission ID"
+  out=$(run "$seat" "$b/badid.md" s1 Nash)
+  case $out in *"REASON: NO_BOARD_ROW"*"holds no mission ID"*"rc=2") pass ;; *) fail "$(printf '%s' "$out" | tr '
+' ' ')" ;; esac
+done
 brief "$b/notmine.md" DISPATCH Nash OPS-033 "2026-10-05 09:00" "DISPATCHED BY: T-Bot"
 refusal "a row assigned to someone else" NOT_ASSIGNED "$b/notmine.md"
 brief "$b/selfnotmine.md" SELF-HANDOFF Nash OPS-033 "2026-10-05 09:00"
@@ -131,6 +136,12 @@ brief "$lone/self.md" SELF-HANDOFF Nash AXM-046 "2026-10-05 09:00"
 t "accepts: a self-handoff with a mission when the board is unreachable (noted)"
 out=$(bash "$CLAIM" --check "$lone" "$lone/self.md" s1 Nash 2>&1; echo "rc=$?")
 case $out in *"NOTE: board unreachable"*CLAIMABLE*"rc=0") pass ;; *) fail "$out" ;; esac
+
+t "A-17 accepts: the single-letter M-017 claims and gets its mission claim"
+brief "$b/m017.md" DISPATCH Nash "M-017" "2026-10-05 09:30" "DISPATCHED BY: T-Bot"
+out=$(bash "$CLAIM" "$seat" "$b/m017.md" m17sess Nash 2>&1; echo "rc=$?")
+case $out in *"MISSION=M-017"*"CLAIMED M-017-20261005-0930"*"rc=0") [ -f "$team/_claims/M-017.m17sess" ] && pass || fail "no _claims/M-017.m17sess" ;; *) fail "$(printf '%s' "$out" | tr '
+' ' ')" ;; esac
 
 t "--check echoes TYPE, SEAT, MISSION, WRITTEN, DISPATCHED_BY and AGE_MIN"
 out=$(bash "$CLAIM" --check "$seat" "$b/q.md" s1 Nash 2>&1)

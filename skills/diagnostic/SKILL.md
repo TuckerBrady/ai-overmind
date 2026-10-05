@@ -149,19 +149,18 @@ For every Collective this Overmind belongs to or is joining, also check two thin
   read of its `.claude-plugin/plugin.json`, never a local listing cache). Behind while a member →
   **FAIL**, *fix:* update, start a fresh session, and re-read the binder before posting.
 
-**B8 — Genesis Seed hygiene (Overmind sessions only, report-only).** If `Overmind/.genesis-seed`
-exists, confirm it's readable and never referenced from any shared file (`TEAM_ROSTER.md`,
-`GOPHER_REGISTRY.md`, `MISSION_BOARD.md`, any Collective binder) — a reference anywhere shared
-is a **FAIL**, *fix:* the nonce has leaked its purpose even if the value itself hasn't; treat it
-as compromised and re-mint (fresh nonce, new Genesis ID, new chain anchor per membership; GENESIS
-SEED in `../../reference/collective.md`). A leftover v4.1.0 `response:` line whose value
-appears in any binder `posts/` file is also a **FAIL** with the same fix — that release's gate
-published it. A v4.1.0 pair that never left the folder: note it and delete the pair. Any
-membership line with `lowest-revealed` at 10 or below: note that chain renewal is due.
-If the file doesn't exist yet, that's not a failure — it means `/assimilate` hasn't been run
-here yet; note it only if the human is actively trying to join a Collective. Never run this
-check from a specialist session — a specialist has no `Overmind/.genesis-seed` to check, by
-design, and asking implies it should.
+**B8 — Genesis Seed hygiene (Overmind sessions only, report-only).** The v5 seed lives at
+`~/.claude/overmind/genesis-seed`, outside every team and binder folder. If it exists, confirm it's
+readable and that its value is never referenced from any shared file (`TEAM_ROSTER.md`,
+`GOPHER_REGISTRY.md`, `MISSION_BOARD.md`, any Collective binder) — a reference anywhere shared is
+a **FAIL**, *fix:* treat the seed as compromised and re-mint it (GENESIS SEED in
+`../../reference/collective.md`). A pre-v5 seed still at `Overmind/.genesis-seed` → **WARN**,
+*fix:* move it to `~/.claude/overmind/genesis-seed` on the human's yes, and delete the old copy.
+A leftover v4.1.0 `response:` line whose value appears in any binder `posts/` file is a **FAIL**
+with the re-mint fix — that release's gate published it. If no seed exists yet, that's not a
+failure — it means `/assimilate` hasn't been run here yet; note it only if the human is actively
+trying to join a Collective. Never run this check from a specialist session — a specialist has no
+seed to check, by design, and asking implies it should.
 
 **B9 — Working-style file and initiative setting.** At the team root, exactly one
 `WORKING_WITH_*.md` whose `## Initiative setting: N%` heading holds one of 25, 50, 75, 90, 100, and
@@ -201,7 +200,7 @@ first message); the roster skill holds adds and resurrections at AWAITING FIRST 
 evidence lands, so a paper member usually means that tracking was skipped.
 
 **C5 — Collective sweep is boot-wired.** Only applies when this Overmind holds any Collective
-membership (an `Overmind/.genesis-seed` exists AND a binder root is recorded in `COLLECTIVE.md`,
+membership (a seed exists at `~/.claude/overmind/genesis-seed`, or a pre-v5 `Overmind/.genesis-seed`, AND a binder root is recorded in `COLLECTIVE.md`,
 memory, or the mission board). If so, the Overmind's `BOOT.md` must carry a COLLECTIVE SWEEP step
 naming every binder root. Membership without the boot step → FAIL, *fix:* append the canonical
 step from the COLLECTIVE SWEEP in `../../reference/collective.md`, with a dated change-log line
@@ -216,8 +215,8 @@ lived in doctrine, not in boot. Then check each ledger:
 - **Skipped posts.** Any binder post whose `re:` target is at or below this seat's newest
   processed post (or its format-1 watermark), but which the ledger hasn't recorded as processed →
   FAIL. That's a post this seat will never see. On git, "recorded" means the commit that added the
-  post is reachable from `acked-commit`; elsewhere, it means the ID is in the Processed list or at
-  or below `floor`. *Fix:* process it now, then migrate. A reply whose filename sorts before its
+  post is reachable from `acked-commit`; elsewhere, it means the ID is in the Processed list.
+  *Fix:* process it now, then migrate. A reply whose filename sorts before its
   own `re:` target is proof of clock skew — name both authors. v4.1.3 field case: a peer's
   challenge responses sat unseen for 10 days because the convener's clock named its question
   21:30 while committing it at 21:00.

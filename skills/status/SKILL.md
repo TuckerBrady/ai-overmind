@@ -77,7 +77,7 @@ whatever deliverables you've written so far. Open with the session title in its 
 (the brief's `SESSION TITLE`, per the title rules in `skills/go`) so the human can copy it. Then
 report in four lines or fewer:
 
-- **Mission** — what you're on, its ID, and your lane (`OPS-### / [name]`).
+- **Mission** — what you're on, its ID, and your lane (`M-### / [name]`).
 - **Progress** — your lane's state, and what's done, concretely. Name files you've written.
 - **Remaining** — what's left, and anything blocking you.
 - **Clock** — deadline and whether you'll make it. If you won't, say so now.

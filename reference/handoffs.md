@@ -47,7 +47,7 @@ WRITTEN: YYYY-MM-DD HH:MM
 DISPATCHED BY: <seat>            (DISPATCH and CTM-LANE only)
 ```
 
-`/go` appends its stamp directly under the header: `ACTIVATED: YYYY-MM-DD HH:MM by <seat> (session <sid8>)`. `/consolidate` stamps a folded brief `CONSOLIDATED-INTO: <anchor title> YYYY-MM-DD HH:MM`, and `/go` refuses it. A MISSION ID has a prefix of two to ten capitals and digits, a dash and a number (`OPS-017`); a mission on the board must be named exactly as the board names it.
+`/go` appends its stamp directly under the header: `ACTIVATED: YYYY-MM-DD HH:MM by <seat> (session <sid8>)`. `/consolidate` stamps a folded brief `CONSOLIDATED-INTO: <anchor title> YYYY-MM-DD HH:MM`, and `/go` refuses it. A MISSION ID is a capital letter and up to nine more capitals or digits, a dash and a number (`M-017`, `OPS-017`); a mission on the board must be named exactly as the board names it.
 
 ### How to write a handoff
 

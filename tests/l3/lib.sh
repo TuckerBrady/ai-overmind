@@ -40,6 +40,7 @@ mkteam() {
 | OPS-032 | Done row | T-Bot | Nash | COMPLETE | STANDARD | | 2026-10-05 |
 | OPS-033 | Someone else's | T-Bot | Vaughn | ACTIVE | STANDARD | | 2026-10-05 |
 | OPS-041 | Highest active OPS | T-Bot | Nash | BLOCKED | LOW | | 2026-10-05 |
+| M-017 | Default single-letter style | T-Bot | Nash | ACTIVE | STANDARD | | 2026-10-05 |
 
 ## Archive
 

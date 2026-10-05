@@ -47,9 +47,9 @@ The team root is the folder that holds `MISSION_BOARD.md`: your working director
 
 **Activation is `/go` for every dispatched mission. No passphrase is generated at dispatch — ever.** (Session handoffs activate on `/go` too. No passphrase exists anywhere in this system.)
 
-**The mission number is the GOAL, not the assignment.** Work triaged across several specialists toward one goal shares ONE mission ID; each specialist's slice is a LANE, written `OPS-017 / alex`. Solo dispatch is the degenerate case: one mission, one lane.
+**The mission number is the GOAL, not the assignment.** Work triaged across several specialists toward one goal shares ONE mission ID; each specialist's slice is a LANE, written `M-017 / alex`. Solo dispatch is the degenerate case: one mission, one lane.
 
-**Allocate the ID without a race.** An ID is a prefix of two to five capital letters, a dash and a number (`OPS-017`); `/go` and TARS recognize nothing else. If the team keeps its board in a database with a write script (`[team-root]/_Team/team.py` exists), allocate through that script: it is the board's source of truth, and the Markdown board is only its view. Otherwise allocate with the dispatch skill's script, which claims the number with an atomic `mkdir` under `[team-root]/_ids/` and retries on a collision:
+**Allocate the ID without a race.** An ID is a prefix (a capital letter, then up to nine capitals or digits), a dash and a number: `M-017`, `OPS-017`. `/go` and TARS recognize nothing else. If the team keeps its board in a database with a write script (`[team-root]/_Team/team.py` exists), allocate through that script: it is the board's source of truth, and the Markdown board is only its view. Otherwise allocate with the dispatch skill's script (it takes a team prefix of two to five capitals, such as `OPS`), which claims the number with an atomic `mkdir` under `[team-root]/_ids/` and retries on a collision:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/dispatch/alloc-id.sh" "[team-root]" OPS
@@ -72,23 +72,23 @@ Draft the brief to a temporary file in the specialist's folder, then put it in p
 bash "${CLAUDE_PLUGIN_ROOT}/skills/go/handoff.sh" place "[specialist-folder]" "[specialist-folder]/HANDOFF.new.md"
 ```
 
-It lands at `[specialist-folder]/HANDOFF.md`, the folder root, where the specialist's Sleeper Protocol looks. If a brief already sits there that nobody has activated yet, the script renames it `HANDOFF.superseded-<YYYYMMDD-HHMM>.md` and prints the name: tell the human, because that brief was never run. Use this exact format. The first block is the **session title**, per the title rules in `skills/go`: `OPS-### — [essence]`, with the lane added on a multi-lane mission (`OPS-017 / alex — Score Q3 backlog`):
+It lands at `[specialist-folder]/HANDOFF.md`, the folder root, where the specialist's Sleeper Protocol looks. If a brief already sits there that nobody has activated yet, the script renames it `HANDOFF.superseded-<YYYYMMDD-HHMM>.md` and prints the name: tell the human, because that brief was never run. Use this exact format. The first block is the **session title**, per the title rules in `skills/go`: `M-### — [essence]`, with the lane added on a multi-lane mission (`M-017 / alex — Score Q3 backlog`):
 
 ````
 **SESSION TITLE**
 
 ```
-OPS-### — [3 to 6 word essence]
+M-### — [3 to 6 word essence]
 ```
 
 CLASSIFIED — MISSION BRIEF — ASSET: [PERSONA NAME]
 
 TYPE: DISPATCH
 SEAT: [specialist's seat name]
-MISSION: [OPS-###]
+MISSION: [M-###]
 WRITTEN: [YYYY-MM-DD HH:MM]
 DISPATCHED BY: [Dispatcher Name]
-LANE: [OPS-### / specialist name]
+LANE: [M-### / specialist name]
 PRIORITY: [CRITICAL / STANDARD / LOW]  //  DEADLINE: [YYYY-MM-DD HH:MM or "none"]
 MODEL TIER: [light / standard / deep] — [one-line reason] (advisory)
 
@@ -179,7 +179,7 @@ Surface each finding **once**, and again only if it changes or escalates — a w
 
 Report to whoever initiated the dispatch — the human directly, or a specialist reporting upstream.
 
-> **[Specialist Name] briefed — [OPS-###] / [lane].**
+> **[Specialist Name] briefed — [M-###] / [lane].**
 >
 > Open their session and type:
 >
@@ -191,7 +191,7 @@ The close is a translated, human-readable scoreboard, one row per lane. "Latest 
 
 | Mission | Asset | Status | Latest signal | Next |
 |---------|-------|--------|---------------|------|
-| OPS-017 backlog scrub | alex | QUEUED | Brief staged in their folder | You: open their session, type /go |
+| M-017 backlog scrub | alex | QUEUED | Brief staged in their folder | You: open their session, type /go |
 
 If multiple lanes were dispatched, close with a scoreboard — one line per lane: Mission | Asset | Status | Next (see TRANSLATION DUTY in board.md). If dispatching laterally (specialist to specialist), note the order if sequencing matters. Never tell the human to open the session with anything but `/go` or a neutral opener — a greeting that matches a skill trigger fires the wrong skill.
 
@@ -199,7 +199,7 @@ If multiple lanes were dispatched, close with a scoreboard — one line per lane
 
 **Overmind-initiated:**
 1. Human describes task → Overmind writes mission brief per lane and adds the board row; TARS and the MISSION WATCH step do the monitoring
-2. Human opens specialist session → types /go → specialist activates, opening with "OPS-### — [title]"
+2. Human opens specialist session → types /go → specialist activates, opening with "M-### — [title]"
 3. Specialist runs Gopher registration (writes credentials to shared registry)
 4. Specialist delivers mission status, goes to work
 5. Specialist writes `mission-complete-<ID>.md` when done

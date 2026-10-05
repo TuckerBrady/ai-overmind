@@ -20,8 +20,9 @@
 # Bash 3.2 safe: no associative arrays, no case-modifying expansions.
 
 HDR_RE_FIELD='^(TYPE|SEAT|MISSIONS|MISSION ID|MISSION|WRITTEN|DISPATCHED BY|ACTIVATED|CONSOLIDATED-INTO):[[:space:]]*(.*)$'
-HDR_RE_M='([A-Z][A-Z0-9]{1,9}-[0-9]{1,5}[a-z]?)'
-HDR_RE_MEXACT='^[A-Z][A-Z0-9]{1,9}-[0-9]{1,5}[a-z]?$'
+
+# Mission ID, CONTRACT 7.3 as amended by A-17 (single-letter prefixes such as M-017 are valid).
+HDR_RE_MEXACT='^[A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?$'
 HDR_RE_DATE='([0-9]{4})-([0-9]{2})-([0-9]{2})([ T]([0-9]{2}):([0-9]{2}))?'
 HDR_RE_TYPE='^([A-Za-z-]+)'
 
@@ -40,7 +41,7 @@ hdr_upper() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]'; }
 #   of the last header-field line, 0 if none) HDR_CRLF (1 when the file's first
 #   line ends in CR).
 hdr_parse() {
-  local f=$1 n=0 line seg rest key val dot=' '$'\xc2\xb7'' ' cr=$'\r'
+  local f=$1 n=0 line seg rest key val tok dot=' '$'\xc2\xb7'' ' cr=$'\r'
   HDR_TYPE="" HDR_SEAT="" HDR_MISSION="" HDR_MISSION_RAW="" HDR_WRITTEN="" HDR_WC=""
   HDR_DISPATCHER="" HDR_ACTIVATED="" HDR_CONSOLIDATED="" HDR_LAST=0 HDR_CRLF=0
   HDR_Y="" HDR_MO="" HDR_D="" HDR_H="" HDR_MI=""
@@ -72,7 +73,11 @@ hdr_parse() {
             HDR_MISSION_RAW=${val:-NONE}
             case $(hdr_upper "$val") in
               ''|NONE|NONE[!A-Z0-9]*|N/A|N/A[!A-Z0-9]*|-) HDR_MISSION=NONE ;;
-              *) if [[ $val =~ $HDR_RE_M ]]; then HDR_MISSION=${BASH_REMATCH[1]}; else HDR_MISSION=INVALID; fi ;;
+              *) # The ID is the value's first word, brackets and trailing punctuation
+               # stripped, and it must match the 7.3 regex exactly: "AXM-046 - text"
+               # gives AXM-046; "m-017", "-17", "M-" and "xM-017" give INVALID.
+               tok=${val%%[[:space:]]*}; tok=${tok#[\[(]}; tok=${tok%%[\]),;:.]*}
+               if [[ $tok =~ $HDR_RE_MEXACT ]]; then HDR_MISSION=$tok; else HDR_MISSION=INVALID; fi ;;
             esac
           fi ;;
         WRITTEN)

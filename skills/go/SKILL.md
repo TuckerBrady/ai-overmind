@@ -90,7 +90,7 @@ Exit 0 means this session holds the brief. The script made the claim (`.go-claim
 
 ````
 ```
-OPS-017 — [short mission title]
+M-### — [short mission title]
 ```
 ````
 
@@ -98,7 +98,7 @@ OPS-017 — [short mission title]
 
 **Title rules** — the same for dispatch, handoffs, and `/go`:
 
-- **Part of a mission:** `[MISSION-ID] — [essence]`, for example `OPS-025 — TARS live test`. A multi-lane mission adds the lane so sibling sessions stay distinct: `OPS-017 / alex — Score Q3 backlog`.
+- **Part of a mission:** `[MISSION-ID] — [essence]`, for example `OPS-025 — TARS live test`. A multi-lane mission adds the lane so sibling sessions stay distinct: `M-017 / alex — Score Q3 backlog`.
 - **No mission:** just the essence, for example `Resume rewrite for Chief Engineer`.
 - **Essence** is three to six words naming what the session is about. No trailing period, no emoji, plain text, about 45 characters in all.
 - **A handoff that spans several missions** takes the mission of its first Next Step.

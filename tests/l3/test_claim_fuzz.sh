@@ -31,7 +31,7 @@ gen() {
   typ=$(pick DISPATCH SELF-HANDOFF INFORMATIONAL self-handoff "Feature Build" MISSING "SELF-HANDOFF (seat)")
   st=$(pick Nash nash "Nash (WRENCH)" Vaughn Nashville MISSING "Nash$(printf '\033')[2J")
   [ "$i" = 1 ] && st=Vaughn
-  mis=$(pick NONE AXM-046 OPS-033 AXM-999 MISSING "AXM-046 - repair arc")
+  mis=$(pick NONE AXM-046 OPS-033 AXM-999 MISSING "AXM-046 - repair arc" M-017 m-017 M-)
   wr=$(pick "2026-10-05 09:00" "2026-10-05" "2026-13-01 10:00" MISSING "2026-09-26 11:55 MDT, by x")
   stamp=$(pick none none ACTIVATED CONSOLIDATED prose)
   pay=$(pick none fields cr esc)
@@ -48,6 +48,7 @@ gen() {
   elif [ $wv -eq 0 ]; then want="2 NO_WRITTEN"
   elif [ "$stamp" = ACTIVATED ]; then want="3 -"
   elif [ "$typ" = DISPATCH ] && [ "$mv" = NONE ]; then want="2 NO_BOARD_ROW"
+  elif [ "$mv" = m-017 ] || [ "$mv" = M- ]; then want="2 NO_BOARD_ROW"
   elif [ "$mv" = AXM-999 ]; then want="2 NO_BOARD_ROW"
   elif [ "$mv" = OPS-033 ]; then want="2 NOT_ASSIGNED"
   else want="0 -"; fi
