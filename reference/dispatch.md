@@ -224,7 +224,7 @@ A lane is done when an independent grader says it passed its rubric, not when th
 
 **The grade — the Overmind runs it, never the doer:**
 
-1. The Overmind spawns a fresh `splinter-twin` in **GRADER mode**. Give it the rubric verbatim and the path to every deliverable. Nothing else: not your reasoning, not your summary, not what you meant to do. A grader that hears the doer's case grades the case, not the work.
+1. The Overmind spawns a fresh twin, as `ai-overmind:splinter-twin`, in **GRADER mode**. Give it the rubric verbatim and the path to every deliverable. Nothing else: not your reasoning, not your summary, not what you meant to do. A grader that hears the doer's case grades the case, not the work.
    - **Who it copies:** the team's QA or review specialist, if the roster has one; otherwise the dispatcher. Never the specialist whose work is being graded. Never resume a grader: every round gets a new one.
    - **Model:** `standard` tier for rounds one and two; grading is judgment, so never tier a grader down. Round three gets a `deep` grader (`opus`).
 2. The grader returns PASS or FAIL per criterion, each with evidence: a file and line, a command and its output, a quoted passage.

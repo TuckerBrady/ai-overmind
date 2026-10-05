@@ -14,7 +14,8 @@ description: >
 # MORPH — build with twins, merge on evidence
 
 Morph turns one Overmind session into a small engineering org. The Overmind is the orchestrator.
-Everyone else is a **splinter twin** (`agents/splinter-twin.md`) spawned in this session: no
+Everyone else is a **splinter twin** (`agents/splinter-twin.md`), always spawned by its full name
+`ai-overmind:splinter-twin` so the twin guard and tool allowlist apply, in this session: no
 dispatch, no extra sessions for the human to open, no human courier between steps.
 
 The one idea that makes it work: **independence is a property of the inputs, not of the model.**
@@ -176,6 +177,10 @@ On a FAIL:
 delete its branch: `git worktree remove ../<repo>-<run-id>-<lane>`, then
 `git branch -D morph/<run-id>/<lane>` (and `git push origin --delete morph/<run-id>/<lane>` once
 the PR is merged or closed).
+
+A twin result that carries a `TWIN-GUARD ALERT` is quarantined until the orchestrator (or the
+human) has reviewed the diff of the named file (`../../reference/twins.md`); check
+`[team-root]/_twin-guard.log` before merging anything a twin produced.
 
 A twin nearing the end of its context gets replaced by a fresh one that reads the state from
 files on disk. Keep the contract, rubric, and verdicts in files for exactly this reason.

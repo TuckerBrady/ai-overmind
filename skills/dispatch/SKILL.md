@@ -17,7 +17,7 @@ This skill is available to any session on the team — the Overmind or a special
 
 **The procedure lives in one place: `../../reference/dispatch.md`.** Read it now and follow it step by step. This skill does not restate it, so the two can never disagree. Board format, statuses and priority tiers are in `../../reference/board.md`; model tiers are in `../../reference/twins.md`.
 
-**Is this actually a dispatch?** A quick, bounded task in a specialist's domain that fits inside the current session is a splinter twin (`../../reference/twins.md`). Information a peer should know, with no work attached, is an inbox note (`../../reference/inboxes.md`). Dispatch is for real missions: deliverables, session state, follow-up.
+**Is this actually a dispatch?** A quick, bounded task in a specialist's domain that fits inside the current session is a splinter twin (`../../reference/twins.md`), always spawned as `ai-overmind:splinter-twin`. Information a peer should know, with no work attached, is an inbox note (`../../reference/inboxes.md`). Dispatch is for real missions: deliverables, session state, follow-up.
 
 ## The steps, by name
 
@@ -30,4 +30,4 @@ Each one is written out in `../../reference/dispatch.md`:
 5. **TARS watches the mission** — nothing to launch, and never a scheduled task.
 6. **Report back** with the human scoreboard and one instruction: open the session and type `/go`.
 
-**Completion is graded, not declared.** The specialist writes `mission-complete-<ID>.md` (first line `MISSION: <ID>`). Its own PASS is a claim. The Overmind spawns a fresh grader twin with the rubric and the deliverable paths only, and only that Overmind-spawned grader's PASS sets the row COMPLETE (OUTCOMES in `../../reference/dispatch.md`). A brief's MODEL TIER line is advisory; switching models needs the human's yes.
+**Completion is graded, not declared.** The specialist writes `mission-complete-<ID>.md` (first line `MISSION: <ID>`). Its own PASS is a claim. The Overmind spawns a fresh grader twin (`ai-overmind:splinter-twin`, GRADER mode) with the rubric and the deliverable paths only, and only that Overmind-spawned grader's PASS sets the row COMPLETE (OUTCOMES in `../../reference/dispatch.md`). A brief's MODEL TIER line is advisory; switching models needs the human's yes.

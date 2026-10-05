@@ -123,6 +123,30 @@ b=$(printf '{"cwd":"%s"}' "$tmp/team/Seat" | CLAUDE_PLUGIN_ROOT="$root" bash "$r
 echo "  emitted=$b bytes"
 [ "$b" -gt 0 ] && [ "$b" -le 5940 ] && pass || fail "$b bytes"
 
+t "A-25.5: reference/twins.md says seatbelt not sandbox, lists the residual risks and the quarantine rule"
+tw=$(tr -d '\r' < reference/twins.md)
+miss=""
+for w in "The twin guard is a seatbelt, not a sandbox" "Residual risks, stated plainly" "is **quarantined**" "TWIN-GUARD ALERT: protected file changed during twin command" "_twin-guard.log" "It never restores the file"; do
+  case $tw in *"$w"*) ;; *) miss="$miss [$w]" ;; esac
+done
+[ -z "$miss" ] && pass || fail "missing:$miss"
+
+t "A-26: dispatch, morph and twins.md spawn twins as ai-overmind:splinter-twin"
+bad=""
+for f in skills/dispatch/SKILL.md skills/morph/SKILL.md reference/twins.md; do
+  tr -d '\r' < "$f" | grep -q 'ai-overmind:splinter-twin' || bad="$bad $f"
+done
+[ -z "$bad" ] && pass || fail "missing in:$bad"
+
+t "A-26: /go claims with --expect <CONTENT_SHA256> and handles ASK and REFUSED from migrate"
+gs=$(tr -d '\r' < skills/go/SKILL.md)
+case $gs in *'claim.sh" --expect "[CONTENT_SHA256 from step 3]"'*'REASON: CHANGED'*) ;; *) fail "--expect flow" ;; esac
+case $gs in *'`ASK: ...`'*'`REFUSED: ...`'*) pass ;; *) fail "ASK/REFUSED" ;; esac
+
+t "A-25: hooks.json registers the guard for PostToolUse and PostToolUseFailure on Bash"
+hj=$(tr -d '\r' < hooks/hooks.json)
+case $hj in *'"PostToolUse"'*'"matcher": "Bash"'*'twin-guard.sh'*'"PostToolUseFailure"'*'"matcher": "Bash"'*'twin-guard.sh'*) pass ;; *) fail "post registration" ;; esac
+
 t "A-19: diagnostic B8/C5 use the v5 seed path and drop the ledger floor check"
 d=$(tr -d '' < skills/diagnostic/SKILL.md)
 b8=$(printf '%s
