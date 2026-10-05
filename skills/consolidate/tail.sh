@@ -118,30 +118,79 @@ function unesc(s,   out, i, c, d) {
   }
   return out
 }
-# Remove every harness-injected block from a human turn: <tag ...>...</tag>.
-# An unclosed block is cut to the end of the text, so nothing after a
-# harness opening tag can pass as words the human typed. The tags were found on
-# real human-origin records (2026-10): system-reminder,
-# artifact-view-context, local-command-stdout. The others are other harness
-# injections. <command-name>, <command-message> and <command-args>
-# record the slash command the human typed and stay.
-function harness(s,   k, tag, i, c, rest, j, endtag) {
+# --- human turns -------------------------------------------------------------
+# The app adds its own text to a human record: blocks appended after the
+# typed words (<system-reminder>, <bash-stdout>, ...) and one block prepended
+# before them (<artifact-view-context>, whose JSON the artifact page writes).
+# Only the words the human typed may come out as role "user". Rules, per
+# content block (a string content is one block):
+#   - < / > escapes count as < and >; tag names match in any case.
+#   - A block opening with <artifact-view-context: keep only what follows the
+#     LAST </artifact-view-context>. The harness writes that close after the
+#     page JSON, so page text cannot reach past it; an early close inside the
+#     JSON only moves text into the part that is dropped. The real records
+#     (2026-10) carry the decision after it ("i like c").
+#   - A block (or the remainder above) opening with any other tag is dropped,
+#     unless it is the slash command the human typed (<command-name>,
+#     <command-message>, <command-args>).
+#   - Inside a block, the first harness open tag cuts to the END of the
+#     block. Nothing after a close tag is ever resumed.
+#   - Once a block is cut or dropped, every later block is dropped: a tag
+#     split across blocks cannot hide behind the boundary.
+function norm(s) {
+  gsub(/\\u003[cC]/, "<", s); gsub(/\\u003[eE]/, ">", s)
+  return s
+}
+# Lowercased name of the tag the text opens with, after leading blanks and
+# escaped \n \t \r; "" when it does not open with "<" and a letter.
+function leadtag(s,   c) {
+  while (1) {
+    c = substr(s, 1, 1)
+    if (c == " " || c == "\t") { s = substr(s, 2); continue }
+    if (c == "\\" && substr(s, 2, 1) ~ /[ntr]/) { s = substr(s, 3); continue }
+    break
+  }
+  if (substr(s, 1, 1) != "<" || substr(s, 2, 1) !~ /[A-Za-z]/) return ""
+  s = tolower(substr(s, 2))
+  match(s, /^[a-z][a-z0-9_-]*/)
+  return substr(s, 1, RLENGTH)
+}
+# Position of the earliest harness open tag in s, 0 if none. "<name" counts
+# when the next character cannot continue a tag name (">", a blank, "\" of
+# an escaped newline, "/", or the end of the text).
+function firsttag(s,   lc, best, k, t, off, p, c) {
+  lc = tolower(s); best = 0
   for (k = 1; k <= NH; k++) {
-    tag = HT[k]
-    while ((i = index(s, "<" tag)) > 0) {
-      c = substr(s, i + length(tag) + 1, 1)
-      if (c != ">" && c != " " && c != "/" && c != "\\") {
-        # a longer tag name that merely starts the same: step past it
-        s = substr(s, 1, i) "" substr(s, i + 1); continue
-      }
-      rest = substr(s, i)
-      endtag = "</" tag ">"
-      j = index(rest, endtag)
-      if (j == 0) s = substr(s, 1, i - 1)
-      else s = substr(s, 1, i - 1) " " substr(rest, j + length(endtag))
+    t = "<" HT[k]; off = 1
+    while ((p = index(substr(lc, off), t)) > 0) {
+      p = p + off - 1
+      c = substr(lc, p + length(t), 1)
+      if (c !~ /[a-z0-9_-]/) { if (best == 0 || p < best) best = p; break }
+      off = p + 1
     }
   }
-  gsub(//, "", s)
+  return best
+}
+function lastclose(s, t,   lc, off, p, last) {
+  lc = tolower(s); last = 0; off = 1
+  while ((p = index(substr(lc, off), t)) > 0) { last = p + off - 1; off = last + 1 }
+  return last
+}
+# One block of a human record -> the typed words it holds; sets CUT when any
+# of it was removed as harness text.
+function userblock(s,   lt, p, t) {
+  s = norm(s)
+  lt = leadtag(s)
+  if (lt == "artifact-view-context") {
+    t = "</artifact-view-context>"
+    p = lastclose(s, t)
+    if (p == 0) { CUT = 1; return "" }
+    s = substr(s, p + length(t))
+    lt = leadtag(s)
+  }
+  if (lt != "" && !(lt in ALLOW)) { CUT = 1; return "" }
+  p = firsttag(s)
+  if (p > 0) { CUT = 1; s = substr(s, 1, p - 1) }
   return s
 }
 # 8-4-4-4-12 hex, checked by position (no regex intervals: not every awk has them).
@@ -160,7 +209,8 @@ function clean(s) {
   return s
 }
 BEGIN {
-  NH = split("system-reminder artifact-view-context local-command-stdout local-command-stderr local-command-caveat user-prompt-submit-hook ide_opened_file ide_selection ide_diagnostics task-notification cross-session-message agent-message", HT, " ")
+  NH = split("system-reminder artifact-view-context local-command-stdout local-command-stderr local-command-caveat bash-input bash-stdout bash-stderr user-prompt-submit-hook ide_opened_file ide_selection ide_diagnostics task-notification cross-session-message agent-message", HT, " ")
+  ALLOW["command-name"] = 1; ALLOW["command-message"] = 1; ALLOW["command-args"] = 1
   LS = sprintf("%c%c%c", 226, 128, 168); PS = sprintf("%c%c%c", 226, 128, 169)
   C1 = sprintf("%c", 194) "[" sprintf("%c", 128) "-" sprintf("%c", 159) "]"
 }
@@ -177,23 +227,30 @@ BEGIN {
   if (ty != "user" && ty != "assistant") next
   if (V["isSidechain"] == "true" || V["isMeta"] == "true") next
   if (V["message.role"] != ty) next
-  text = ""; other = 0
-  if (T["message.content"] == "s") text = V["message.content"]
+  human = 0
+  if (ty == "user") {
+    if ("origin.kind" in V) { if (V["origin.kind"] != "human") next }
+    human = 1
+  }
+  text = ""; other = 0; CUT = 0
+  if (T["message.content"] == "s") text = human ? userblock(V["message.content"]) : V["message.content"]
   else {
     for (i = 0; ("message.content[" i "].type") in V; i++) {
       bt = V["message.content[" i "].type"]
-      if (bt == "text") text = text (text == "" ? "" : " ") V["message.content[" i "].text"]
+      if (bt == "text") {
+        b = V["message.content[" i "].text"]
+        if (human) { if (CUT) continue; b = userblock(b) }
+        text = text (text == "" ? "" : " ") b
+      }
       else if (bt != "image") other = 1
     }
     if (ty == "user" && other) next
   }
-  if (text == "") next
-  if (ty == "user") {
-    if ("origin.kind" in V) { if (V["origin.kind"] != "human") next }
-    else if (text ~ /^(<task-notification>|<cross-session-message|<agent-message|Another Claude session|<local-command|\[Request interrupted)/) next
-    # The harness appends its own blocks to a human record. Only what the
-    # human typed may stand as words of the human.
-    text = harness(text)
+  if (human && !("origin.kind" in V)) {
+    # An older record with no origin: refuse the shapes the app uses for
+    # text no human typed.
+    t0 = text; sub(/^[ \t]+/, "", t0)
+    if (t0 ~ /^(Another Claude session|\[Request interrupted|\[Message from session)/) next
   }
   out = clean(unesc(text))
   gsub(/^[ ]+|[ ]+$/, "", out)
