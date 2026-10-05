@@ -1,0 +1,11 @@
+# tests/lint/deleted-terms.txt -- terms that must not appear in skills/ agents/ reference/ hooks/kernel.md README.md.
+# One "regex<TAB>allow-regex" per line (ERE). A hit is excused only when its line also matches allow-regex.
+A2A	
+TRANSPORT\.md	
+Restore Browser	
+passphrase	[Nn]o passphrase
+Council	
+polling task	
+hooks/firmware\.md	
+firmware [A-Z]{3,}	
+(^|[^A-Za-z_])PENDING([^A-Za-z_]|$)	legacy

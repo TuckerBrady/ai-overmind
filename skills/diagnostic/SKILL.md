@@ -83,8 +83,8 @@ which is not the project folder. Missing `INBOX.md` → create it, then PASS wit
 Persona: `BOOT.md` has a `## Persona` section → PASS. No Persona section, but a legacy
 `feedback_[name]_persona.md` exists → WARN, *fix:* fold the file's content into BOOT.md verbatim
 as a `## Persona` section right after `## Identity`, stub the old file to a one-line pointer
-(never delete it without asking), and the Overmind updates any paste-based runtime — the
-firmware's legacy persona migration. Neither → FAIL, *fix:* regenerate the Persona section via
+(never delete it without asking), and the Overmind updates any paste-based runtime.
+Neither → FAIL, *fix:* regenerate the Persona section via
 the roster skill.
 
 **B5 — Boot layer per member.** Each member folder must be in one of two recognizable states:
@@ -101,12 +101,25 @@ the roster skill.
 Neither state (no BOOT.md and no content-bearing instructions) → FAIL, *fix:* regenerate the
 boot layer via the roster skill.
 
-**B6 — Transport binding.** Only when `TRANSPORT.md` exists at the team root; otherwise SKIP
-silently — file-only operation is complete on its own. When present: the file parses (server,
-team channel, calls table), and the tools it names are reachable **in this session**. Tools
-named but unreachable → report the transport as **DORMANT** — a state, not a failure; every
-transport-aware feature falls back to file-only behavior until the tools return. File present
-but malformed → FAIL, *fix:* regenerate it from the firmware's TRANSPORT.md template.
+**B6 — The kernel reached this session, and the engine matches it.** Claude Code only; in lite
+mode report SKIP and say why. Two scripts ship beside this skill; run them with `bash`.
+
+- **Kernel not truncated.** Find this session's transcript folder:
+  `~/.claude/projects/<cwd-slug>/`, where `<cwd-slug>` is the session's working directory with
+  every character outside `A-Z`, `a-z` and `0-9` replaced by `-` (for example
+  `C:\Users\sam\Team\Overmind` becomes `C--Users-sam-Team-Overmind`). Run
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/diagnostic/too-large.sh" <newest *.jsonl in that folder>`.
+  Exit 0 → PASS. Exit 1 → **FAIL: the SessionStart output was too large and only a preview
+  reached the session.** *Fix:* the plugin is older than 5.0.0, or something else injects a large
+  SessionStart output; update the plugin (A2), and remove any other SessionStart hook that prints a
+  big file. No transcript folder → SKIP.
+- **Engine matches the plugin.** Run
+  `bash "${CLAUDE_PLUGIN_ROOT}/skills/diagnostic/fwhash.sh" "${CLAUDE_PLUGIN_ROOT}"`; it prints
+  the 64-hex firmware hash of this install (the kernel plus every reference file). When the
+  overmind MCP server is connected, its `boot` output ends with
+  `Engine: overmind-mcp <version>, firmware sha256 <12hex>.` Compare its 12 hex to the first 12 of
+  the script's output. Equal → PASS. Different → **FAIL**, *fix:* rebuild or update overmind-mcp.
+  No MCP server → SKIP.
 
 **B7 — Collective venue capability (report-only to convene; FAIL on an unwritable membership).** In a working-directory runtime, check for
 cloud-sync markers, a `.git` folder, and `gh auth status`; in a sandboxed runtime, this is a
@@ -134,8 +147,8 @@ For every Collective this Overmind belongs to or is joining, also check two thin
 exists, confirm it's readable and never referenced from any shared file (`TEAM_ROSTER.md`,
 `GOPHER_REGISTRY.md`, `MISSION_BOARD.md`, any Collective binder) — a reference anywhere shared
 is a **FAIL**, *fix:* the nonce has leaked its purpose even if the value itself hasn't; treat it
-as compromised and re-mint per the firmware's GENESIS SEED migration note (fresh nonce, new
-Genesis ID, new chain anchor per membership). A leftover v4.1.0 `response:` line whose value
+as compromised and re-mint (fresh nonce, new Genesis ID, new chain anchor per membership; GENESIS
+SEED in `../../reference/collective.md`). A leftover v4.1.0 `response:` line whose value
 appears in any binder `posts/` file is also a **FAIL** with the same fix — that release's gate
 published it. A v4.1.0 pair that never left the folder: note it and delete the pair. Any
 membership line with `lowest-revealed` at 10 or below: note that chain renewal is due.
@@ -147,13 +160,13 @@ design, and asking implies it should.
 **B9 — Working-style file and initiative setting.** At the team root, exactly one
 `WORKING_WITH_*.md` whose `## Initiative setting: N%` heading holds one of 25, 50, 75, 90, 100, and
 every member's `BOOT.md` imports it (`@../WORKING_WITH_[FIRSTNAME].md` under
-`## How to work with [name]`). No file → WARN, *fix:* the Overmind runs the firmware's WORKING WITH
-YOUR HUMAN upgrade (asks the initiative question once, writes the file, adds the import to every
+`## How to work with [name]`). No file → WARN, *fix:* the Overmind runs the existing-teams
+upgrade in `../../reference/initiative.md` (asks the initiative question once, writes the file, adds the import to every
 BOOT.md). Setting missing or not one of the five values → FAIL, *fix:* run `/initiative` and set it.
 A BOOT.md without the import, or a member file carrying a pasted copy of the rules instead of the
-import → FAIL, *fix:* replace it with the import section from the firmware's BOOT.md template; the
-file is single-source. Unread `WORKING-STYLE` entries in the Overmind's INBOX.md → WARN, *fix:* fold
-them into the file's `## Corrections`.
+import → FAIL, *fix:* replace it with the import section from the BOOT.md template in `../../reference/team-building.md`; the
+file is single-source. Unread `WORKING-STYLE` entries in the Overmind's INBOX.md → WARN, *fix:* show
+each to the human, and fold it into the file's `## Corrections` only on their yes.
 
 ### C · Identity & activation wiring
 
@@ -177,14 +190,14 @@ did. If it was absent, that is evidence C2 failed even if the block *looks* righ
 **C4 — Paper members.** Every Active roster row needs boot evidence — a Gopher row, ever. A
 roster member with no Gopher row was created on paper but never booted: flag as **PAPER
 MEMBER**, not ACTIVE. *Fix:* open that member's session and run its first boot (`/go` or any
-first message); the roster skill holds adds and resurrections at PENDING FIRST BOOT until this
+first message); the roster skill holds adds and resurrections at AWAITING FIRST BOOT until this
 evidence lands, so a paper member usually means that tracking was skipped.
 
 **C5 — Collective sweep is boot-wired.** Only applies when this Overmind holds any Collective
 membership (an `Overmind/.genesis-seed` exists AND a binder root is recorded in `COLLECTIVE.md`,
 memory, or the mission board). If so, the Overmind's `BOOT.md` must carry a COLLECTIVE SWEEP step
 naming every binder root. Membership without the boot step → FAIL, *fix:* append the canonical
-step from the firmware's THE COLLECTIVE SWEEP section, then the Overmind updates any paste-based
+step from the COLLECTIVE SWEEP in `../../reference/collective.md`, then the Overmind updates any paste-based
 runtime per the dual-runtime law.
 This is the v4.1.1 field fix: a convener once sat 8 days deaf to its own binder because the sweep
 lived in doctrine, not in boot. Then check each ledger:
@@ -212,8 +225,11 @@ and say why.
   roughly matches the messages sent so far. Missing or frozen → FAIL, *fix:* the plugin's
   `hooks/hooks.json` must register `UserPromptSubmit` → `bash "${CLAUDE_PLUGIN_ROOT}/hooks/tars.sh"`;
   update or reinstall the plugin, then start a fresh session. On Windows, TARS needs Git Bash.
-- **Boot step.** The Overmind's `BOOT.md` carries the **MISSION WATCH** step (canonical text in the
-  firmware's DISPATCH Step 5). Missing, or still titled **MOTHER — MISSION WATCH** → FAIL, *fix:*
+- **Kernel hook.** The same `hooks/hooks.json` registers `SessionStart` →
+  `bash "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"` with matcher `""`. Anything else (for
+  example a `cat` of a firmware file) → FAIL, *fix:* update the plugin to 5.0.0 or later.
+- **Boot step.** The Overmind's `BOOT.md` carries the **MISSION WATCH** step (canonical text in
+  `../../reference/dispatch.md`, Step 5). Missing, or still titled **MOTHER — MISSION WATCH** → FAIL, *fix:*
   replace it with the canonical step, then the Overmind updates any paste-based runtime per the
   dual-runtime law.
 - **No duplicates.** Any other `UserPromptSubmit` hook that counts turns — in
@@ -226,21 +242,16 @@ and say why.
 **D1 — Board parses**, and every assignee resolves to a roster member.
 
 **D2 — Board vs disk.** Same reality check as `/status`, order of authority:
-`mission-complete > deliverable files > board row > registry > silence`. A row marked PENDING
+`mission-complete > deliverable files > board row > registry > silence`. A row marked QUEUED
 whose deliverable already exists, or COMPLETE with nothing on disk, is a FAIL of bookkeeping —
 report which side you trust and why.
 
 **D3 — Stale in-flight.** Any ACTIVE row past its deadline, or any mission whose assignee has
 never registered, gets surfaced with its age.
 
-**D4 — Board vs ledger.** Only when a transport exists (B6 found `TRANSPORT.md` and its tools);
-otherwise SKIP. The channel ledger is a second witness against the board: compare
-`MISSION_BOARD.md` rows to the channel's TASK and status posts. A board row still ACTIVE whose
-lane posted done, or a ledger TASK with no board row, is a FAIL of bookkeeping — apply D2's
-authority order and report which side you trust and why. One grading caution: a missing channel
-ACK next to a moved board row usually means the session was **permission-gated**, not
-disobedient — first posts on a transport can hit permission prompts. Front-load approvals at
-dispatch, and grade accordingly.
+**D4 — Statuses.** Every lane state on the board is one of QUEUED, ACTIVE, BLOCKED, REVIEW or
+COMPLETE. A legacy PENDING is a WARN (read it as QUEUED), *fix:* rewrite it as QUEUED through the
+team's board script. Any other word → FAIL, *fix:* replace it with one of the five.
 
 ### Report — Level 3
 
@@ -292,8 +303,8 @@ mystery.
    Persona in BOOT.md · Gopher row at boot · Signed (HH:MM). Then a **Notes** section, one line per
    asset, "be specific."
 2. **Sign your own row first** as the Overmind, so the format is unambiguous.
-3. **Dispatch the audit** to every specialist via the dispatch skill — CRITICAL, one shared
-   operation codeword, TARS watching per the dispatch rules, all approvals front-loaded.
+3. **Dispatch the audit** to every specialist via the dispatch skill — CRITICAL, one mission ID,
+   TARS watching per the dispatch rules, all approvals front-loaded.
 4. **Tell the human exactly one thing:** open each specialist session and type `/go`.
 5. **Collect and report** the full matrix when the rows land. TARS reports each row as it
    lands; there is no watcher to stand down.

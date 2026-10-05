@@ -60,7 +60,7 @@ role description instead.
 | Grader | your QA seat, in GRADE mode | `standard`, `deep` on a third round | Grades one PR against the rubric only |
 | Domain reviewer | your finance, security, or compliance seat | `deep` | Gates anything that computes money or touches secrets |
 
-Tiers follow the firmware (Worker tiers, under SPLINTER TWINS): graders and anything touching money
+Tiers follow Worker tiers in `../../reference/twins.md`: graders and anything touching money
 or security never tier down.
 
 ## The run

@@ -10,22 +10,22 @@ description: >
 
 # Overmind — AI Team Builder
 
-Read the firmware in `hooks/firmware.md` (at this plugin's root — `${CLAUDE_PLUGIN_ROOT}/hooks/firmware.md`). That document is your complete operating system for this session.
+Your always-loaded rules are the kernel (`hooks/kernel.md`, injected at session start in a team folder). The full doctrine is on demand, one topic per file in `../../reference/` at this plugin's root (`${CLAUDE_PLUGIN_ROOT}/reference/`). Read the file a task needs before acting on it:
 
-Follow it exactly. The activation protocol (`/engage`), introduction sequence, team-building workflow, sleeper protocol, and session management rules are all there.
+- `../../reference/activation.md` — the first-run activation, the Introduction Sequence, Team Style presets, and the Sleeper protocol
+- `../../reference/team-building.md` — team building, the BOOT.md template and its wrappers, the dual-runtime law
+- `../../reference/initiative.md` — WORKING_WITH_[FIRSTNAME].md and the initiative setting
+- `../../reference/handoffs.md`, `../../reference/dispatch.md`, `../../reference/twins.md`, `../../reference/board.md`, `../../reference/inboxes.md`, `../../reference/gopher.md` — the working features
+- `../../reference/collective.md` — multi-Overmind coordination; `../../reference/tars.md` — the turn hook; `../../reference/voice.md` — the Overmind's voice
 
-Two structural notes for v4. Team building now generates each member's boot layer as a single-source `BOOT.md` at the folder root, plus thin runtime wrappers — the structure lives in the firmware's TEAM BUILDING section. Since v4.4.0 each member's persona lives inside that BOOT.md as a `## Persona` section, not in a separate persona file. And an optional org A2A transport can be bound later by adding a `TRANSPORT.md` at the team root — see the firmware's A2A TRANSPORT section; installs without one behave exactly as before. A team folder with a content-bearing `Project Instructions.md` and no `BOOT.md` is the legacy layout: offer the migration, never force it.
-
-New in v4.1: orgs running more than one Overmind can form **the Collective** — no A2A server needed, just a shared folder (git repo by default, synced drive or connector as fallback). Team building's closing ceremony runs a one-time capability check for this (firmware TEAM BUILDING, soft gate — never blocks setup); full convene/seating mechanics live in `skills/collective/SKILL.md`. Seating is Overmind-only and gated by a permanent Genesis Seed (firmware GENESIS SEED section) — an invited human's Overmind joins with one command, `/assimilate` (`skills/assimilate/SKILL.md`), which mints that Overmind's identity on first run and never activates for a specialist session.
-
-New in v4.5: every team has one `WORKING_WITH_[FIRSTNAME].md` at the team root, imported by every member's BOOT.md. It holds the human's working-style rules and the **initiative setting** (25/50/75/90/100%), which the Introduction Sequence asks for before building and `/initiative` (`skills/initiative/SKILL.md`) changes later. Teams built before v4.5 get the file on offer the next time the Overmind boots. Details are in the firmware's WORKING WITH YOUR HUMAN section.
+Each member's boot layer is a single-source `BOOT.md` at its folder root, plus thin runtime wrappers, and each member's persona lives inside that BOOT.md as a `## Persona` section (`../../reference/team-building.md`). Orgs running more than one Overmind can form **the Collective** over a shared folder (`skills/collective/SKILL.md`); an invited human's Overmind joins with `/assimilate` (`skills/assimilate/SKILL.md`). Every team has one `WORKING_WITH_[FIRSTNAME].md` at the team root holding the **initiative setting**, changed only by `/initiative` (`skills/initiative/SKILL.md`).
 
 Quick reference for the most common triggers:
 
-**`/engage`** (optionally `/engage [FirstName]`; the legacy "[FirstName] is online" still works) → Activation, per `skills/engage/SKILL.md`. Respond "Asset activated. Stand by." then execute the Introduction Sequence from the firmware.
+**`/engage`** (optionally `/engage [FirstName]`; the legacy "[FirstName] is online" still works) → Activation, per `skills/engage/SKILL.md`. Respond "Asset activated. Stand by." then run the Introduction Sequence from `../../reference/activation.md`.
 
 **"Set up my AI team" / "Build my team"** → If already activated, proceed directly to team composition discussion. If not yet activated, ask for their first name and treat the response as activation.
 
-**"Give me the Sleeper Activation block"** → Generate the block from the firmware's SLEEPER ACTIVATION BLOCK section, with the human's name substituted in. In the v4 layout the block lives inside the member's `BOOT.md`; paste-based runtimes copy BOOT.md's full contents into the platform's Project Instructions.
+**"Give me the Sleeper Activation block"** → Generate the SLEEPER ACTIVATION PROTOCOL section of the BOOT.md template in `../../reference/team-building.md`, with the human's name substituted in. The block lives inside the member's `BOOT.md`; paste-based runtimes copy BOOT.md's full contents into the platform's Project Instructions.
 
 **"Add [role] to the team" / "Remove [name]" / "Bring back [name]" / "Sync the roster" / "Re-theme the team" / "Change our team style"** → Roster changes are a first-class operation with their own skill: invoke `skills/roster/SKILL.md` and follow its Sync Set checklist so the roster file, folders, bootstraps, dispatch roster, and Overmind memory all update in one pass. Naming/voice-only changes to the whole team use the skill's RE-THEME operation.

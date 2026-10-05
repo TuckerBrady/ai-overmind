@@ -2,3 +2,7 @@
 *.go text eol=lf
 go.mod text eol=lf
 go.sum text eol=lf
+*.tsv text eol=lf
+*.jsonl text eol=lf
+*.txt text eol=lf
+*.patterns text eol=lf

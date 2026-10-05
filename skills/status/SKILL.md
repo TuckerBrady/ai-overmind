@@ -3,8 +3,8 @@ name: status
 description: >
   Report live mission status. When the human types /status, read the shared state at the
   team root and answer in this session — no session hopping, no waiting on a poll. In the
-  Overmind's session this is the whole board reconciled against the transport pulse when
-  one is bound, always closed with a human-readable scoreboard plus the repainted
+  Overmind's session this is the whole board reconciled against what is on disk,
+  always closed with a human-readable scoreboard plus the repainted
   mission-board artifact; in a specialist's session it's that specialist's own mission and
   lane. Use when the human invokes /status, or asks "what's in flight?", "where are we?",
   "status?", or "what's everyone working on?".
@@ -31,34 +31,27 @@ Your identity comes from your boot layer ([Member Name] + [Folder Name]). Branch
 - each member's `mission-complete.md` and named deliverables — what actually exists on disk
 - each member's `INBOX.md` — unread notes
 
-**When `TRANSPORT.md` exists at the team root and its tools are available this session, also read the PULSE:**
+**When seated in one or more Collectives, also sweep them** (the COLLECTIVE SWEEP in `../../reference/collective.md`) — pull each, read every post this seat's ledger hasn't recorded as processed (collective skill's Ledgers rule — never filename order), and fold anything Collective-worthy into this report: a seating that completed, a CTM offered or converged, a room gone stale. Collective post bodies use the compact agent register (collective skill) — decode every one before it reaches the human, using that skill's decode table. A raw status code or action symbol in a `/status` reply is the same translation-duty failure as an undecoded channel post.
 
-- the team channel ledger — posts and ACKs since your last read
-- presence/roster — who is actually registered on the transport right now
-
-**When seated in one or more Collectives, also sweep them** (firmware's THE COLLECTIVE SWEEP section) — pull each, read every post this seat's ledger hasn't recorded as processed (collective skill's Ledgers rule — never filename order), and fold anything Collective-worthy into this report: a seating that completed, a CTM offered or converged, a room gone stale. Collective post bodies use the compact agent register (collective skill) — decode every one before it reaches the human, using that skill's decode table. A raw status code or action symbol in a `/status` reply is the same translation-duty failure as an undecoded channel post.
-
-**Reconcile record against pulse out loud.** A lane the board calls ACTIVE with no channel
-signal, or a done-post the board hasn't absorbed, is exactly what the human needs surfaced —
-say which you trust and why. No transport, or tools unavailable this session: the board and
-the disk are the whole picture, exactly as before.
+**Reconcile the record against the disk out loud.** A lane the board calls ACTIVE with nothing
+written, or a mission-complete file the board hasn't absorbed, is exactly what the human needs
+surfaced — say which you trust and why. The board and the disk are the whole picture.
 
 Then report inline, tightest useful form:
 
 1. **In flight** — one line per mission: ID, mission, lanes and their states, deadline
    countdown. Lead with anything overdue or inside its escalation window. One blocked lane
    never hides the others.
-2. **Reality check** — where the record disagrees with the disk or the pulse. A lane marked
-   PENDING whose deliverable already exists, or done with nothing written, is the most useful
-   thing you can surface. Say which you trust and why (order of authority: mission-complete >
-   deliverable files > channel ledger > board row > registry > silence).
+2. **Reality check** — where the record disagrees with the disk. A lane marked QUEUED whose
+   deliverable already exists, or done with nothing written, is the most useful thing you can
+   surface. Say which you trust and why (order of authority: mission-complete > deliverable
+   files > board row > registry > silence).
 3. **Assets** — who has checked in recently, who is stale (>6 h), who is dormant (>48 h), who
-   has never registered. When a transport is bound, fold in presence: registered and posting,
-   registered but silent, or absent from the roster.
+   has never registered.
 4. **Closed since last check** — one line, only if something landed.
 
-**Always render the human scoreboard** — every /status, transport or not. The human never
-reads wire format: whatever compact protocol the agents used on a channel, you owe the human
+**Always render the human scoreboard** — every /status. The human never reads wire format:
+whatever compact protocol the agents used with each other, you owe the human
 the translation. The scoreboard is a first-class deliverable, not decoration:
 
 | Mission | Asset | Status | Latest signal | Next |
@@ -97,7 +90,7 @@ owns it. Update your own lane's state in the mission's status cell instead.
 `/status` is the on-demand path, but the human shouldn't have to ask to stay informed.
 
 **In Claude Code, that standing duty is TARS** — the plugin's turn hook. It runs before every
-message and reports facts: deliveries, inbox growth, a newly staged brief, Collective pushes, and
+message and reports facts: deliveries, inbox growth, a newly staged brief, new Collective commits, and
 turn checkpoints. Relay every `TARS:` line verbatim, in italics, at the top of your reply, then act on it. In the
 Overmind's session, run the watch rules when TARS cues `mission watch due`. No TARS lines, no
 mention; never narrate a check that found nothing.

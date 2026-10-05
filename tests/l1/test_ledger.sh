@@ -71,7 +71,7 @@ for f in "$repo"/hooks/kernel.md "$repo"/reference/*.md "$repo"/skills/*/SKILL.m
     { gsub(/\r/, ""); buf = buf " " $0 }
     END { gsub(/[*`_]/, "", buf); gsub(/[ \t]+/, " ", buf); sub(/^ /, "", buf); sub(/ $/, "", buf); printf "%s\t%s\n", rel, buf }' "$f" >> "$tmp/targets"
   # aliases comment, verbatim
-  LC_ALL=C sed -n 's/^<!-- aliases: \(.*\) -->\r\{0,1\}$/\1/p' "$f" | head -1 | awk -v rel="$rel" '{ printf "%s\t%s\n", rel, $0 }' >> "$tmp/aliases"
+  tr -d '\r' < "$f" | LC_ALL=C sed -n 's/^<!-- aliases: \(.*\) -->$/\1/p' | head -1 | awk -v rel="$rel" '{ printf "%s\t%s\n", rel, $0 }' >> "$tmp/aliases"
 done
 [ -f "$tmp/aliases" ] || : > "$tmp/aliases"
 tr -d '\r' < "$repo/docs/v5/findings-index.txt" | grep -v '^#' | cut -f1 | grep -v '^$' > "$tmp/findings"
