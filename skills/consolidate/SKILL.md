@@ -93,9 +93,12 @@ another one; the human chose the survivor by running the command here.
 Resolve the mission ID, first match wins:
 
 1. The argument (`/consolidate AXM-046`).
-2. The first match of `[A-Z][A-Z0-9]{1,9}-[0-9]{1,5}[a-z]?` anywhere in this
-   session's title (`get_session("self")`). Unanchored: "Morph OPS-030 L6"
-   gives `OPS-030`.
+2. The first match of `[A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?` anywhere in this
+   session's title (`get_session("self")`), starting at a word boundary.
+   Unanchored: "Morph OPS-030 L6" gives `OPS-030`, and "Fix M-017 tray"
+   gives `M-017`. The argument itself must match the whole pattern
+   (`^[A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?$`); a lowercase or partial ID is
+   refused.
 3. The first Next Step of the handoff this session activated (the one stamped
    `ACTIVATED: ... (session <sid8>)` with this session's id).
 4. Ask the human for the mission ID. One line.
@@ -295,20 +298,32 @@ him:
 One table, every sibling, then **one question** for the whole table. Never
 ask session by session.
 
+**Side sessions first.** `archive_session` also archives a session's side
+sessions: those that share its worktree, and those it started that are idle
+with no open PR of their own. Before you build the table, find them for each
+sibling you would archive: `get_session(<id>)` for its worktree and
+`parentSessionId`, then the `list_sessions` rows (`linked: true` from that
+sibling's family, plus any row with the same worktree path). Each side session
+gets its own row in the table, marked "side session of <sib8>", and its own
+guard run below. A sibling is archived only if every one of its side sessions
+also passes. If a side session is this session (the anchor), is LIVE or
+FOREIGN, or fails its guard, the sibling stays open; say which and why.
+
 ```
 | Session | Class | Result | Action on yes |
 | [title](#local_...) | SUPERSEDED | nothing unique | archive |
 | [title](#local_...) | DIVERGED | folded: 3 decisions, 1 file | archive |
 | [title](#local_...) | LIVE | not folded (timed out) | leave open |
 | [title](#local_...) | FOREIGN | another seat's lane | leave open (report only) |
+| [title](#local_...) | side session of 1589a98d | shares its worktree | archived with it |
 ```
 
 > Archive the sessions marked "archive"? (yes / no)
 
 FOREIGN, cloud and not-folded sessions are never in the archive set.
 
-**On a yes**, for each sibling marked archive, run the pre-archive guard
-first. Pass every repo or worktree the sibling used (from its `cwd`,
+**On a yes**, for each sibling marked archive, and for each of its side
+sessions, run the pre-archive guard first. Pass every repo or worktree the sibling used (from its `cwd`,
 `get_session` worktree info, and the repos its transcript ran git in):
 
 ```
@@ -321,13 +336,14 @@ bash guard.sh --session <local_id> --running <1 if isRunning else 0> --fold <fol
 | 10 | running | leave it open; report |
 | 11 | uncommitted or untracked changes | leave it open; report the paths |
 | 12 | commits no remote holds | leave it open; report the branch |
-| 13 | open PR with no fold note | comment on the PR naming the fold file (needs his yes like any PR comment), or leave it open |
+| 13 | open PR with no fold note | comment on the PR naming the fold file (needs his yes like any PR comment), then **run guard again**, and archive only on that re-run's exit 0; or leave it open |
 | 14 | not folded | leave it open; fix the fold |
-| 15 | cannot verify (gh missing or unauthenticated, not a git repo) | leave it open; report |
+| 15 | cannot verify (gh missing or unauthenticated, not a git repo, or the repo defines a filter driver that inspecting would run) | leave it open; report |
 
 Archiving deletes the sibling's worktree, which is why the guard comes first.
 Call `archive_session(session_id, reason="consolidated into <anchor title>")`
-**only** after guard exit 0 **and** the human's yes in this session. A failure
+**only** after guard exit 0 (for the sibling and every side session) **and**
+the human's yes in this session. A failure
 is reported, never forced: no retry with fewer worktrees, no skipping the
 guard.
 
@@ -344,8 +360,14 @@ siblings stay open.
 - **Census:**
   `bash census.sh <team-root> <ID> ~/.claude/projects <SEAT>`. It lists this
   seat's claims on the ID and every session transcript that names the ID and
-  changed in the last 7 days, each with its cwd. Classify them as in step 3.
-  Use the transcript's last records to judge whether it is still running.
+  changed in the last 7 days, each with its cwd. **Drop this session's own
+  transcript** before classifying: it names the ID too, because you just ran
+  `/consolidate <ID>` in it. It is the newest-modified `*.jsonl` in this
+  session's own cwd slug whose last `user` row in `bash tail.sh <file> 5` is
+  this `/consolidate` request. Also drop this session's own claim. If two
+  transcripts both fit, ask the human which window this is; never guess.
+  Classify the rest as in step 3. Use each transcript's last records to judge
+  whether it is still running.
 - **Extract** with `tail.sh` exactly as in Read mode. For a live session
   reachable through `ListAgents`, Ask mode works through `SendMessage` with
   `notify_when_idle`.

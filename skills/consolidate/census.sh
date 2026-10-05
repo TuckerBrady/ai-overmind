@@ -22,7 +22,7 @@ set -u
 usage() { echo "usage: census.sh <team-root> <ID> <projects-dir> <SEAT>" >&2; exit 2; }
 [ $# -eq 4 ] || usage
 root=$1; id=$2; proj=$3; seat=$4
-printf '%s\n' "$id" | LC_ALL=C grep -qxE '[A-Z][A-Z0-9]{1,9}-[0-9]{1,5}[a-z]?' || usage
+printf '%s\n' "$id" | LC_ALL=C grep -qxE '[A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?' || usage
 [ -n "$seat" ] || usage
 case $seat in *[[:cntrl:]]*) usage ;; esac
 

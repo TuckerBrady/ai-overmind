@@ -80,4 +80,17 @@ t "a bad ID, a missing argument or an empty seat exits 2"
 "$SB" "$census" "$root" 'AXM-046.*' "$proj" T-Bot > /dev/null 2>&1; d=$?
 [ "$a$b$c$d" = 2222 ] && pass || fail "got $a $b $c $d"
 
+t "A-17: a single-letter mission M-017 is accepted and found"
+printf '1791100800 T-Bot\n' > "$cl/M-017.local_99998888"
+rec 'dispatching M-017 now' > "$seatdir/88888888-aaaa-4aaa-8aaa-888888888888.jsonl"
+o5=$("$SB" "$census" "$root" M-017 "$proj" T-Bot); r5=$?
+[ "$r5" = 0 ] && printf '%s\n' "$o5" | LC_ALL=C grep -q '^claim	local_99998888	' &&
+  printf '%s\n' "$o5" | LC_ALL=C grep -q '^transcript	88888888-' && pass || fail "rc=$r5 out=$o5"
+
+t "A-17: m-017, -17 and M- are rejected"
+"$SB" "$census" "$root" m-017 "$proj" T-Bot > /dev/null 2>&1; a=$?
+"$SB" "$census" "$root" -17 "$proj" T-Bot > /dev/null 2>&1; b=$?
+"$SB" "$census" "$root" M- "$proj" T-Bot > /dev/null 2>&1; c=$?
+[ "$a$b$c" = 222 ] && pass || fail "got $a $b $c"
+
 echo "$([ $no -eq 0 ] && echo PASS || echo FAIL) ${0##*/} ($((ok+no)) cases)"; [ $no -eq 0 ]
