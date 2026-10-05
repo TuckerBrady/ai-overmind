@@ -55,6 +55,21 @@ The hash covers `hooks/kernel.md` and then `reference/*.md`, as the plugin ships
 installed plugin's firmware on every boot. When the two differ, a `WARNING:` line comes directly
 before the Engine line: rebuild or update overmind-mcp. `/diagnostic` compares the same hash.
 
+## Security notes
+
+The boundary is the team root. Links and junctions are resolved before any read, and a reparse
+point whose target can't be read (an app execution alias, a cloud placeholder) is refused rather
+than read as a plain file. Two gaps are accepted risks for v5.0.0, because both need someone who can
+already write inside the team root, and that person has already defeated the boundary:
+
+- **Hard links.** A hard link is a second name for the same file, not a link that can be resolved.
+  So a hard link inside the root that points at a file outside it is read like any other file
+  (OPS-030 amendment A-6).
+- **Resolve-then-open race.** A path is resolved and checked, then opened. A link swapped in between
+  those two steps could redirect the read (a TOCTOU race; OPS-030 amendment A-7).
+
+The server never writes, and it sends nothing off the machine.
+
 ## Setup
 
 1. Download the binary for your platform from the release, or build it: `bash mcp/build.sh`
