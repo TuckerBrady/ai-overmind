@@ -16,9 +16,34 @@
 # Pattern classes only: this plugin is generic, so no real name, address or
 # number appears here (GAP-36). A hit blocks the post until the human edits
 # it or explicitly overrides this category for this one post.
+#
+# Best effort, not a gate: a determined writer can phrase around any pattern.
+# The gate is the human's yes on the exact text of every outbound post.
+# Before matching, full-width digits and dollar signs become ASCII, odd
+# whitespace (tab, no-break, ideographic, thin) becomes a space, and the
+# wrapped lines are also scanned joined into one, so a value split across a
+# line break is still seen (A-24, M3).
 LC_ALL=C; export LC_ALL
 
-input=$(head -c 1048576)
+input=$(head -c 1048576 | tr -d '\r')
+
+# Normalize: full-width 0-9 (EF BC 90-99) and $ (EF BC 84) to ASCII.
+i=0
+while [ "$i" -le 9 ]; do
+  fw=$(printf "\\357\\274\\$(printf '%03o' $(( 0x90 + i )))")
+  input=${input//"$fw"/$i}
+  i=$(( i + 1 ))
+done
+input=${input//"$(printf '\357\274\204')"/\$}
+for ws in "$(printf '\t')" "$(printf '\302\240')" "$(printf '\343\200\200')" "$(printf '\342\200\211')" "$(printf '\342\200\257')"; do
+  input=${input//"$ws"/ }
+done
+input=$(printf '%s\n' "$input" | tr -s ' ')
+nlines=$(printf '%s\n' "$input" | wc -l | tr -d ' ')
+joined=$(printf '%s' "$input" | tr '\n' ' ' | tr -s ' ')
+# What the patterns see: every line, then all of them joined (line nlines+1).
+input="$input
+$joined"
 
 W='(^|[^A-Za-z0-9_])'
 E='([^A-Za-z0-9_]|$)'
@@ -35,7 +60,10 @@ check() {
   while [ $# -gt 0 ]; do args+=(-e "$1"); shift; done
   grep $flags -q "${args[@]}" <<<"$input" || return 1
   lines=$(grep $flags -n "${args[@]}" <<<"$input" | cut -d: -f1 | head -3 | tr '\n' ' ')
-  printf 'DNP %s (line %s)\n' "$cat" "${lines% }"
+  lines=" ${lines% } "
+  lines=${lines/ $(( nlines + 1 )) / joined }
+  lines=${lines# }; lines=${lines% }
+  printf 'DNP %s (line %s)\n' "$cat" "$lines"
   hits=1
   return 0
 }
@@ -45,7 +73,10 @@ check PAY i \
   "${W}(salary|salaries|paycheck|pay ?stub|payslip|pay rate|hourly rate|compensation|severance|offer letter|w-2|1099-nec)${E}" \
   "${W}(bonus|raise|wages?|base pay|take-home|rsus?|equity grant)[^.]{0,40}[\$][ ]?[0-9]" \
   "[\$][ ]?[0-9][0-9,.]*k?[ ]?(/|a|per) ?(year|yr|hour|hr|month|mo)${E}" \
-  "${W}[0-9]{2,3}k (a|per) year${E}"
+  "${W}[0-9]{2,3}k (a|per) year${E}" \
+  "[\$][0-9]+(\.[0-9]+)?[kKmM]${E}" \
+  "${W}(comp|compensation|earns?|earning|makes|made|salary|paid|pay|bonus|raise)${E}[^.]{0,40}([\$][0-9]|[0-9]+(\.[0-9]+)?[kK]${E}|[0-9]{1,3}(,[0-9]{3})+|[0-9]{5,})" \
+  "(${W}[0-9]+(\.[0-9]+)?[kK]${E}|[0-9]{1,3}(,[0-9]{3})+)[^.]{0,40}${W}(comp|compensation|salary|pay|bonus|a year|per year)${E}"
 
 # HEALTH
 check HEALTH i \
@@ -72,7 +103,7 @@ child_school
 
 # CREDENTIAL
 check CREDENTIAL i \
-  "${W}(password|passwd|passcode)[ ]*[:=][ ]*[^ ]" \
+  "${W}(password|passwd|passcode|pass|pwd|pw)[ ]*(=|:| is )[ ]*[^ ]" \
   "${W}(api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|auth[_-]?token|bearer)[\"' ]*[:= ][ \"']*[A-Za-z0-9_./+=-]{16,}" \
   "-----BEGIN [A-Z ]*PRIVATE KEY-----" ||
 check CREDENTIAL s \

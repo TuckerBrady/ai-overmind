@@ -1,24 +1,31 @@
 #!/usr/bin/env bash
-# skills/collective/proof.sh: Proof A, nonce first (CONTRACT 5.3; formats in
-# reference/collective.md "Formats").
+# skills/collective/proof.sh: Proof A by signature (CONTRACT A-23; COL-1, COL-3).
 #
-#   proof.sh issue <cid> <peer> <k>       verifier: store a fresh nonce and index k
-#                                         for <peer>, then print them for the post
-#   proof.sh answer <cid> <k> <nonce>     holder: print X_k and sha256(X_k || nonce)
-#   proof.sh verify <cid> <peer> <X_k> <proof>
-#                                         verifier: pass only against the stored
-#                                         nonce, which is deleted on any attempt
+#   proof.sh issue <cid> <my-label> <peer-label>
+#       verifier: store a fresh 128-bit nonce for a PINNED peer, then print
+#       the challenge. Nothing is printed unless the nonce was stored first.
+#   proof.sh answer <cid> <verifier-label> <my-label> <nonce>
+#       holder: sign the Proof A message with this Overmind's key and print
+#       the armored signature.
+#   proof.sh verify <cid> <peer-label> <signature-file>
+#       verifier: check the signature against the peer's PIN. The pending
+#       nonce is claimed with mv first (N1); only a signature that verifies
+#       spends it, so a stranger cannot burn a round.
 #
-# The nonce is written to private state BEFORE anything is printed, so it
-# exists before the challenge can be sent. At most one round is in flight per
-# Collective (FW-26). Exit: 0 pass, 1 fail or refused, 2 usage, 3 missing
-# state, 4 missing tool.
+# The signed message is exactly
+#   ai-overmind-proof-a|<cid>|<verifier-label>|<peer-label>|<nonce>
+# with both labels in normalized form (lowercase letters and digits), signed
+# under the namespace ai-overmind-collective. Naming the cid and the verifier
+# means a signature replayed to another verifier or Collective fails. At most
+# one round is in flight per Collective (FW-26).
+# Exit: 0 pass, 1 fail or refused, 2 usage, 3 missing state, 4 missing tool.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 umask 077
 
-usage() { die 2 "usage: proof.sh issue <cid> <peer> <k> | answer <cid> <k> <nonce> | verify <cid> <peer> <X_k> <proof>"; }
+usage() { die 2 "usage: proof.sh issue <cid> <my-label> <peer-label> | answer <cid> <verifier-label> <my-label> <nonce> | verify <cid> <peer-label> <signature-file>"; }
+message() { printf 'ai-overmind-proof-a|%s|%s|%s|%s' "$1" "$2" "$3" "$4"; }
 
 cmd=${1:-}
 [ $# -ge 1 ] && shift
@@ -26,71 +33,61 @@ cmd=${1:-}
 case $cmd in
   issue)
     [ $# -eq 3 ] || usage
-    cid=$1 peer=$2 k=$3; d=$(state_dir "$cid") || exit 2
-    peer_ok "$peer" || die 2 "bad peer label"
-    is_uint "$k" && [ "$k" -ge 1 ] || die 2 "index must be a positive integer"
-    accepted_get "$d" "$peer" || die 3 "no accepted chain for $peer; accept an anchor first"
-    [ "$k" -lt "$ACC_INDEX" ] || die 1 "REFUSED: index $k is not below the last accepted index $ACC_INDEX"
+    cid=$1; d=$(state_dir "$cid") || exit 2
+    label_ok "$2" && label_ok "$3" || die 2 "labels must be plain ASCII letters, digits, space and . _ ( ) , -"
+    me=$(label_norm "$2"); peer=$(label_norm "$3")
+    [ -f "$d/pins/$peer.pub" ] || die 3 "REFUSED: $3 has no pinned key; pin it after an out-of-band fingerprint check"
     mkdir -p "$d/pending" || die 3 "cannot create $d/pending"
     for p in "$d"/pending/*; do
       [ -e "$p" ] && die 1 "REFUSED: a round is already in flight in this Collective (one at a time)"
     done
-    rm -f "$d/renew-ok.$(peer_key "$peer")"   # a legacy renewal rides on this round only
     n=$(rand_hex 16)
-    printf 'peer: %s\nnonce: %s\nindex: %s\n' "$peer" "$n" "$k" | write_atomic "$d/pending/$(peer_key "$peer")" ||
+    printf 'verifier: %s\npeer: %s\nnonce: %s\n' "$me" "$peer" "$n" | write_atomic "$d/pending/$peer" ||
       die 3 "cannot store the nonce"
-    event "$d" "issued Proof A to $peer at index $k"
-    printf 'nonce: %s\nindex: %s\n' "$n" "$k"
+    event "$d" "issued Proof A to $peer"
+    printf 'proof-a: cid %s verifier %s peer %s nonce %s\n' "$cid" "$me" "$peer" "$n"
     ;;
 
   answer)
-    [ $# -eq 3 ] || usage
-    cid=$1 k=$2 n=$3; d=$(state_dir "$cid") || exit 2; m="$d/membership"
-    is_uint "$k" && [ "$k" -ge 1 ] && [ "$k" -le 99 ] || die 2 "index must be 1-99"
+    [ $# -eq 4 ] || usage
+    cid=$1 n=$4
+    state_dir "$cid" >/dev/null || exit 2
+    label_ok "$2" && label_ok "$3" || die 2 "bad label"
     is_hex "$n" 32 || die 2 "nonce must be 32 lowercase hex characters"
-    [ -f "$m" ] || die 3 "no membership for $cid"
-    g=$(kv_get "$m" generation) || die 3 "membership has no generation"
-    low=$(kv_get "$m" lowest-revealed) || die 3 "membership has no lowest-revealed"
-    der=$(kv_get "$m" derivation) || der=v5
-    [ "$k" -lt "$low" ] || die 1 "REFUSED: index $k is not below the lowest index already revealed ($low); never reveal a step twice"
-    case $der in
-      v5) s=$(seed_get seed) && is_hex "$s" 64 || die 3 "no Genesis Seed: run genesis.sh mint first"
-          x0=$(chain_base "$cid" "$g") ;;
-      legacy-v2)
-        old=$(kv_get "$m" legacy-cid) || die 3 "legacy membership has no legacy-cid"
-        nonce=$(seed_get nonce) || die 3 "no legacy nonce: line in the genesis-seed"
-        x0=$(sha_str "AI-OVERMIND-GENESIS-CHAIN-V2|$old|$g|$nonce") ;;
-      *) die 3 "unknown derivation $der" ;;
-    esac
-    x=$(chain_step "$x0" "$k")
-    # Spend the step before it can be shown to anyone.
-    { printf 'derivation: %s\n' "$der"
-      [ "$der" = legacy-v2 ] && printf 'legacy-cid: %s\n' "$old"
-      printf 'generation: %s\nlowest-revealed: %s\n' "$g" "$k"; } | write_atomic "$m" || die 3 "cannot update membership"
-    printf 'reveal: %s\nindex: %s\nproof: %s\n' "$x" "$k" "$(sha_str "$x$n")"
+    k=$(key_file); [ -f "$k" ] || die 3 "no key: run identity.sh mint"
+    t=$(mktemp -d "${TMPDIR:-/tmp}/ovmpa.XXXXXX") || die 3 "no temp dir"
+    message "$cid" "$(label_norm "$2")" "$(label_norm "$3")" "$n" > "$t/m"
+    if ssh-keygen -Y sign -f "$k" -n "$NAMESPACE" "$t/m" </dev/null >/dev/null 2>&1; then
+      cat "$t/m.sig"; rm -rf "$t"
+    else
+      rm -rf "$t"; die 4 "ssh-keygen could not sign"
+    fi
     ;;
 
   verify)
-    [ $# -eq 4 ] || usage
-    cid=$1 peer=$2 x=$3 h=$4; d=$(state_dir "$cid") || exit 2
-    peer_ok "$peer" || die 2 "bad peer label"
-    key=$(peer_key "$peer"); pf="$d/pending/$key"
-    [ -f "$pf" ] || die 1 "FAIL: no stored nonce for $peer (issue one first; each nonce works once)"
-    n=$(kv_get "$pf" nonce); k=$(kv_get "$pf" index); sp=$(kv_get "$pf" peer)
-    rm -f "$pf"   # single use: any attempt spends it
-    [ "$sp" = "$peer" ] || die 1 "FAIL: stored nonce belongs to another peer"
-    is_hex "$n" 32 && is_uint "$k" || die 1 "FAIL: stored nonce is malformed"
-    is_hex "$x" 64 || die 1 "FAIL: reveal is not 64 lowercase hex"
-    is_hex "$h" 64 || die 1 "FAIL: proof is not 64 lowercase hex"
-    [ "$(sha_str "$x$n")" = "$h" ] || { event "$d" "Proof A FAIL for $peer: proof does not bind the stored nonce"; die 1 "FAIL: proof does not match sha256(reveal || nonce)"; }
-    accepted_get "$d" "$peer" || die 3 "FAIL: no accepted chain for $peer"
-    [ "$k" -lt "$ACC_INDEX" ] || die 1 "FAIL: index $k is not below the last accepted index"
-    [ "$(chain_step "$x" $(( ACC_INDEX - k )))" = "$ACC_VALUE" ] ||
-      { event "$d" "Proof A FAIL for $peer: reveal does not hash to the accepted value"; die 1 "FAIL: reveal does not hash forward to the last accepted value"; }
-    accepted_put "$d" "$peer" "$ACC_GEN" "$k" "$x" "$ACC_NEXT" "$ACC_STATUS"
-    : > "$d/renew-ok.$key"
-    event "$d" "Proof A PASS for $peer at index $k"
-    echo "PASS"
+    [ $# -eq 3 ] || usage
+    cid=$1 sig=$3; d=$(state_dir "$cid") || exit 2
+    label_ok "$2" || die 2 "bad label"
+    peer=$(label_norm "$2"); pin="$d/pins/$peer.pub"
+    [ -f "$pin" ] || die 1 "FAIL: $2 has no pinned key"
+    [ -f "$sig" ] || die 2 "no such signature file: $sig"
+    pf="$d/pending/$peer"; claim="$d/pending/.claim.$peer.$$"
+    mv "$pf" "$claim" 2>/dev/null || die 1 "FAIL: no stored nonce for $2 (issue one first; each nonce works once)"
+    me=$(kv_get "$claim" verifier); n=$(kv_get "$claim" nonce); sp=$(kv_get "$claim" peer)
+    restore() { mv "$claim" "$pf" 2>/dev/null; }
+    if [ "$sp" != "$peer" ] || ! is_hex "$n" 32; then restore; die 1 "FAIL: stored nonce is malformed"; fi
+    t=$(mktemp -d "${TMPDIR:-/tmp}/ovmpv.XXXXXX") || { restore; die 3 "no temp dir"; }
+    message "$cid" "$me" "$peer" "$n" > "$t/m"
+    printf '%s namespaces="%s" %s\n' "$peer" "$NAMESPACE" "$(key_body "$pin")" > "$t/as"
+    if ssh-keygen -Y verify -f "$t/as" -I "$peer" -n "$NAMESPACE" -s "$sig" < "$t/m" >/dev/null 2>&1; then
+      rm -rf "$t"; rm -f "$claim"
+      event "$d" "Proof A PASS for $peer"
+      echo "PASS"
+    else
+      rm -rf "$t"; restore
+      event "$d" "Proof A FAIL for $peer (nonce kept: only the pinned key spends it)"
+      die 1 "FAIL: the signature does not verify against $2's pinned key for this nonce, Collective and verifier"
+    fi
     ;;
 
   *) usage ;;

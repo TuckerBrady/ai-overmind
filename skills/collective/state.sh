@@ -1,22 +1,35 @@
 #!/usr/bin/env bash
 # skills/collective/state.sh: this Overmind's private Collective state
-# (CONTRACT 5.5). The files under ~/.claude/overmind/collective/<cid>/ are
-# authoritative. SEATS.md and the shared ledger are compared against them;
-# a difference is reported and never adopted. Nothing here writes the binder.
+# (CONTRACT 5.5, A-23, A-24). Files under ~/.claude/overmind/collective/<cid>/
+# are authoritative: pins/ (peers' public keys), allowed_signers (built from
+# the pins), ack (the commit this Overmind last read), events. SEATS.md and the
+# shared ledgers are compared against them; a difference is reported and never
+# adopted. Nothing here writes a binder.
 #
-#   state.sh ack <cid> <commit-sha>       record the commit this sweep read up to
-#   state.sh ack-get <cid>                print the recorded commit
-#   state.sh event <cid> <text>           append a line to the private event log
-#   state.sh check-seats <cid> <SEATS.md> compare the binder's Genesis chain record
-#   state.sh check-ledger <cid> <ledger>  compare a shared ledger's acked-commit
+#   state.sh pin <cid> <label> <pubkey-file> <fingerprint-confirmed-out-of-band>
+#       Run only after the two humans compared the fingerprint outside the
+#       venue AND this human said yes. The typed fingerprint must match the key.
+#   state.sh pin-self <cid> <label>     pin this Overmind's own key under its label
+#   state.sh unpin <cid> <label>        drop a pin (the human's call, e.g. a lost key)
+#   state.sh pins <cid>                 list label, fingerprint
+#   state.sh ack <cid> <commit-sha>     record the commit this sweep read up to
+#   state.sh ack-get <cid>              print it
+#   state.sh seed-ack <cid> <clone> <my-label> <ledger-path>
+#       first v5 sweep: the last commit to this Overmind's own ledger that is
+#       signed by its own pinned key (N4). None: confirm HEAD with the human.
+#   state.sh event <cid> <text>         append to the private event log
+#   state.sh check-seats <cid> <SEATS.md>   compare the binder's Keys table with the pins
+#   state.sh check-ledger <cid> <ledger>    compare a shared ledger's acked-commit
 #
-# Exit: 0 ok or no difference, 1 difference found, 2 usage, 3 missing state.
+# Labels are compared case-folded with punctuation stripped (N5); a label that
+# collides with a different pinned label is a lookalike and is refused.
+# Exit: 0 ok or no difference, 1 difference or refused, 2 usage, 3 missing state.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 umask 077
 
-usage() { die 2 "usage: state.sh ack|ack-get|event|check-seats|check-ledger <cid> ..."; }
+usage() { die 2 "usage: state.sh pin|pin-self|unpin|pins|ack|ack-get|seed-ack|event|check-seats|check-ledger <cid> ..."; }
 
 cmd=${1:-}
 [ $# -ge 2 ] || usage
@@ -26,7 +39,67 @@ d=$(state_dir "$cid") || exit 2
 
 trim() { local x=$1; x=${x#"${x%%[! ]*}"}; x=${x%"${x##*[! ]}"}; printf '%s' "$x"; }
 
+# do_pin LABEL PUBFILE: shared by pin and pin-self.
+do_pin() {
+  local raw=$1 pub=$2 n fp other
+  n=$(label_norm "$raw"); fp=$(fingerprint "$pub")
+  mkdir -p "$d/pins" || die 3 "cannot create $d/pins"
+  if [ -f "$d/pins/$n.label" ]; then
+    IFS= read -r other < "$d/pins/$n.label"
+    [ "$other" = "$raw" ] || die 1 "REFUSED: '$raw' is a lookalike of the pinned label '$other'"
+  fi
+  if [ -f "$d/pins/$n.pub" ]; then
+    [ "$(key_body "$d/pins/$n.pub")" = "$(key_body "$pub")" ] && { echo "already pinned: $raw $fp"; return 0; }
+    die 1 "REFUSED: a different key is pinned for '$raw'; replacing it needs unpin first, on the human's word"
+  fi
+  for other in "$d"/pins/*.pub; do
+    [ -f "$other" ] || continue
+    [ "$(key_body "$other")" = "$(key_body "$pub")" ] && die 1 "REFUSED: this key is already pinned under another label (${other##*/})"
+  done
+  key_body "$pub" | write_atomic "$d/pins/$n.pub" || die 3 "cannot write the pin"
+  printf '%s\n' "$raw" | write_atomic "$d/pins/$n.label"
+  allowed_signers "$cid"
+  event "$d" "pinned $raw ($n) $fp"
+  echo "pinned: $raw $fp"
+}
+
 case $cmd in
+  pin)
+    [ $# -eq 3 ] || usage
+    label_ok "$1" || die 2 "labels must be plain ASCII letters, digits, space and . _ ( ) , -"
+    pubkey_ok "$2" || die 2 "not a single ssh-ed25519 public key: $2"
+    fp=$(fingerprint "$2")
+    [ "$3" = "$fp" ] || die 1 "REFUSED: the key's fingerprint is $fp, not the one confirmed out of band ($3). Not pinned."
+    do_pin "$1" "$2"
+    ;;
+
+  pin-self)
+    [ $# -eq 1 ] || usage
+    label_ok "$1" || die 2 "bad label"
+    k=$(key_file)
+    [ -f "$k.pub" ] || die 3 "no key: run identity.sh mint"
+    do_pin "$1" "$k.pub"
+    ;;
+
+  unpin)
+    [ $# -eq 1 ] || usage
+    n=$(label_norm "$1")
+    [ -f "$d/pins/$n.pub" ] || die 3 "no pin for $1"
+    rm -f "$d/pins/$n.pub" "$d/pins/$n.label" "$d/pending/$n"
+    allowed_signers "$cid"
+    event "$d" "unpinned $1 ($n)"
+    echo "unpinned: $1"
+    ;;
+
+  pins)
+    for p in "$d"/pins/*.pub; do
+      [ -f "$p" ] || continue
+      n=${p##*/}; n=${n%.pub}
+      IFS= read -r raw < "$d/pins/$n.label" 2>/dev/null || raw=$n
+      printf '%s\t%s\n' "$raw" "$(fingerprint "$p")"
+    done
+    ;;
+
   ack)
     [ $# -eq 1 ] || usage
     is_hex "$1" 40 || die 2 "commit must be a full 40-hex sha"
@@ -40,6 +113,24 @@ case $cmd in
     IFS= read -r a < "$d/ack"; printf '%s\n' "${a%$'\r'}"
     ;;
 
+  seed-ack)
+    [ $# -eq 3 ] || usage
+    clone=$1 me=$(label_norm "$2") ledger=$3
+    [ -f "$d/pins/$me.pub" ] || die 3 "pin your own key first (state.sh pin-self)"
+    for c in $(git -C "$clone" log --format=%H -- "$ledger" 2>/dev/null); do
+      s=$(commit_signer "$clone" "$cid" "$c") || continue
+      if [ "$s" = "$me" ]; then
+        mkdir -p "$d"
+        printf '%s\n' "$c" | write_atomic "$d/ack"
+        event "$d" "ack seeded from own signed ledger commit $c"
+        echo "seeded: $c"
+        exit 0
+      fi
+    done
+    echo "NONE: no commit to $ledger is signed by your own pinned key. Show the human HEAD and, on a yes, run state.sh ack with it."
+    exit 1
+    ;;
+
   event)
     [ $# -eq 1 ] || usage
     mkdir -p "$d" || die 3 "cannot create $d"
@@ -49,37 +140,41 @@ case $cmd in
   check-seats)
     [ $# -eq 1 ] || usage
     [ -f "$1" ] || die 3 "no such file: $1"
-    [ -f "$d/accepted" ] || die 3 "no accepted chains for this Collective"
-    diff=0 in=0 seen=""
+    diff=0 in=0 seen="|"
     while IFS= read -r l || [ -n "$l" ]; do
       l=${l%$'\r'}
       case $l in
-        '## Genesis chain record'*) in=1; continue ;;
+        '## Keys'*) in=1; continue ;;
         '## '*) in=0; continue ;;
       esac
       [ "$in" -eq 1 ] || continue
       case $l in '|'*) ;; *) continue ;; esac
       row=$(printf '%s' "$l" | tr -d '`')
-      IFS='|' read -r _ c1 c2 c3 c4 c5 _ <<EOF
+      IFS='|' read -r _ c1 c2 c3 _ <<EOF
 $row
 EOF
-      name=$(trim "$c1"); g=$(trim "$c3"); i=$(trim "$c4"); v=$(trim "$c5")
-      case $name in ''|Overmind|-*) continue ;; esac
-      if accepted_get "$d" "$name"; then
-        seen="$seen|$name|"
-        if [ "$g" != "$ACC_GEN" ] || [ "$i" != "$ACC_INDEX" ] || [ "$v" != "$ACC_VALUE" ]; then
-          echo "DIFFERS $name: SEATS.md has gen $g index $i value $v; private state has gen $ACC_GEN index $ACC_INDEX value $ACC_VALUE. Not adopted."
-          diff=1
+      raw=$(trim "$c1"); fp=$(trim "$c2"); key=$(trim "$c3")
+      case $raw in ''|Overmind|-*) continue ;; esac
+      n=$(label_norm "$raw")
+      [ -n "$n" ] || continue
+      if [ -f "$d/pins/$n.pub" ]; then
+        IFS= read -r praw < "$d/pins/$n.label"
+        seen="$seen$n|"
+        if [ "$praw" != "$raw" ]; then
+          echo "LOOKALIKE $raw: collides with pinned label '$praw'. Not adopted."; diff=1
+        elif [ "$key" != "$(key_body "$d/pins/$n.pub")" ] || [ "$fp" != "$(fingerprint "$d/pins/$n.pub")" ]; then
+          echo "DIFFERS $raw: SEATS.md shows $fp; the pin is $(fingerprint "$d/pins/$n.pub"). Not adopted."; diff=1
         fi
       else
-        echo "UNTRACKED $name: in SEATS.md, never accepted by this Overmind. Not adopted."
+        echo "UNPINNED $raw: in SEATS.md, not pinned here. Pin only after an out-of-band fingerprint check and the human's yes."
       fi
     done < "$1"
-    tab=$(printf '\t')
-    while IFS="$tab" read -r p _ || [ -n "$p" ]; do
-      case $seen in *"|$p|"*) ;; *) echo "MISSING $p: accepted here, absent from SEATS.md."; diff=1 ;; esac
-    done < "$d/accepted"
-    [ "$diff" -eq 1 ] && event "$d" "SEATS.md differs from private state; reported, not adopted"
+    for p in "$d"/pins/*.pub; do
+      [ -f "$p" ] || continue
+      n=${p##*/}; n=${n%.pub}
+      case $seen in *"|$n|"*) ;; *) IFS= read -r praw < "$d/pins/$n.label"; echo "MISSING $praw: pinned here, absent from SEATS.md."; diff=1 ;; esac
+    done
+    [ "$diff" -eq 1 ] && event "$d" "SEATS.md differs from the pins; reported, not adopted"
     exit "$diff"
     ;;
 
