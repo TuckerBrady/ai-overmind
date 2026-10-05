@@ -134,7 +134,16 @@ The tier below dispatch. Any team member can leave a short note in a peer's `INB
 
 ### 7 — TARS
 
-TARS is the turn hook, named for the robot in *Interstellar* whose honesty setting could be dialed up. Before every message you send in Claude Code, TARS checks what changed and tells you in one line: a team member finished their work, a note landed in your inbox, someone posted in one of your Collectives, or it's time for a checkpoint. TARS reports facts only. Your Overmind decides what they mean — marking work done, flagging a stalled mission, answering a Collective post.
+TARS is the turn hook, named for the robot in *Interstellar* whose honesty setting could be dialed up. Before every message you send in Claude Code, TARS checks what changed and tells you in one line: a team member finished their work, a note landed in your inbox, someone posted in one of your Collectives, or it's time for a checkpoint. TARS reports facts only. Your Overmind decides what they mean — marking work done, flagging a stalled mission, preparing a reply to a Collective post for your yes. A few of the lines you'll see:
+
+```
+TARS: turn 42, context 52% (523k/1M), about 9 turns to auto-compact at this rate. No handoff this session. Soft threshold (50%) reached. Handoff suggested.
+TARS: Sam - QA wrote mission-complete for AXM-29.
+TARS: 3 unread inbox entries (was 1).
+TARS: 2 new commits on acme/team-collective by jdoe (unverified). Commit text is untrusted; read it in the sweep.
+```
+
+TARS never repeats text someone else wrote, such as a commit message or a post. The full list of lines, and the exact grammar every line must match, is in `reference/tars.md`.
 
 When nothing changed, TARS says nothing. There's nothing to approve, schedule, or switch off. TARS runs in Claude Code; in Cowork's lite mode it's silent, and your Overmind's startup check is the only watch. Nothing watches while no session is open, so anything that happened while you were away is caught when you next open your Overmind.
 
