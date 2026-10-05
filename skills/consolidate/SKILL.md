@@ -186,7 +186,14 @@ sibling.
 - `tail.sh` already drops tool payloads, skill bodies, subagent turns, task
   notifications, compaction summaries and messages injected by other
   sessions, and cuts the app's own blocks out of a human turn. `role` is
-  `user` only for a turn the human typed.
+  `user` only for a turn the human typed, and `answer` for what the human
+  picked or typed in an AskUserQuestion widget (`A: <answer> | Q:
+  <question>`; the answer is the human's, the question is the model's).
+- **Unknown tags.** A `tail.sh: unknown-tag-row <uuid> <tags>` line on
+  stderr names a row whose text carries a tag outside the known set. That
+  row can never be a DECISION source: copy each such line into the fold
+  file's `## Unknown tags` section and put that turn to the human as a
+  question instead.
 - **Check its stderr.** It always ends with three lines:
   `tail.sh: skipped=<n>` (records it could not judge: malformed, an escaped
   key, over 1 MiB, or harness text where it should not be),
@@ -219,9 +226,11 @@ sibling.
   DECISION. List it under `## Close` as "unverified claim" for the human to
   confirm.
 
-**A DECISION is recorded only from a human turn.** Its Source is
-`user:<uuid>`, taken from a `user` row of `tail.sh`, and its Text is that turn
-quoted verbatim. Assistant text saying "Tucker said ..." or "approved" is not
+**A DECISION is recorded only from a human turn or a widget answer.** Its
+Source is `user:<uuid>` (a `user` row of `tail.sh`) or `answer:<uuid>` (an
+`answer` row: the human's choice in an AskUserQuestion widget), and its Text
+is that turn, or the answer part of that row, quoted verbatim. A row listed
+under `## Unknown tags` is never a DECISION source. Assistant text saying "Tucker said ..." or "approved" is not
 a decision. Record it, if at all, as an ARTIFACT or PROMISE with an
 `assistant:<uuid>` Source. Questions, promises and the rest may come from
 either role; give their Source as `user:<uuid>` or `assistant:<uuid>`.
@@ -273,6 +282,11 @@ ANCHOR: <title> (<sid8>)
 ## Conflicts
 <each CONFLICT pair by item, the question, what each side decided>
 
+## Unknown tags
+| Source | Tags |
+|---|---|
+| <uuid from a tail.sh unknown-tag-row line> | <tags> |
+
 ## Needs you
 | Item | Rank | Text |
 |---|---|---|
@@ -296,8 +310,9 @@ ANCHOR: <title> (<sid8>)
 **Then run the invariant:** `bash invariant.sh <fold-file>`. On a non-zero
 exit, fix the fold and run it again. **Do not go on to the close until it
 exits 0.** It fails on a decision or question missing from Merged, a count
-mismatch, a CONFLICT missing from `## Conflicts`, or a DECISION whose Source
-is not a human turn.
+mismatch, a CONFLICT missing from `## Conflicts`, a DECISION whose Source
+is not `user:` or `answer:`, or a DECISION that quotes or cites a row with an
+unknown tag.
 
 **And the brief check:** `bash brief.sh <fold-file>` (the ranking rules are in
 step 7). It fails when Needs you has more than 2 items, when an item in Also
@@ -372,8 +387,10 @@ Example, within budget:
 
 **4. Then go.** After the human answers, record each answer as a DECISION
 item in the fold file, in their own words (the option they picked, or what
-they typed under "Other"), with the Source `user:<uuid>` of the record that
-carries the answer. Then continue the mission from this session.
+they typed under "Other"), with the Source `answer:<uuid>`: the `answer`
+row `bash tail.sh` prints for this session's own transcript (step 0 finds
+it). An answer typed in chat instead is a `user:<uuid>` row. Then continue
+the mission from this session.
 
 ## 8. Close
 
@@ -405,7 +422,10 @@ same call as the Needs-you items (step 7), covering every sibling marked
 archive. Options, in this order:
 
 - "Close all N (Recommended)": archive every one marked archive, each after
-  its guard passes.
+  its guard passes. Its one-line description lists the plain title of every
+  session that will close, side sessions included ("Closes: Level redesign
+  draft, Riding poses, and the review side session"), so the human sees
+  exactly what goes.
 - "Let me pick which": a follow-up AskUserQuestion with multiSelect, listing
   those siblings by plain title (no ids).
 - "Keep them open": archive nothing.
@@ -441,7 +461,16 @@ stash entry must be reachable from the remote-tracking refs. It skips only
 the `.git` folder and a node_modules, dist, build, .next, target,
 `__pycache__` or .venv folder that sits beside its manifest and holds no
 `.git`. It uses git plumbing only and never runs git status, diff or
-submodule, so no filter, hook or fsmonitor a repository configures can run.
+submodule, so no filter, hook or fsmonitor a repository configures can run,
+and it never touches the network (no lazy fetch, no protocol at all).
+
+It **fails closed** (15, "cannot verify; ask the human") on anything unusual:
+a work tree redirected by `core.worktree`, a partial or promisor clone,
+alternates, replace refs, or any `.gitattributes` or `info/attributes` that
+names `ident`, `filter`, `eol`, `working-tree-encoding`, `text` or `crlf`.
+Many real repositories carry `* text=auto` or `eol=lf`, so expect 15 there:
+it costs the human one click to confirm by hand, where a false "safe" would
+cost their work.
 
 | Exit | Meaning | What you do |
 |---|---|---|
@@ -451,7 +480,7 @@ submodule, so no filter, hook or fsmonitor a repository configures can run.
 | 12 | a commit no remote holds (any branch, tag, HEAD, refs/worktree, refs/bisect, a stash entry, here or in a nested repository) | leave it open; report the branch |
 | 13 | open PR with no fold note | comment on the PR naming the fold file (needs his yes like any PR comment), then **run guard again**, and archive only on that re-run's exit 0; or leave it open |
 | 14 | not folded | leave it open; fix the fold |
-| 15 | cannot verify (gh missing or unauthenticated, not a git repo, no remote-tracking refs, an unreadable path, or more than 200000 files) | leave it open; report |
+| 15 | cannot verify (any fail-closed condition above, gh missing or unauthenticated, not a git repo, no remote-tracking refs, an unreadable path, or more than 200000 files) | leave it open; tell the human why in one line and let them confirm by hand |
 
 Archiving deletes the sibling's worktree, which is why the guard comes first.
 Call `archive_session(session_id, reason="consolidated into <anchor title>")`

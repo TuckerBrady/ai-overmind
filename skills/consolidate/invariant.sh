@@ -5,8 +5,14 @@
 # (CONTRACT 7.9) passes only if nothing a sibling held was lost on the way
 # into the anchor's record:
 #
-#   1. every DECISION's Source is a human turn: user:<uuid>. A decision the
-#      assistant reported ("Tucker said ...") is not a decision.
+#   1. every DECISION's Source is a human turn, user:<uuid>, or an answer
+#      the human gave in the AskUserQuestion widget, answer:<uuid> (A-40). A
+#      decision the assistant reported ("Tucker said ...") is not one.
+#   1b. no DECISION comes from a row that carried an unknown tag (A-41): its
+#      quoted text holds no <tag> other than the slash-command tags, and its
+#      Source is not listed under the optional ## Unknown tags section
+#      (rows "| <uuid> | <tags> |", copied from tail.sh's unknown-tag-row
+#      lines).
 #   2. every Inventory item of kind DECISION appears in the Merged record.
 #   3. every Inventory item of kind QUESTION appears in the Merged record.
 #   4. for DECISION and QUESTION, the Inventory row count equals the Merged
@@ -57,6 +63,11 @@ NR == 1 && /^# CONSOLIDATE / { HEAD = 1 }
   sec = trim(substr($0, 4)); SEEN[sec] = 1; hdr = 0; next
 }
 sec == "Conflicts" { CONF = CONF " " $0 " "; next }
+sec == "Unknown tags" && /^[ \t]*\|/ {
+  if ($0 ~ /^[ \t]*\|[ \t:|-]+\|[ \t]*$/) next
+  cells($0, 2, c); if (isuuid(c[1])) UNK[c[1]] = c[2]
+  next
+}
 /^[ \t]*\|/ {
   if (sec != "Inventory in" && sec != "Merged record") next
   if ($0 ~ /^[ \t]*\|[ \t:|-]+\|[ \t]*$/) next          # the |---| rule
@@ -68,8 +79,17 @@ sec == "Conflicts" { CONF = CONF " " $0 " "; next }
     NI++; IKIND[item] = kind; ISRC[item] = src
     if (kind == "DECISION" || kind == "QUESTION") { ICOUNT[kind]++; IORDER[++NIO] = item }
     if (kind == "DECISION") {
-      if (src !~ /^user:/ || !isuuid(substr(src, 6)))
-        bad("DECISION " item " is not sourced from a human turn (Source " src "; want user:<uuid>)")
+      sid = src; sub(/^(user|answer):/, "", sid)
+      if (src !~ /^(user|answer):/ || !isuuid(sid))
+        bad("DECISION " item " is not sourced from a human turn (Source " src "; want user:<uuid> or answer:<uuid>)")
+      else DSRC[item] = sid
+      t = c[5]
+      while (match(t, /<[A-Za-z][A-Za-z0-9_-]*/)) {
+        nm = tolower(substr(t, RSTART + 1, RLENGTH - 1)); t = substr(t, RSTART + RLENGTH)
+        if (nm != "command-name" && nm != "command-message" && nm != "command-args") {
+          bad("DECISION " item " quotes a row carrying the unknown tag <" nm ">; ask it as a question instead"); break
+        }
+      }
     }
   } else {
     cells($0, 4, c)
@@ -113,6 +133,8 @@ END {
     }
     bad("bad status for " it ": \"" st "\" (want CURRENT, SUPERSEDED-BY <Item> or CONFLICT <Item>)")
   }
+  for (it in DSRC) if (DSRC[it] in UNK)
+    bad("DECISION " it " cites " DSRC[it] ", a row listed under ## Unknown tags (" UNK[DSRC[it]] "); ask it as a question instead")
   if (FAILED) exit 1
   print "invariant: ok (decisions " (ICOUNT["DECISION"] + 0) ", questions " (ICOUNT["QUESTION"] + 0) ", merged rows " (NM + 0) ")"
   exit 0

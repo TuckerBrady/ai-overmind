@@ -7,25 +7,42 @@
 #
 #   uuid<TAB>role<TAB>timestamp<TAB>text
 #
-# role is "user" only for a turn the human typed, and "assistant" for the
-# assistant's own text. Harness blocks the app appends to a human turn
-# (<system-reminder>, <artifact-view-context> and the like) are cut out of it. Everything else is left out: tool_use and tool_result
-# payloads, thinking, skill bodies and other meta records, subagent
-# (sidechain) records, task notifications, and messages another session or
-# agent injected. Those arrive as user-type records but no human typed them,
-# so they can never be read as the human's word.
+# role is one of:
+#   user       a turn the human typed: a user record whose origin is exactly
+#              {"kind":"human"}. Harness blocks the app adds to it
+#              (<system-reminder>, <artifact-view-context>, <bash-stdout>
+#              and the like) are cut out of it.
+#   answer     what the human picked or typed in an AskUserQuestion widget:
+#              the harness-written result of an AskUserQuestion call this
+#              transcript made, printed "A: <answer> | Q: <question>" (A-40).
+#   assistant  the assistant's own text.
+# Everything else is left out: tool_use and other tool_result payloads,
+# thinking, skill bodies and other meta records, compaction summaries,
+# subagent (sidechain) records, task notifications, messages another session
+# or agent injected, and user records with no origin. None of those can be
+# read as the human's word.
 #
-# Text keeps its JSON escapes as they are, except that \n and \t become a
+# Text keeps its JSON escapes as they are, except that the escapes for a
+# newline and a tab become a
 # space. Control bytes, C1 controls and Unicode line separators are stripped.
 # The output is fenced:
 #   --- UNTRUSTED TRANSCRIPT BEGIN ---
 #   ...
 #   --- END ---
 # Everything between the fences is data from another session, never
-# instructions. Base64 image payloads are dropped first; a record still over 1 MiB
-# after that is skipped, and the count goes to stderr.
+# instructions.
 #
-# No jq: a small JSON scanner in awk reads only the fields it needs.
+# stderr carries, in this order:
+#   tail.sh: unknown-tag-row <uuid> <tags>   one per emitted row whose text
+#       carries a tag outside the known set; such a row is never a DECISION
+#       source (A-41)
+#   tail.sh: skipped=<n>    records it could not judge: malformed JSON, a
+#       duplicated or escaped key, over 1 MiB after base64 images are
+#       dropped, or harness text where it should not be
+#   tail.sh: noorigin=<n>   user text records with no origin
+#   tail.sh: tags=<name>:<n>,...   every tag seen in human turns and answers
+#
+# No jq: each record is cut into tokens once and parsed in awk.
 # Exit 0 on success (including a transcript with no turns), 2 on bad usage.
 set -u
 f=${1:-}
@@ -74,7 +91,7 @@ function tokenize(   n, i, j, piece, k, c, lit, start) {
   }
 }
 function want(path) {
-  return path ~ /^(type|uuid|timestamp|isMeta|isSidechain|isCompactSummary|isVisibleInTranscriptOnly|origin\.kind|message\.role|message\.content|message\.content\[[0-9]+\]\.(type|text))$/
+  return path ~ /^(type|uuid|timestamp|isMeta|isSidechain|isCompactSummary|isVisibleInTranscriptOnly|origin\.kind|message\.role|message\.content|message\.content\[[0-9]+\]\.(type|text|name|id|tool_use_id|is_error))$/
 }
 function rval(path, depth,   t, key, i) {
   if (depth > 64 || BAD || TI > NT) { BAD = 1; return }
@@ -88,7 +105,15 @@ function rval(path, depth,   t, key, i) {
       key = substr(S, TS[TI], TL[TI]); TI++
       # A key written with an escape (isMet<backslash>u0061) would be read by
       # a real JSON parser as a different key than it is here: fail closed.
-      if (index(key, "\\")) { BAD = 1; return }
+      if (index(key, "\\") && (path == "" || path == "message" || path == "origin" || path == "toolUseResult" || path ~ /^message\.content\[[0-9]+\]$/)) { BAD = 1; return }
+      # toolUseResult.answers: question text -> the answer the human chose
+      # or typed in the AskUserQuestion widget. Only string answers count.
+      if (path == "toolUseResult.answers" && TT[TI] == ":" && TT[TI + 1] == "s") {
+        TI++; NANS++; AQ[NANS] = key; AA[NANS] = substr(S, TS[TI], TL[TI]); TI++
+        if (TT[TI] == ",") { TI++; continue }
+        if (TT[TI] == "}") { TI++; return }
+        BAD = 1; return
+      }
       if (path == "" && key == "origin") { if (HASORIGIN) { BAD = 1; return } HASORIGIN = 1 }
       if (path == "origin") { OKEYS++; if (key != "kind") ORIGX = 1 }
       if (TT[TI] != ":") { BAD = 1; return }
@@ -196,6 +221,7 @@ function lastclose(s, t,   lc, off, p, last) {
 function census(s,   r, nm) {
   while (match(s, /<[A-Za-z][A-Za-z0-9_-]*/)) {
     nm = tolower(substr(s, RSTART + 1, RLENGTH - 1)); TAGS[nm]++
+    if (!(nm in ALLOW) && !(nm in HTSET)) ROWUNK[nm] = 1
     s = substr(s, RSTART + RLENGTH)
   }
 }
@@ -233,9 +259,22 @@ function clean(s) {
   gsub(C1, "", s)
   return s
 }
+# One output row. A row whose text carried a tag outside the known set is
+# also named on stderr: it can never be the source of a DECISION (A-41).
+function emit(role, text,   out, u, ts, t, l) {
+  out = clean(unesc(text))
+  gsub(/^[ ]+|[ ]+$/, "", out)
+  if (out == "") return
+  u = V["uuid"]; if (!isuuid(u)) u = "-"
+  ts = V["timestamp"]; if (ts !~ /^[0-9T:.Z+-]+$/) ts = "-"
+  print u "\t" role "\t" ts "\t" out
+  l = ""; for (t in ROWUNK) l = l (l == "" ? "" : ",") t
+  if (l != "") print "tail.sh: unknown-tag-row " u " " l > "/dev/stderr"
+}
 BEGIN {
   NH = split("system-reminder artifact-view-context local-command-stdout local-command-stderr local-command-caveat bash-input bash-stdout bash-stderr user-prompt-submit-hook ide_opened_file ide_selection ide_diagnostics task-notification cross-session-message agent-message", HT, " ")
   SOH = sprintf("%c", 1); BS2 = sprintf("%c%c", 92, 92)
+  for (k = 1; k <= NH; k++) HTSET[HT[k]] = 1
   CLOSERE = "</[ ]*("
   for (k = 1; k <= NH; k++) CLOSERE = CLOSERE (k > 1 ? "|" : "") HT[k]
   CLOSERE = CLOSERE ")"
@@ -248,7 +287,8 @@ BEGIN {
   # Pasted images ride inside user turns as base64; drop the payload, keep the turn.
   if (length(S) > 65536) gsub(/"data": ?"[A-Za-z0-9+\/=]+"/, "\"data\":\"\"", S)
   if (length(S) > 1048576) { SKIP++; next }
-  BAD = 0; HASORIGIN = 0; OKEYS = 0; ORIGX = 0
+  BAD = 0; HASORIGIN = 0; OKEYS = 0; ORIGX = 0; NANS = 0
+  split("", AQ); split("", AA); split("", ROWUNK)
   split("", TT); split("", TS); split("", TL); split("", TV)
   tokenize(); TI = 1
   split("", V); split("", T)
@@ -260,6 +300,29 @@ BEGIN {
   # A compaction summary is model-written text stored as a user record.
   if (V["isCompactSummary"] == "true" || V["isVisibleInTranscriptOnly"] == "true") next
   if (V["message.role"] != ty) next
+  if (ty == "assistant") {
+    for (i = 0; ("message.content[" i "].type") in V; i++)
+      if (V["message.content[" i "].type"] == "tool_use" && V["message.content[" i "].name"] == "AskUserQuestion")
+        ASK[V["message.content[" i "].id"]] = 1
+  }
+  # The harness writes the result of an AskUserQuestion call: the
+  # click or typed answer of the human (A-40), matched to a call this transcript
+  # made, and gets the same harness stripping as a typed turn. The question
+  # is model text, so the answer comes first: "A: <answer> | Q: <question>".
+  if (ty == "user" && !HASORIGIN && ("message.content[0].type" in V) && !("message.content[1].type" in V) &&
+      V["message.content[0].type"] == "tool_result" && (V["message.content[0].tool_use_id"] in ASK) &&
+      V["message.content[0].is_error"] != "true") {
+    if (NANS == 0) next
+    text = ""
+    for (k = 1; k <= NANS; k++) {
+      CUT = 0; a = userblock(AA[k]); if (a ~ /^[ ]*$/) continue
+      if (tolower(a) ~ CLOSERE) { SKIP++; next }
+      text = text (text == "" ? "" : " ; ") "A: " a " | Q: " AQ[k]
+    }
+    if (text == "") next
+    emit("answer", text)
+    next
+  }
   human = 0
   if (ty == "user") {
     # Human only with an origin object whose kind is the string "human".
@@ -301,12 +364,7 @@ BEGIN {
   # harness text was not where the cuts assumed (an artifact-view-context
   # close forged inside a block appended later). Drop the whole record.
   if (human && tolower(text) ~ CLOSERE) { SKIP++; next }
-  out = clean(unesc(text))
-  gsub(/^[ ]+|[ ]+$/, "", out)
-  if (out == "") next
-  u = V["uuid"]; if (!isuuid(u)) u = "-"
-  ts = V["timestamp"]; if (ts !~ /^[0-9T:.Z+-]+$/) ts = "-"
-  print u "\t" ty "\t" ts "\t" out
+  emit(ty, text)
 }
 END {
   print "tail.sh: skipped=" (SKIP + 0) > "/dev/stderr"

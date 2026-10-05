@@ -220,10 +220,10 @@ mkfilter() { # $1 dir, $2 where the filter is defined: local | include
   touch -t 202901010000 "$1/a.txt"   # same content, new mtime: status must hash it through the filter
 }
 for where in local include; do
-  t "repo filter driver ($where config): the payload never runs; same content is recoverable -> 0"
+  t "repo filter driver ($where config) named in .gitattributes -> 15 (A-39), and the payload never runs"
   w5="$tmp/w5-$where"; mkfilter "$w5" "$where"
   rc=$(run --session "$SID" --running 0 --fold "$fold" --worktree "$w5")
-  [ "$rc" = 0 ] && [ ! -e "$tmp/pwned-$where" ] && pass ||
+  [ "$rc" = 15 ] && [ ! -e "$tmp/pwned-$where" ] && pass ||
     fail "rc=$rc pwned=$([ -e "$tmp/pwned-$where" ] && echo yes || echo no) $(cat "$tmp/out")"
 done
 for where in local include; do
@@ -354,7 +354,7 @@ addsub sm6; mkpay upd; git -C "$tmp/sm6" config submodule.sub.update "!$tmp/pay_
 # Filter drivers from every repo-controlled place: each is refused (15) and
 # never runs. includeIf conditions are written so they hold on this host.
 for kind in sub mixedcase worktree linked onbranch gitdir hasconfig; do
-  t "filter driver via $kind: payload never runs; the untracked .gitattributes is not recoverable"
+  t "filter driver via $kind -> 15 (A-39 attributes), payload never runs"
   d="$tmp/f_$kind"; mkpay "f$kind"; inc="$tmp/inc_$kind.cfg"
   printf '[filter "z"]\n\tclean = %s\n' "$tmp/pay_f$kind.sh" > "$inc"
   case $kind in
@@ -370,7 +370,7 @@ for kind in sub mixedcase worktree linked onbranch gitdir hasconfig; do
   [ -f "$d/.gitattributes" ] || echo '* filter=z' > "$d/.gitattributes"
   touch "$d/a.txt"
   rc=$(G --worktree "$d")
-  [ "$rc" != 0 ] && ! LC_ALL=C grep -q "^f$kind\$" "$pwn" 2>/dev/null && pass || fail "rc=$rc ran=$(cat "$pwn" 2>/dev/null | tr '\n' ' ') $(head -c 200 "$tmp/out")"
+  [ "$rc" = 15 ] && ! LC_ALL=C grep -q "^f$kind\$" "$pwn" 2>/dev/null && pass || fail "rc=$rc ran=$(cat "$pwn" 2>/dev/null | tr '\n' ' ') $(head -c 200 "$tmp/out")"
 done
 t "positive control: the includeIf filters are live for git itself"
 live=0; for kind in onbranch gitdir hasconfig; do [ -n "$(git -C "$tmp/f_$kind" config --get filter.z.clean)" ] && live=$((live+1)); done
@@ -403,10 +403,10 @@ LC_ALL=C grep -q "^link$$\$" "$pwn" 2>/dev/null && pass || fail "the fixture fil
 t "r3 MUST: gitlink without .gitmodules, no filter -> 11 (no remote holds it)"
 mklink "$tmp/gl2"
 expect_rc 11 --worktree "$tmp/gl2"
-t "r3 MUST: a declared submodule whose own config has a filter: never runs"
+t "r3 MUST: a declared submodule whose own config has a filter -> 15, never runs"
 addsub sf; mkpay sf; git -C "$tmp/sf/sub" config filter.q.clean "$tmp/pay_sf.sh"; echo '* filter=q' > "$tmp/sf/sub/.gitattributes"; touch -t 202901010000 "$tmp/sf/sub/a.txt"
 rc=$(G --worktree "$tmp/sf")
-[ "$rc" != 0 ] && ! LC_ALL=C grep -q '^sf$' "$pwn" 2>/dev/null && pass || fail "rc=$rc ran=$(cat "$pwn" 2>/dev/null | tr '\n' ' ')"
+[ "$rc" = 15 ] && ! LC_ALL=C grep -q '^sf$' "$pwn" 2>/dev/null && pass || fail "rc=$rc ran=$(cat "$pwn" 2>/dev/null | tr '\n' ' ')"
 # Inside submodules: ignored files, every branch, and the stash.
 t "r3 MUST: an ignored, non-rebuildable file inside a submodule -> 11"
 addsub si; echo '*.secret' >> "$(git -C "$tmp/si/sub" rev-parse --path-format=absolute --git-path info/exclude)"; echo k > "$tmp/si/sub/key.secret"
@@ -495,6 +495,75 @@ expect_rc 11 --worktree "$tmp/nr"
 t "a toplevel with no remote-tracking refs -> 15"
 git init -q "$tmp/norem"; echo a > "$tmp/norem/a"; git -C "$tmp/norem" add a; git -C "$tmp/norem" commit -qm a
 expect_rc 15 --worktree "$tmp/norem"
+# --- A-39: fail closed on anything unusual (r5 attacks) ------------------------------
+t "A-39 core.worktree on a nested repo pointing at a clean decoy -> 15"
+mkrepo "$tmp/decoy"; mkrepo "$tmp/cw"
+git init -q "$tmp/cw/vendor/lib"; git -C "$tmp/cw/vendor/lib" remote add origin "$tmp/decoy.git"; git -C "$tmp/cw/vendor/lib" fetch -q origin 2>/dev/null
+echo "UNPUSHED PRECIOUS WORK" > "$tmp/cw/vendor/lib/precious.txt"
+git -C "$tmp/cw/vendor/lib" config core.worktree "$tmp/decoy"
+echo 'vendor/' > "$tmp/cw/.gitignore"; git -C "$tmp/cw" add .gitignore; git -C "$tmp/cw" commit -qm gi; git -C "$tmp/cw" push -q 2>/dev/null
+rc=$(G --worktree "$tmp/cw")
+[ "$rc" = 15 ] && LC_ALL=C grep -q 'work tree redirected' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
+t "A-39 core.worktree on the toplevel pointing elsewhere -> 15"
+mkrepo "$tmp/cw2"; echo UNPUSHED > "$tmp/cw2/precious2.txt"; git -C "$tmp/cw2" config core.worktree "$tmp/decoy"
+expect_rc 15 --worktree "$tmp/cw2"
+t "A-39 a partial clone -> 15, and its uploadpack payload never runs (no network)"
+git config --global uploadpack.allowFilter true
+psrc="$tmp/psrc"; mkrepo "$psrc"; for i in 1 2 3; do echo "blob $i" > "$psrc/f$i.txt"; done
+git -C "$psrc" add -A; git -C "$psrc" commit -qm blobs; git -C "$psrc" push -q 2>/dev/null
+git -C "$psrc.git" config uploadpack.allowFilter true; git -C "$psrc.git" config uploadpack.allowAnySHA1InWant true
+git clone -q --filter=blob:none --no-checkout "file://$psrc.git" "$tmp/pc" 2>/dev/null
+git -C "$tmp/pc" checkout -q main -- a.txt 2>/dev/null
+printf '#!/bin/sh\necho up >> "%s"\nexec git-upload-pack "$@"\n' "$pwn" > "$tmp/up.sh"; chmod +x "$tmp/up.sh"
+git -C "$tmp/pc" config remote.origin.uploadpack "$tmp/up.sh"
+rc=$(G --worktree "$tmp/pc")
+[ "$rc" = 15 ] && ! LC_ALL=C grep -q '^up$' "$pwn" 2>/dev/null && pass || fail "rc=$rc ran=$(cat "$pwn" 2>/dev/null | tr '\n' ' ') $(head -c 200 "$tmp/out")"
+t "A-39 control: the partial clone's uploadpack payload does run for a plain lazy fetch"
+( cd "$tmp/pc" && git cat-file -p "$(git -C "$tmp/pc" rev-parse HEAD:f1.txt)" > /dev/null 2>&1 )
+if LC_ALL=C grep -q '^up$' "$pwn" 2>/dev/null; then pass; LC_ALL=C grep -v '^up$' "$pwn" > "$tmp/pw2"; mv "$tmp/pw2" "$pwn"
+else echo "  not reachable here: this git does not lazy-fetch through uploadpack"; pass; fi
+t "A-39 alternates -> 15"
+mkrepo "$tmp/alt"; a=$(git -C "$tmp/alt" rev-parse --git-path objects/info); mkdir -p "$tmp/alt/$a" 2>/dev/null
+echo "$(git -C "$tmp/decoy" rev-parse --absolute-git-dir)/objects" > "$tmp/alt/.git/objects/info/alternates"
+expect_rc 15 --worktree "$tmp/alt"
+t "A-39 replace refs -> 15"
+mkrepo "$tmp/rp"; echo other > "$tmp/rp/o"; git -C "$tmp/rp" add o; c=$(git -C "$tmp/rp" commit-tree -m x "$(git -C "$tmp/rp" write-tree)"); git -C "$tmp/rp" reset -q -- o; rm -f "$tmp/rp/o"
+git -C "$tmp/rp" replace "$(git -C "$tmp/rp" rev-parse HEAD)" "$c"
+expect_rc 15 --worktree "$tmp/rp"
+for kind in ident text eol wte crlf; do
+  t "A-39 a .gitattributes naming $kind -> 15 (no false match through the CRLF pass)"
+  d="$tmp/at$kind"; mkrepo "$d"
+  case $kind in
+    ident) printf '* ident\n' > "$d/.gitattributes"; printf 'keep $Id$ this\n' > "$d/doc.txt" ;;
+    text) printf '* text\n' > "$d/.gitattributes"; printf 'BIN\001\002\nPAYLOAD\n' > "$d/doc.txt" ;;
+    eol) printf '*.txt eol=lf\n' > "$d/.gitattributes"; printf 'x\n' > "$d/doc.txt" ;;
+    wte) printf 'doc.txt working-tree-encoding=UTF-16LE\n' > "$d/.gitattributes"; printf 'hello\n' > "$d/doc.txt" ;;
+    crlf) printf '*.txt -crlf\n' > "$d/.gitattributes"; printf 'x\n' > "$d/doc.txt" ;;
+  esac
+  git -C "$d" add -A; git -C "$d" commit -qm at; git -C "$d" push -q 2>/dev/null
+  case $kind in
+    ident) printf 'keep $Id: MY UNPUSHED WORK $ this\n' > "$d/doc.txt" ;;
+    text) printf 'BIN\001\002\r\nPAYLOAD\r\n' > "$d/doc.txt" ;;
+  esac
+  rc=$(G --worktree "$d")
+  [ "$rc" = 15 ] && LC_ALL=C grep -q 'attributes that can change bytes' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
+done
+t "A-39 a .gitattributes with only harmless attributes (binary, diff) does not trip it -> 0"
+mkrepo "$tmp/atok"; printf '*.png binary\n*.md diff=markdown\n# text eol=lf is a comment\n' > "$tmp/atok/.gitattributes"
+git -C "$tmp/atok" add -A; git -C "$tmp/atok" commit -qm at; git -C "$tmp/atok" push -q 2>/dev/null
+expect_rc 0 --worktree "$tmp/atok"
+t "A-39 a CRLF file with a lone CR is not normalized -> 11"
+mkrepo "$tmp/lone"; printf 'a\r\nb\rc\n' > "$tmp/lone/a.txt"
+expect_rc 11 --worktree "$tmp/lone"
+t "A-39 a pushed symlink -> 0 (the link text is hashed with printf %s)"
+mkrepo "$tmp/sl"
+if ln -s a.txt "$tmp/sl/lnk" 2>/dev/null && [ -L "$tmp/sl/lnk" ]; then
+  git -C "$tmp/sl" add lnk; git -C "$tmp/sl" commit -qm l; git -C "$tmp/sl" push -q 2>/dev/null
+  expect_rc 0 --worktree "$tmp/sl"
+else
+  echo "  not reachable on this FS: symlinks"; pass
+fi
+
 t "A-34 no payload ever ran during any guard call in this file"
 [ ! -s "$pwn" ] && [ ! -e "$tmp/pwned" ] && [ ! -e "$tmp/pwned-local" ] || [ "$(cat "$pwn" 2>/dev/null)" = "" ]
 ran=$(cat "$pwn" 2>/dev/null | LC_ALL=C grep -v "^link$$\$" | tr '\n' ' ')

@@ -20,12 +20,20 @@
 # that rebuilds it (package.json, Cargo.toml, pyproject.toml, ...) and holds
 # no .git anywhere inside.
 #
-# Nothing a repository configures can run. The guard uses plumbing only
-# (rev-parse, for-each-ref, rev-list, ls-files -s, hash-object --no-filters)
-# and never git status, diff or submodule, so no filter driver, hook or
-# fsmonitor is ever invoked. Files are hashed byte for byte; a file that only
-# differs by line endings is hashed a second time in an empty sandbox
-# repository with no system or global config, where no filter driver exists.
+# Nothing a repository configures can run, and the network is never touched.
+# The guard uses plumbing only (rev-parse, config, for-each-ref, rev-list,
+# ls-files -s, hash-object --no-filters), never git status, diff or
+# submodule, with GIT_NO_LAZY_FETCH=1, GIT_NO_REPLACE_OBJECTS=1 and
+# protocol.allow=never. Files are hashed byte for byte. A file that misses
+# only by line endings is normalized here (CRLF to LF, and only for a file
+# with no NUL byte and no lone CR) and hashed again; no attributes apply.
+#
+# It FAILS CLOSED (15) on anything unusual (A-39): core.worktree set, a
+# toplevel that is not the given directory (or, for a nested repository,
+# exactly that directory), a partial or promisor clone or alternates, a
+# .gitattributes or info/attributes that mentions ident, filter, eol,
+# working-tree-encoding, text or crlf, or replace refs. A false "cannot
+# verify" costs the human one click; a false "safe" costs lost work.
 #
 # It trusts remote-tracking refs as they are on disk (A-28): the remote is
 # never contacted, because that would run the repo's ssh and credential
@@ -44,10 +52,10 @@
 #   14 not folded: the fold file is missing, or has no Siblings row whose
 #      Session is exactly this sid8 with Class SUPERSEDED or DIVERGED and
 #      Result "nothing unique" or "folded: ...", or fails invariant.sh
-#   15 cannot verify: not a git work tree, no remote-tracking refs, a path
-#      that cannot be read or holds a newline, more than 200000 files, or a
-#      branch has a GitHub upstream and gh is missing, unauthenticated or
-#      failing
+#   15 cannot verify: not a git work tree, any A-39 condition above, no
+#      remote-tracking refs, a path that cannot be read or holds a newline,
+#      more than 200000 files, or a branch has a GitHub upstream and gh is
+#      missing, unauthenticated or failing
 #   2  bad usage
 #
 # One line per failed check goes to stdout as "guard: <code> <reason>".
@@ -77,16 +85,27 @@ MAXFILES=200000
 nl='
 '
 # Plumbing only, and still hardened: no fsmonitor, no hooks, no pager, no
-# automatic gc or maintenance, no optional index locks.
+# automatic gc or maintenance, no optional index locks, no network, no lazy
+# fetch, no replace objects. The caller's git environment is not inherited.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE GIT_CEILING_DIRECTORIES GIT_REPLACE_REF_BASE
+export GIT_NO_LAZY_FETCH=1 GIT_NO_REPLACE_OBJECTS=1 GIT_TERMINAL_PROMPT=0
 g() {
   git --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null \
-    -c core.pager=cat -c gc.auto=0 -c maintenance.auto=false -C "$@"
+    -c core.pager=cat -c gc.auto=0 -c maintenance.auto=false -c protocol.allow=never -C "$@"
 }
 tmpd=$(mktemp -d "${TMPDIR:-/tmp}/guard.XXXXXX") || exit 15
 trap 'rm -rf "$tmpd"' EXIT
 
 codes=""
 flag() { codes="$codes $1"; echo "guard: $1 $2"; }
+# One spelling per directory. On Windows (MSYS) a directory can be reached
+# as C:/..., /c/... or a mount such as /tmp/...; cygpath -m picks one.
+canon() {
+  local d
+  d=$(cd "$1" 2>/dev/null && pwd -P) || return 0
+  if command -v cygpath > /dev/null 2>&1; then cygpath -m "$d"; else printf '%s\n' "$d"; fi
+}
 
 # --- the invariant, for one repository and (recursively) the ones inside it ------
 ctn=0
@@ -96,6 +115,37 @@ check_tree() { # $1 directory, $2 1 if this is a nested repository
   top=$(g "$dir" rev-parse --show-toplevel 2>/dev/null)
   if [ -z "$top" ] || [ ! -d "$top" ]; then
     flag 15 "not a git work tree: $dir"; return
+  fi
+  # A-39: fail closed on anything that could make the files checked differ
+  # from the files archiving deletes, or make a check reach the network.
+  # The work tree git reports must be where the files are: core.worktree
+  # (or anything else) pointing it elsewhere is 15. For a nested repository
+  # it must be exactly the nested directory. Git sets core.worktree in every
+  # submodule's config to that submodule's own directory, and that passes.
+  dreal=$(canon "$dir"); treal=$(canon "$top")
+  if [ -z "$dreal" ] || [ -z "$treal" ]; then flag 15 "cannot resolve $dir"; return; fi
+  if [ "$nested" = 1 ]; then
+    if [ "$dreal" != "$treal" ]; then flag 15 "work tree redirected (core.worktree): $dir reports $top"; return; fi
+  else
+    case $dreal/ in "$treal"/*) ;; *) flag 15 "work tree redirected (core.worktree): $dir is not inside $top"; return ;; esac
+  fi
+  if [ "$(g "$dir" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]; then
+    flag 15 "the work tree git reports does not contain $dir"; return
+  fi
+  if [ -n "$(g "$top" config --includes --get extensions.partialClone 2>/dev/null)" ] ||
+     [ -n "$(g "$top" config --includes --get-regexp '^remote\..*\.promisor$' 2>/dev/null)" ]; then
+    flag 15 "partial or promisor clone: $top"; return
+  fi
+  for r in objects/info/alternates objects/info/http-alternates; do
+    a=$(g "$top" rev-parse --path-format=absolute --git-path "$r" 2>/dev/null)
+    if [ -n "$a" ] && [ -e "$a" ]; then flag 15 "alternates in use: $top"; return; fi
+  done
+  a=$(g "$top" rev-parse --path-format=absolute --git-path objects/pack 2>/dev/null)
+  if [ -n "$a" ] && [ -n "$(find "$a" -name '*.promisor' 2>/dev/null | head -n 1)" ]; then
+    flag 15 "promisor packs present: $top"; return
+  fi
+  if [ -n "$(g "$top" for-each-ref --count=1 --format=x refs/replace 2>/dev/null)" ]; then
+    flag 15 "replace refs present: $top"; return
   fi
   if [ -z "$(g "$top" for-each-ref --count=1 --format=x refs/remotes 2>/dev/null)" ]; then
     if [ "$nested" = 1 ]; then flag 11 "nested repository with no remote at all: $top"
@@ -173,6 +223,19 @@ check_tree() { # $1 directory, $2 1 if this is a nested repository
       for (i = 1; i <= nl; i++) { r = LO[i]; if (under(parent(r), OUT) || under(parent(r), SKIP)) continue; print r > (f ".klinks") }
     }' "$f.git" "$f.dirs" "$f.files" "$f.links"
   touch "$f.keep" "$f.klinks" "$f.nested" "$f.skipped"
+  # A-39: any attributes file that names an attribute able to change bytes
+  # between the work tree and a blob: fail closed.
+  ia=$(g "$top" rev-parse --path-format=absolute --git-path info/attributes 2>/dev/null)
+  # Only files under the invariant: a nested repository checks its own, and
+  # a skipped build directory (node_modules packages ship these) is not read.
+  { LC_ALL=C grep -E '(^|/)\.gitattributes$' "$f.keep" | while IFS= read -r r; do printf '%s\n' "$top/$r"; done
+    [ -n "$ia" ] && [ -f "$ia" ] && printf '%s\n' "$ia"; } > "$f.attrs"
+  while IFS= read -r r; do
+    if LC_ALL=C grep -v '^[[:space:]]*#' "$r" 2>/dev/null |
+       LC_ALL=C grep -qiE '(^|[^A-Za-z0-9_])(ident|filter|eol|working-tree-encoding|text|crlf)([^A-Za-z0-9_-]|$)'; then
+      flag 15 "attributes that can change bytes ($r); cannot verify $top"; return
+    fi
+  done < "$f.attrs"
   if [ "$(wc -l < "$f.keep" | tr -d ' ')" -gt "$MAXFILES" ]; then
     flag 15 "more than $MAXFILES files below $top; too large to verify"; return
   fi
@@ -194,30 +257,63 @@ check_tree() { # $1 directory, $2 1 if this is a nested repository
   # Symlinks: the blob is the link text.
   : > "$f.lk"
   while IFS= read -r r; do
-    printf '%s\t%s\n' "$(readlink "$top/$r" | g "$top" hash-object --no-filters --stdin 2>/dev/null)" "$r" >> "$f.lk"
+    printf '%s\t%s\n' "$(printf '%s' "$(readlink "$top/$r")" | g "$top" hash-object --no-filters --stdin 2>/dev/null)" "$r" >> "$f.lk"
   done < "$f.klinks"
   # Files whose bytes are not on a remote.
   LC_ALL=C awk -v f="$f" 'FILENAME == f ".remote" { R[$1] = 1; next }
     FILENAME == f ".keep" { P[FNR] = $0; next }
     FILENAME == f ".h1" { if (!($1 in R)) print P[FNR] }' "$f.remote" "$f.keep" "$f.h1" > "$f.miss1"
-  # A second look at those, as git add would store them on this platform
-  # (line endings), in an empty sandbox: no repository config, no system or
-  # global config, so no filter driver exists to run.
+  # A second look at those: CRLF line endings turned into LF here, for a
+  # file with no NUL byte and no lone CR, then hashed again. One awk pass
+  # writes every normalized copy; a size check catches a NUL an awk would
+  # drop and a missing final newline.
   : > "$f.miss2"
   if [ -s "$f.miss1" ]; then
-    fmt=$(g "$top" rev-parse --show-object-format 2>/dev/null); fmt=${fmt:-sha1}
-    if [ ! -d "$tmpd/sandbox-$fmt.git" ]; then
-      GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null HOME="$tmpd" \
-        git init -q --bare --object-format="$fmt" "$tmpd/sandbox-$fmt.git" > /dev/null 2>&1
+    mkdir -p "$f.norm"
+    ( cd "$top" && tr '\n' '\0' < "$f.miss1" | xargs -0 wc -c 2>/dev/null ) |
+      LC_ALL=C awk '$NF != "total" { n = $1; sub(/^[ \t]*[0-9]+[ \t]/, ""); print n "\t" $0 }' > "$f.sizes"
+    # BINMODE=3: gawk on Windows (MSYS) would drop and add CRs in text mode;
+    # every other awk ignores the variable.
+    LC_ALL=C awk -v BINMODE=3 -v top="$top/" -v out="$f.norm/" -v cap=52428800 '
+      FILENAME == ARGV[1] { i = index($0, "\t"); SZ[substr($0, i + 1)] = substr($0, 1, i - 1) + 0; next }
+      { P[++n] = $0 }
+      END {
+        CR = sprintf("%c", 13)
+        for (k = 1; k <= n; k++) {
+          p = P[k]; if (!(p in SZ) || SZ[p] > cap) continue
+          m = 0; ok = 1; total = 0; crs = 0
+          while ((rc = (getline line < (top p))) > 0) {
+            m++; L[m] = line; total += length(line) + 1
+            if (substr(line, length(line), 1) == CR) { line = substr(line, 1, length(line) - 1); crs++ }
+            if (index(line, CR) || index(line, sprintf("%c", 0))) { ok = 0 }
+            L[m] = line
+          }
+          close(top p)
+          if (rc < 0 || !ok || crs == 0) continue
+          # total counted a newline after every line; the file has one fewer
+          # when it does not end in a newline. Anything else (a NUL an awk
+          # dropped) leaves the size wrong: skip.
+          if (SZ[p] == total) last = 1; else if (SZ[p] == total - 1) last = 0; else continue
+          o = out k
+          for (i = 1; i <= m; i++) printf "%s%s", L[i], (i < m || last ? "\n" : "") > o
+          close(o)
+          print k "\t" p
+        }
+      }' "$f.sizes" "$f.miss1" > "$f.normlist"
+    if [ -s "$f.normlist" ]; then
+      # Paths read from stdin are not translated for a native git (Windows):
+      # hand it the native form of the temp directory.
+      nd="$f.norm"; command -v cygpath > /dev/null 2>&1 && nd=$(cygpath -m "$f.norm")
+      cut -f1 "$f.normlist" | sed "s|^|$nd/|" > "$f.normpaths"
+      g "$top" hash-object --no-filters --stdin-paths < "$f.normpaths" > "$f.h2" 2>/dev/null || : > "$f.h2"
+    else
+      : > "$f.h2"
     fi
-    ( cd "$top" && GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_ATTR_NOSYSTEM=1 HOME="$tmpd" \
-        GIT_DIR="$tmpd/sandbox-$fmt.git" GIT_WORK_TREE=. \
-        git -c core.autocrlf=true -c core.safecrlf=false -c core.fsmonitor=false -c core.hooksPath=/dev/null \
-        hash-object --stdin-paths < "$f.miss1" ) > "$f.h2" 2> /dev/null || : > "$f.h2"
     LC_ALL=C awk -v f="$f" 'FILENAME == f ".remote" { R[$1] = 1; next }
-      FILENAME == f ".miss1" { P[FNR] = $0; n = FNR; next }
-      FILENAME == f ".h2" { H[FNR] = $1 }
-      END { for (i = 1; i <= n; i++) if (!(H[i] in R)) print P[i] }' "$f.remote" "$f.miss1" "$f.h2" > "$f.miss2"
+      FILENAME == f ".normlist" { i = index($0, "\t"); NP[FNR] = substr($0, i + 1); next }
+      FILENAME == f ".h2" { if ($1 in R) OKP[NP[FNR]] = 1; next }
+      FILENAME == f ".miss1" { if (!($0 in OKP)) print }' \
+      "$f.remote" "$f.normlist" "$f.h2" "$f.miss1" > "$f.miss2"
   fi
   LC_ALL=C awk -v f="$f" 'FILENAME == f ".remote" { R[$1] = 1; next }
     { split($0, a, "\t"); if (!(a[1] in R)) print a[2] }' "$f.remote" "$f.lk" >> "$f.miss2"
