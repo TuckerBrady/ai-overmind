@@ -360,22 +360,27 @@ func TestMCP7_FirmwareTopicsReachableByTitle(t *testing.T) {
 	if !strings.Contains(ls[0], "topic index") || len(ls)-1 != len(secs) {
 		t.Fatalf("index has %d entries for %d topics: %q", len(ls)-1, len(secs), ls[0])
 	}
-	covered := 0
+	// Rebuild the 7.5 concatenation from what the tool returned: each
+	// topic's "=== <relpath>" header, then its body. It must equal the
+	// embedded firmware byte for byte, so no text is unreachable.
+	var rebuilt strings.Builder
 	for i, l := range ls[1:] {
 		title := strings.TrimPrefix(l, "- ")
 		if title != secs[i].Title {
 			t.Errorf("index entry %d = %q, want %q", i, title, secs[i].Title)
 		}
+		var got string
 		for _, q := range []string{title, strings.ToLower(title)} {
 			body, isErr := call(t, cs, "firmware", map[string]any{"section": q})
 			if isErr || body != secs[i].Body {
 				t.Errorf("firmware(%q) did not return its own topic", q)
 			}
+			got = body
 		}
-		covered += len(secs[i].Body)
+		rebuilt.WriteString("=== " + secs[i].File + "\n" + got)
 	}
-	if covered < len(strings.ReplaceAll(firmware.Text, "\r\n", "\n")) {
-		t.Error("the topics do not cover the whole firmware")
+	if rebuilt.String() != firmware.Text {
+		t.Error("the topics the tool returns do not rebuild the whole firmware")
 	}
 }
 
