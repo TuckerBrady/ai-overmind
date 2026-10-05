@@ -1,0 +1,44 @@
+rm `cat list` INBOX.md
+echo `cat x` > INBOX.md
+cat `echo x` >> ../Other/INBOX.md
+cat INBOX.md | tee `grep -l . BOOT.md`
+sed -i s/a/b/ `grep -l . ../Other/INBOX.md`
+perl -pi -e s/a/b/ `grep -l . INBOX.md`
+ln -sf /dev/null `grep -l . INBOX.md`
+install /dev/null `grep -l . INBOX.md`
+rsync /dev/null `grep -l . INBOX.md`
+touch `grep -l . INBOX.md`
+unlink `grep -l . INBOX.md`
+dd of=`grep -l . INBOX.md` if=/dev/null
+find . -name x -exec rm `grep -l . INBOX.md` \;
+xargs rm <<< `grep -l . INBOX.md`
+python - `grep -l . INBOX.md`
+cp x `awk 'END{print FILENAME}' INBOX.md`
+cp x `git log --format=x -- INBOX.md`
+cp x `wc -l INBOX.md`
+mv x `diff INBOX.md INBOX.md`
+rm `tail -c0 BOOT.md; echo BOOT.md`
+rm `head -c0 MISSION_BOARD.md`MISSION_BOARD.md
+chmod 000 `less GOPHER_REGISTRY.md`
+truncate -s0 "`grep -l . team.db`"
+rm -rf `grep -rl . _claims`
+cp x "$(grep -l . INBOX.md)"
+rm $(cat INBOX.md)
+rm `grep -l x */INBOX.md`
+rm -f `cat ../Other/INBOX.md`
+truncate -s0 `grep -l . ../Other/INBOX.md`
+chmod 000 `grep -l . ../Other/INBOX.md`
+mv `grep -l . ../Other/INBOX.md` /tmp/
+cp /dev/null `grep -l . ../Other/INBOX.md`
+tee `grep -l . ../Other/INBOX.md` < /dev/null
+shred -u `head -0 ../Other/INBOX.md; echo ../Other/INBOX.md`
+rm `ls ../Other/INBOX.md`
+mv `ls INBOX.md` /tmp/x
+cp /dev/null `echo ../Other/INBOX.md`
+truncate -s0 `cat list` ../Other/INBOX.md
+chmod 000 `ls ../*/INBOX.md`
+rm $(grep -l x */INBOX.md)
+rm "`ls INBOX.md`"
+xargs rm < `ls INBOX.md`
+tee `ls ../Other/INBOX.md` < /dev/null
+dd if=/dev/zero of=`ls INBOX.md`

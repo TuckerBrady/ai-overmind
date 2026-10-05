@@ -116,7 +116,10 @@ else
     cat > "$tf" 2>/dev/null
     in=$(head -c $((CAP + 1)) < "$tf")
   else
-    in=$(head -c $((CAP + 1)))
+    # No temp file: read exactly, a byte per call (slow, but nothing past the
+    # cap leaves stdin, so the agent_type scan below still sees the rest and a
+    # twin still fails closed; A-44).
+    IFS= read -r -d '' -n $((CAP + 1)) in
   fi
 fi
 
@@ -377,10 +380,23 @@ SNAP='
     if ($1 == "dir") rdir[k] = 1; else rh[k] = $1
     next
   }
+  # sha256sum escapes a name holding a backslash or a line feed: the line
+  # starts with a backslash and the name has \\ and \n. Undo it rather than
+  # skip the line, or the file would read as unhashed both times (A-44).
+  function unesc(p,   o, i, c) {
+    o = ""
+    for (i = 1; i <= length(p); i++) {
+      c = substr(p, i, 1)
+      if (c == "\\") { i++; c = substr(p, i, 1); if (c == "n") c = "\n" }
+      o = o c
+    }
+    return o
+  }
   (pre != "" && FILENAME == pre) || (pass == 2 && FILENAME == hashes) {
-    if (substr($0, 1, 1) == "\\") next
+    e = 0; if (substr($0, 1, 1) == "\\") { e = 1; $0 = substr($0, 2) }
     if (ck) { h = $1 ":" $2; p = $0; sub(/^[^ ]+ [^ ]+ /, "", p) }
     else { h = $1; p = $0; sub(/^[^ ]+ [ *]?/, "", p) }
+    if (e) p = unesc(p)
     hh[p] = h; next
   }
   {
@@ -476,11 +492,21 @@ recheck() {
   awk -v r="$r" 'FNR > 1 && $1 != "dir" { p = $0; sub(/^[^ ]+ /, "", p); print r "/" p }' "$sf" |
     tr '\n' '\000' | xargs -0 -r $HASH > "$hf" 2>/dev/null
   SNAPOUT=$(awk -v r="$r" -v ck="$ck" '
+    function unesc(p,   o, i, c) {
+      o = ""
+      for (i = 1; i <= length(p); i++) {
+        c = substr(p, i, 1)
+        if (c == "\\") { i++; c = substr(p, i, 1); if (c == "n") c = "\n" }
+        o = o c
+      }
+      return o
+    }
     FILENAME == ARGV[1] { if (FNR == 1 || $1 == "dir") next; k = $0; sub(/^[^ ]+ /, "", k); old[k] = $1; next }
     {
-      if (substr($0, 1, 1) == "\\") next
+      e = 0; if (substr($0, 1, 1) == "\\") { e = 1; $0 = substr($0, 2) }
       if (ck) { h = $1 ":" $2; p = $0; sub(/^[^ ]+ [^ ]+ /, "", p) }
       else { h = $1; p = $0; sub(/^[^ ]+ [ *]?/, "", p) }
+      if (e) p = unesc(p)
       if (index(p, r "/") == 1) now[substr(p, length(r) + 2)] = h
     }
     END { for (k in old) if (!(k in now) || "" now[k] != "" old[k]) print "C " k }' "$sf" "$hf")
@@ -563,6 +589,9 @@ EOF
       case $rel in 'C '?*) ;; *) continue ;; esac
       rel=${rel#C }
       case $seenc in *"$nl$rel$nl"*) continue ;; esac
+      # This Post's own first-pass log line can create a root's log; the
+      # first pass already compared every log that Pre recorded (A-44).
+      [ "$rel" = _twin-guard.log ] && [ "$nlog" -gt 0 ] && continue
       seenc="$seenc$rel$nl"
       msgs+=("TWIN-GUARD ALERT: protected file changed during twin command: $rel")
     done <<EOF
@@ -669,6 +698,7 @@ target() {
   t=${t#\"}; t=${t%\"}; t=${t#\'}; t=${t%\'}
   [ -n "$t" ] || return 0
   case $t in /dev/null|/dev/stdout|/dev/stderr|'&'*) return 0 ;; esac
+  case $t in *'`'*) deny "substituted write target" ;; esac
   prot "$t" && deny "write to ${t##*[/\\]}"
   dolhit "$t" && deny "expanded write target"
   case $t in *'*'*|*'?'*|*'['*) globhit "$t" && deny "glob write target" ;; esac
@@ -729,7 +759,7 @@ readonly_ok() { # verb, args... -> 0 when the part only reads
 # since it can't be read safely. A quoted " . " (perl's or awk's concatenation)
 # is not a source. Run only when the quote-blind split below finds a "." verb.
 qdot() {
-  local s=$cmd q="" c i n=${#cmd} seg="" j
+  local s=$cmd q="" c i n=${#cmd} seg="" j cm
   for ((i = 0; i <= n; i++)); do
     c=${s:i:1}
     case $q in
@@ -746,6 +776,11 @@ qdot() {
     esac
     # An escaped backtick inside backticks is a nested command substitution.
     if [ "$c" = '\' ] && [ "${s:i+1:1}" = '`' ]; then i=$((i + 1)); c=';'; fi
+    # An unquoted # at the start of a word begins a comment to the end of the
+    # line: a quote inside it opens nothing (A-44).
+    if [ "$c" = '#' ]; then
+      case $seg in ''|*' '|*"$tab") cm=${s:i}; cm=${cm%%"$nl"*}; i=$((i + ${#cm} - 1)); continue ;; esac
+    fi
     case $c in
       '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)) ;;
       "'"|'"') q=$c; seg="$seg$c" ;;
@@ -763,9 +798,14 @@ qdot() {
   return 1
 }
 
-# Simple commands: split on ; & | ( ) backticks and newlines.
+# eval, source and . first, over a split that also breaks at backticks (a
+# backticked command is a command), with if/while/until/elif/coproc skipped and
+# the command word read as bash reads it: quotes and backslashes removed, so
+# e\val and \. are eval and . (A-37, A-38). This split is used for nothing
+# else: splitting the write checks at backticks would put a backticked target
+# in a segment of its own behind a read-only verb (A-44).
 set -f
-segs=${cmd//[;&|()\`]/$'\n'}
+esegs=${cmd//[;&|()\`]/$'\n'}
 while IFS= read -r seg; do
   split_words "$seg"
   [ ${#words[@]} -gt 0 ] || continue
@@ -774,14 +814,33 @@ while IFS= read -r seg; do
     case ${words[i]//"$BS"/} in *=*|sudo|command|env|exec|coproc|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') i=$((i+1)) ;; *) break ;; esac
   done
   [ $i -lt ${#words[@]} ] || continue
+  vs=${words[i]//"$BS"/}; vs=${vs##*/}
+  case $vs in eval|source) deny "$vs" ;; .) qdot && deny "$vs" ;; esac
+done <<EOF
+$esegs
+EOF
+
+# Simple commands: split on ; & | ( ) and newlines, as fb649ac did.
+segs=${cmd//[;&|()]/$'\n'}
+while IFS= read -r seg; do
+  split_words "$seg"
+  [ ${#words[@]} -gt 0 ] || continue
+  i=0
+  while [ $i -lt ${#words[@]} ]; do
+    case ${words[i]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|'{'|'!') i=$((i+1)) ;; *) break ;; esac
+  done
+  [ $i -lt ${#words[@]} ] || continue
   verb=${words[i]##*[/\\]}; verb=${verb%.[Ee][Xx][Ee]}
   args=("${words[@]:i+1}")
   sn=${seg//\'/}; sn=${sn//\"/}; sn=${sn//\\/}
   smention=0; [[ $sn =~ $re_name ]] && smention=1
-  # The command word with quotes (split_words) and backslashes removed, as
-  # bash reads it: e\val and \. are eval and . (A-38 P3).
-  vs=${words[i]//"$BS"/}; vs=${vs##*/}
-  case $vs in eval|source) deny "$vs" ;; .) qdot && deny "$vs" ;; esac
+  case $verb in eval|source) deny "$verb" ;; .) qdot && deny "$verb" ;; esac
+  # A write verb whose arguments hold a command substitution writes to a target
+  # nobody can read from the text: denied, backticks like $( (A-44).
+  case $verb in
+    cp|mv|ln|install|rsync|scp|tee|rm|rmdir|touch|truncate|unlink|shred|chmod|chown|mkdir|dd)
+      for a in ${args[@]+"${args[@]}"}; do case $a in *'`'*|*'$('*) deny "$verb with a substituted argument" ;; esac; done ;;
+  esac
   rec=0
   for a in ${args[@]+"${args[@]}"}; do case $a in -*[rR]*|--recursive) rec=1 ;; esac; done
   case $verb in
@@ -806,6 +865,7 @@ while IFS= read -r seg; do
       case " ${args[*]} " in
         *' -delete '*|*' -exec'*|*' -ok'*)
           [ $mentions -eq 1 ] && deny "find writing a protected file"
+          case " ${args[*]} " in *'`'*|*'$('*) deny "find writing to a substituted name" ;; esac
           for a in ${args[@]+"${args[@]}"}; do globhit "$a" && deny "find pattern reaching a protected file"; done ;;
       esac ;;
   esac

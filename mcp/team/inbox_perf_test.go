@@ -43,8 +43,11 @@ func TestInboxOneMiBParsesUnderTwoSeconds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || len(got[0].Body) < MaxFileBytes-len(line)-64 {
-		t.Fatalf("entries=%d body=%d bytes", len(got), len(got[0].Body))
+	if len(got) != 1 {
+		t.Fatalf("entries=%d, want 1", len(got))
+	}
+	if len(got[0].Body) < MaxFileBytes-len(line)-64 {
+		t.Fatalf("body=%d bytes", len(got[0].Body))
 	}
 	if el > 2*time.Second {
 		t.Errorf("1 MiB inbox took %v, want under 2 s", el)

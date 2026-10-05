@@ -363,6 +363,35 @@ printf 'tampered\n' > "$tmp/snaps/ovm-twin-guard/agentr.p4a.ok"
 out=$(gk "" PostToolUse "$lone4" true p4a)
 case $out in *'snapshot missing'*) grep -q 'snapshot missing' "$p4/_twin-guard.log" 2>/dev/null && pass || fail "not logged under the Pre root" ;; *) fail "got: ${out:0:160}" ;; esac
 
+# ---------------------------------------------------------------- A-44
+t "A-44 P3: a Post's own first log line doesn't alert as a changed _twin-guard.log"
+p5="$tmp/p5"; mkab "$p5"; rm -f "$tmp/snaps/ovm-twin-guard/"*.busy
+echo 'printf t >> "../Other/IN""BOX.md"' > "$tmp/w6.sh"
+out=$(twinrun "" "$p5/Seat" "sh '$tmp/w6.sh'" p5a)
+case $out in
+  *'_twin-guard.log'*) fail "self-alert: ${out:0:240}" ;;
+  *'changed during twin command: Other/INBOX.md'*) pass ;;
+  *) fail "got: ${out:0:200}" ;;
+esac
+
+t "A-44 P3: on bash < 4.1 with no temp file, an over-cap twin still fails closed (block-reading head)"
+r4=$(cat "$tmp/d1.json" | PATH="$tmp/blkbin:$PATH" TMPDIR="$tmp/no/such/dir" "$B" "$tmp/g32.sh")
+case $r4 in *'"permissionDecision":"deny"'*) pass ;; *) fail "allowed: ${r4:0:120}" ;; esac
+
+t "A-44 P3: a protected file whose path sha256sum escapes (a backslash in a folder name) is still compared"
+case $(uname -s) in
+  MINGW*|MSYS*|CYGWIN*) echo "  SKIP: Windows file names can't hold a backslash"; pass ;;
+  *)
+    if ! command -v sha256sum >/dev/null 2>&1; then
+      echo "  SKIP: no sha256sum here (shasum does not escape names)"; pass
+    else
+      p6="$tmp/p6"; mkab "$p6"; bsd="$p6/Seat/a\\b"; mkdir -p "$bsd"; printf 'x\n' > "$bsd/INBOX.md"
+      printf 'printf t >> "a\\\\b/IN""BOX.md"\n' > "$tmp/w7.sh"
+      out=$(twinrun "" "$p6/Seat" "sh '$tmp/w7.sh'" p6a)
+      case $out in *'changed during twin command: Seat/a'*'INBOX.md'*) pass ;; *) fail "silent: ${out:0:200}" ;; esac
+    fi ;;
+esac
+
 t "informational: Pre + Post cost on the fixture team (every file hashed)"
 s=$SECONDS
 for i in 1 2 3; do gk "" PreToolUse "$seat2" true "w$i" > /dev/null; gk "" PostToolUse "$seat2" true "w$i" > /dev/null; done
