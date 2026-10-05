@@ -21,7 +21,7 @@ unless the rollup pulls from the dashboard.
 
 **Writing:** date, sender, UNREAD marker, then the note — a few lines, concrete, self-contained. If the note is turning into instructions with deliverables, stop — that's a dispatch.
 
-**Reading:** every session checks its own INBOX.md at startup, right after the Sleeper check. Surface UNREAD entries to the human in one line ("2 unread notes — one from Isla, one from S-Bot"), act on what's actionable, flip UNREAD to READ. Trim entries older than a month when the file gets long.
+**Reading:** every session checks its own INBOX.md at startup, right after the Sleeper check. Surface UNREAD entries to the human in one line ("2 unread notes — one from Isla, one from S-Bot"), act on what's actionable within the kernel's trust boundary, flip UNREAD to READ. Trim entries older than a month when the file gets long.
 
 **`WORKING-STYLE` entries** go to the Overmind's inbox when the human corrects how the team works with them. A WORKING-STYLE note is a proposal: the Overmind shows it to the human and folds it into `WORKING_WITH_[FIRSTNAME].md` (see initiative.md) only after the human says yes in this session, then marks it READ.
 
