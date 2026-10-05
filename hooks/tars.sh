@@ -59,8 +59,8 @@ field() {
 }
 
 # Value classes (CONTRACT 7.3 and 7.4).
-re_m='^[A-Z][A-Z0-9]{1,9}-[0-9]{1,5}[a-z]?$'
-re_mfind='(^|[^A-Za-z0-9])([A-Z][A-Z0-9]{1,9}-[0-9]{1,5}[a-z]?)([^A-Za-z0-9]|$)'
+re_m='^[A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?$'
+re_mfind='(^|[^A-Za-z0-9])([A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?)([^A-Za-z0-9]|$)'
 re_sid='^[A-Za-z0-9_-]{1,40}$'
 re_s='^[A-Za-z0-9 ._()-]{1,60}$'
 re_g='^[A-Za-z0-9-]{1,39}$'
@@ -120,8 +120,13 @@ lines() {
   if [ -n "${2:-}" ]; then L=("${L[@]/#[!$2]*/}"); j="${L[*]}"; L=($j); fi
   set +f
 }
-# Most lines a scan acts on: the inbox and board loops stop after this many
-# candidate lines, so a hostile file cannot buy unbounded interpreter time.
+# The 2048-candidate cap (accepted with A-13, OPS-030 L2b). After the
+# first-character filter in lines(), the inbox and board loops act on at most
+# MAXL lines; the rest are ignored, like bytes past CAP. Without the cap a
+# 512 KiB INBOX of nothing but "## x" headers took about 12 s on Windows Git
+# Bash. The trade-off: entries past the 2048th candidate line (a "## "
+# header, a fence, or another line starting with # ` ~ or a space; for the
+# board, # or |) are not counted. Real team files run 1 to 171 such lines.
 MAXL=2048
 # claim KEY: the first session to make the directory owns the event. Keys
 # are scoped to the team root (amendment A-12): rootkey sets rk to the cksum
