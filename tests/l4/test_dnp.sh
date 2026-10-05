@@ -60,6 +60,26 @@ hit GOV-ID "Driver's license number: D$(rep 2 7)"
 clean GOV-ID "Passport photos are due Friday."
 clean GOV-ID "Ticket 123-4567 closed; build 2026-10-05 is green."
 
+# A-24 M3: the bypasses the r1 grade found, and the normalization.
+hit PAY "Base is \$190k."
+hit PAY "She makes 190k now."
+hit PAY "Comp landed at 150,000 this cycle."
+hit CREDENTIAL "pw = $(rep q 8)"
+hit CREDENTIAL "the password is $(rep q 8)"
+hit PAY "Offer: $(printf '\357\274\204\357\274\221\357\274\231\357\274\220')k"
+hit PAY "Base pay is
+\$190 a week"
+hit CREDENTIAL "$(printf 'password\t=\t')$(rep q 8)"
+clean PAY "The context window is 200k tokens and the budget is 6000 bytes."
+clean CREDENTIAL "The first pass at the parser landed today."
+
+t "a value split across a line break is reported as found in the joined lines"
+out=$(printf 'Base pay is\n$190 a week\n' | "$B" "$DNP")
+case $out in *"DNP PAY (line joined)"*) pass ;; *) fail "out=$out" ;; esac
+
+t "the scan documents itself as best effort, with the human's yes as the gate"
+grep -q "Best effort, not a gate" "$DNP" && grep -q "the human's yes on the exact text" "$DNP" && pass || fail "missing"
+
 t "every category is named in a multi-hit post, each once"
 out=$(printf 'salary talk\nmedication list\nDOB: 1/2/2010\npassword: %s\nrouting: %s\nSSN 078-05-1120\n' "$(rep z 6)" "$(rep 3 9)" | "$B" "$DNP"); rc=$?
 n=$(printf '%s\n' "$out" | grep -c '^DNP ')

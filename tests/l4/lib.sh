@@ -3,14 +3,13 @@
 # tests/l4/test_*.sh only; nothing outside this lane uses it.
 #
 # Provides: t/pass/fail/finish counters, a temp dir removed on exit, the
-# script paths, a sha256 of its own (independent of skills/collective/lib.sh,
-# so the published vectors are checked by a second implementation), and the
-# section 7.10 test vectors read out of reference/collective.md.
+# script paths, fresh HOMEs, and runtime-generated ed25519 keys. No key is
+# ever committed: every key here is made in $tmp and removed on exit.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 repo=${here%/tests/l4}
 B=${BASH:-bash}
-GEN="$repo/skills/assimilate/genesis.sh"
+ID="$repo/skills/assimilate/identity.sh"
 PROOF="$repo/skills/collective/proof.sh"
 STATE="$repo/skills/collective/state.sh"
 CATCHUP="$repo/skills/collective/catchup.sh"
@@ -28,26 +27,20 @@ finish() {
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ovm.XXXXXX") || exit 1
 trap 'rm -rf "$tmp"' EXIT
 
-# h TEXT: sha256 hex of TEXT, no newline.
-h() {
-  local o
-  if command -v sha256sum >/dev/null 2>&1; then o=$(printf '%s' "$1" | sha256sum)
-  elif command -v shasum >/dev/null 2>&1; then o=$(printf '%s' "$1" | shasum -a 256)
-  else o=$(printf '%s' "$1" | openssl dgst -sha256); o=${o##*= }; fi
-  printf '%s' "${o%% *}"
+CID=00112233445566778899aabbccddeeff
+CID2=ffeeddccbbaa99887766554433221100
+
+# newhome NAME: a fresh HOME for one Overmind, with its own minted key.
+newhome() {
+  local h="$tmp/home-$1"
+  mkdir -p "$h"
+  HOME=$h "$B" "$ID" mint >/dev/null || { echo "  cannot mint a key for $1" >&2; return 1; }
+  printf '%s' "$h"
 }
-# hn X N: hash X forward N times.
-hn() { local x=$1 i=0; while [ "$i" -lt "$2" ]; do x=$(h "$x"); i=$(( i + 1 )); done; printf '%s' "$x"; }
-
-# newhome NAME: a fresh HOME for one Overmind.
-newhome() { mkdir -p "$tmp/$1/.claude/overmind"; printf '%s' "$tmp/$1"; }
-
-# vec KEY: a value from the "vectors" block of reference/collective.md.
-vec() {
-  tr -d '\r' < "$repo/reference/collective.md" |
-    sed -n '/^```vectors$/,/^```$/p' | sed -n "s/^$1 = //p" | head -1
-}
-
-# rec1 / rec2: the published anchor records, exact bytes.
-rec1() { printf 'gen: 1\nanchor: %s\nnext: %s\n' "$(vec anchor_1)" "$(vec next_1)"; }
-rec2() { printf 'gen: 2\nanchor: %s\nnext: %s\n' "$(vec anchor_2)" "$(vec next_2)"; }
+# pubof HOME: path of that Overmind's public key.
+pubof() { printf '%s/.claude/overmind/collective/id_ed25519.pub' "$1"; }
+keyof() { printf '%s/.claude/overmind/collective/id_ed25519' "$1"; }
+# fp FILE: SHA256 fingerprint of a public key, computed here independently.
+fp() { local o; o=$(ssh-keygen -lf "$1"); o=${o#* }; printf '%s' "${o%% *}"; }
+# sdir HOME [CID]: that Overmind's private state dir for a Collective.
+sdir() { printf '%s/.claude/overmind/collective/%s' "$1" "${2:-$CID}"; }
