@@ -10,11 +10,14 @@
 # Every iteration also feeds the specialist's HANDOFF and INBOX. Two turns are
 # run for the Overmind and a specialist. Every output line must match one
 # regex in tests/l2/grammar.txt and be printable ASCII (no byte 0x00-0x1F other
-# than the line feed, no 0x7F). Each invocation must exit 0 within 1.0 s
-# (measured with the time keyword, TIMEFORMAT=%R).
+# than the line feed, no 0x7F). Each invocation must exit 0 within 1.0 s on
+# Linux and macOS, 2.0 s on Windows Git Bash (amendment A-10; fork cost),
+# measured with the time keyword, TIMEFORMAT=%R.
 #
-# Positive control: the same corpus runs against hooks/tars.sh at d2913e8. It
-# must produce at least one violation, or the harness is blind and fails.
+# Positive control: the first FUZZ_CONTROL_N corpus items (default 20,
+# amendment A-9) also run against hooks/tars.sh at d2913e8. They must produce
+# at least one violation, or the harness is blind and fails. The full corpus
+# always runs against the current tars.sh.
 #
 # Filename-borne payloads the filesystem refuses are printed as unreachable
 # (GAP-14) and counted; their content payloads still run.
@@ -24,6 +27,10 @@ seed=${FUZZ_SEED:-20261004}
 N=${FUZZ_N:-200}
 case $seed in ''|*[!0-9]*) echo "FUZZ_SEED must be a number"; exit 2 ;; esac
 case $N in ''|*[!0-9]*) echo "FUZZ_N must be a number"; exit 2 ;; esac
+CN=${FUZZ_CONTROL_N:-20}
+case $CN in ''|*[!0-9]*) CN=20 ;; esac
+limit_ms=1000
+case $(uname -s 2>/dev/null) in MINGW*|MSYS*|CYGWIN*) limit_ms=2000 ;; esac
 RANDOM=$seed
 
 NEW=$TARS
@@ -120,7 +127,7 @@ run() {
     i=${tm%%.*}; f=${tm#*.}; f=${f}000; f=${f:0:3}
     ms=$(( 10#${i:-0} * 1000 + 10#$f ))
     (( ms > maxms )) && maxms=$ms
-    if (( ms > 1000 )); then slow=$(( slow + 1 )); echo "  slow ${tm}s iter=$it site=$site"; fi
+    if (( ms > limit_ms )); then slow=$(( slow + 1 )); echo "  slow ${tm}s iter=$it site=$site"; fi
     viol_new=$(( viol_new + $(check "$o" new) ))
     while IFS= read -r l; do
       lines_new=$(( lines_new + 1 ))
@@ -159,8 +166,9 @@ while [ $it -lt "$N" ]; do
   turn=1
   TARS_COLLECTIVE_SYNC=1 TARS_NOW=$T run new ov "$om" "$dir/tx"
   TARS_COLLECTIVE_SYNC=1 TARS_NOW=$T run new sp "$dev" "$dir/tx"
-  run old ov "$om" "$dir/tx"; run old sp "$dev" "$dir/tx"
-  [ -n "$binder" ] && wait_for "$dir/tho/collective/seen_acme_venue"
+  ctl=""; [ "$it" -le "$CN" ] && ctl=1
+  [ -n "$ctl" ] && { run old ov "$om" "$dir/tx"; run old sp "$dev" "$dir/tx"; }
+  [ -n "$ctl" ] && [ -n "$binder" ] && wait_for "$dir/tho/collective/seen_acme_venue"
 
   # ---- inject
   case $site in
@@ -197,8 +205,8 @@ while [ $it -lt "$N" ]; do
   turn=2
   TARS_COLLECTIVE_SYNC=1 TARS_NOW=$(( T + 400 )) run new ov "$om" "$dir/tx"
   TARS_COLLECTIVE_SYNC=1 TARS_NOW=$(( T + 400 )) run new sp "$dev" "$dir/tx"
-  run old ov "$om" "$dir/tx"; run old sp "$dev" "$dir/tx"
-  if [ -n "$binder" ]; then
+  [ -n "$ctl" ] && { run old ov "$om" "$dir/tx"; run old sp "$dev" "$dir/tx"; }
+  if [ -n "$ctl" ] && [ -n "$binder" ]; then
     wait_for "$dir/tho/sessions/ov/collective.pending"
     turn=3; run old ov "$om" "$dir/tx"
   fi
@@ -208,6 +216,7 @@ done
 nk=0; rest=$kinds; while [ -n "$rest" ]; do rest=${rest#*|}; rest=${rest#*|}; nk=$(( nk + 1 )); done
 echo "  lines=$lines_new distinct-line-openings=$nk"
 echo "  unreachable=$unreach maxtime=${maxms}ms slow=$slow badexit=$badexit"
+echo "  limit=${limit_ms}ms control-items=$(( CN < N ? CN : N ))"
 echo "violations=$viol_new control=$viol_old seed=$seed n=$N"
 if [ "$viol_old" -lt 1 ]; then echo "CONTROL FAILED"; exit 1; fi
 [ "$viol_new" -eq 0 ] && [ "$slow" -eq 0 ] && [ "$badexit" -eq 0 ]
