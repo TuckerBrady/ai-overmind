@@ -8,7 +8,8 @@
 #   uuid<TAB>role<TAB>timestamp<TAB>text
 #
 # role is "user" only for a turn the human typed, and "assistant" for the
-# assistant's own text. Everything else is left out: tool_use and tool_result
+# assistant's own text. Harness blocks the app appends to a human turn
+# (<system-reminder>, <artifact-view-context> and the like) are cut out of it. Everything else is left out: tool_use and tool_result
 # payloads, thinking, skill bodies and other meta records, subagent
 # (sidechain) records, task notifications, and messages another session or
 # agent injected. Those arrive as user-type records but no human typed them,
@@ -117,6 +118,32 @@ function unesc(s,   out, i, c, d) {
   }
   return out
 }
+# Remove every harness-injected block from a human turn: <tag ...>...</tag>.
+# An unclosed block is cut to the end of the text, so nothing after a
+# harness opening tag can pass as words the human typed. The tags were found on
+# real human-origin records (2026-10): system-reminder,
+# artifact-view-context, local-command-stdout. The others are other harness
+# injections. <command-name>, <command-message> and <command-args>
+# record the slash command the human typed and stay.
+function harness(s,   k, tag, i, c, rest, j, endtag) {
+  for (k = 1; k <= NH; k++) {
+    tag = HT[k]
+    while ((i = index(s, "<" tag)) > 0) {
+      c = substr(s, i + length(tag) + 1, 1)
+      if (c != ">" && c != " " && c != "/" && c != "\\") {
+        # a longer tag name that merely starts the same: step past it
+        s = substr(s, 1, i) "" substr(s, i + 1); continue
+      }
+      rest = substr(s, i)
+      endtag = "</" tag ">"
+      j = index(rest, endtag)
+      if (j == 0) s = substr(s, 1, i - 1)
+      else s = substr(s, 1, i - 1) " " substr(rest, j + length(endtag))
+    }
+  }
+  gsub(//, "", s)
+  return s
+}
 # 8-4-4-4-12 hex, checked by position (no regex intervals: not every awk has them).
 function isuuid(u,   d) {
   if (length(u) != 36 || u !~ /^[0-9a-fA-F-]+$/) return 0
@@ -133,6 +160,7 @@ function clean(s) {
   return s
 }
 BEGIN {
+  NH = split("system-reminder artifact-view-context local-command-stdout local-command-stderr local-command-caveat user-prompt-submit-hook ide_opened_file ide_selection ide_diagnostics task-notification cross-session-message agent-message", HT, " ")
   LS = sprintf("%c%c%c", 226, 128, 168); PS = sprintf("%c%c%c", 226, 128, 169)
   C1 = sprintf("%c", 194) "[" sprintf("%c", 128) "-" sprintf("%c", 159) "]"
 }
@@ -163,10 +191,16 @@ BEGIN {
   if (ty == "user") {
     if ("origin.kind" in V) { if (V["origin.kind"] != "human") next }
     else if (text ~ /^(<task-notification>|<cross-session-message|<agent-message|Another Claude session|<local-command|\[Request interrupted)/) next
+    # The harness appends its own blocks to a human record. Only what the
+    # human typed may stand as words of the human.
+    text = harness(text)
   }
+  out = clean(unesc(text))
+  gsub(/^[ ]+|[ ]+$/, "", out)
+  if (out == "") next
   u = V["uuid"]; if (!isuuid(u)) u = "-"
   ts = V["timestamp"]; if (ts !~ /^[0-9T:.Z+-]+$/) ts = "-"
-  print u "\t" ty "\t" ts "\t" clean(unesc(text))
+  print u "\t" ty "\t" ts "\t" out
 }' | tail -n "$n"
 echo "--- END ---"
 exit 0
