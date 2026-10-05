@@ -61,7 +61,8 @@ Facts these tools carry (verified 2026-10-04):
   message and sends one idle notice when that session next goes idle. Only the
   main conversation can subscribe, so run this skill in the anchor itself,
   never in a subagent.
-- `archive_session(session_id, reason)` stops the session and **deletes its
+- `archive_session(session_id, reason)` is called only in step 8, after guard
+  exit 0 and the human's yes. It stops the session and **deletes its
   worktree by default**. In bypass permissions mode it takes effect with no
   prompt, so this skill's own question in step 8 is the only gate. The app
   refuses a session that is running, pinned or open on screen. It can be
