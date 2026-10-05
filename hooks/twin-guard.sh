@@ -97,7 +97,13 @@
 
 export LC_ALL=C
 CAP=524288
-IFS= read -r -d '' -n $((CAP + 1)) in
+# One bounded read. bash 4.1+ reads a fixed count with buffered I/O (-N);
+# older bash (macOS 3.2) reads a byte per call with -n, so it uses one head.
+if (( BASH_VERSINFO[0] > 4 || ( BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1 ) )); then
+  IFS= read -r -d '' -N $((CAP + 1)) in
+else
+  in=$(head -c $((CAP + 1)))
+fi
 
 event=PreToolUse
 case $in in *'"hook_event_name":"PostToolUseFailure"'*|*'"hook_event_name": "PostToolUseFailure"'*) event=PostToolUseFailure ;;
@@ -148,14 +154,23 @@ parsed=""
   # line feeds as \002) as it goes, 2 returns it. Runs of plain characters are
   # taken with one substr, and a value is never grown one character at a time,
   # so a long string costs linear time in every awk (A-37 P3).
-  function str(mode,   o, c, e, v, q, d, r) {
+  function str(mode,   o, c, e, v, d, r, t, k, kb, w) {
     if (substr(s, p, 1) != "\"") { bad = 1; return "" }
-    p++; o = ""
+    p++; o = ""; w = 64
     while (p <= n) {
-      q = p
-      while (p <= n) { c = substr(s, p, 1); if (c == "\"" || c == "\\") break; p++ }
-      if (p > q && mode) { r = substr(s, q, p - q); if (mode == 1) { gsub(/\n/, "\002", r); printf "%s", r } else o = o r }
-      if (p > n) break
+      # The next quote or backslash, looked for in a window that doubles while
+      # none turns up and shrinks back after one: plain runs cost a few long
+      # substr calls, escape-dense text a few short ones.
+      t = substr(s, p, w); k = index(t, "\""); kb = index(t, "\\")
+      if (kb && (!k || kb < k)) k = kb
+      if (!k) {
+        if (mode) { if (mode == 1) { gsub(/\n/, "\002", t); printf "%s", t } else o = o t }
+        p += length(t); if (w < 65536) w *= 2
+        continue
+      }
+      if (k > 1 && mode) { r = substr(t, 1, k - 1); if (mode == 1) { gsub(/\n/, "\002", r); printf "%s", r } else o = o r }
+      p += k - 1; w = 64
+      c = substr(s, p, 1)
       if (c == "\"") { p++; return o }
       e = substr(s, p + 1, 1); p += 2
       if (e == "n" || e == "r") d = "\n"; else if (e == "t" || e == "b" || e == "f") d = " "
@@ -203,7 +218,7 @@ parsed=""
     if (p == q) { bad = 1; return }
     if (want(path)) { seen[path] = 1; print substr(path, 2) "\t" substr(s, q, p - q) }
   }
-  { s = $0; n = length(s); p = 1; bad = 0; val("", 0); ws(); if (bad || p <= n) print "ERR\t1" }' <<< "$in")
+  { s = $0; n = length(s); p = 1; bad = 0; val("", 0); ws(); if (bad || p <= n) print "ERR\t1" }' <<< "$in") || parsed=ERR   # an awk that fails is unreadable input, never a pass
 
 agent="" aid="" tool="" tuid="" cwd="" fpath="" cmd="" err=""
 nl=$'\n' ctl=$'\002' tab=$'\t'

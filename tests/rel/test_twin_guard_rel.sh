@@ -141,6 +141,12 @@ t "A-37 P3: a main session's malformed JSON with no agent_type exits 0 silently"
 out=$(printf '{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"INBOX.md","content":"about splinter-twin' | "$B" "$GUARD"); rc=$?
 [ -z "$out" ] && [ $rc -eq 0 ] && pass || fail "rc=$rc out=${out:0:120}"
 
+t "round 3: if the JSON reader itself fails, a twin's write is denied and a main session's passes"
+ab="$tmp/awkbin"; mkdir -p "$ab"; printf '#!/bin/sh\nexit 2\n' > "$ab/awk"; chmod +x "$ab/awk"
+r1=$(printf '{"agent_id":"a","agent_type":"%s","tool_name":"Write","tool_input":{"file_path":"/x/notes.md","content":"x"}}' "$TWIN" | PATH="$ab:$PATH" "$B" "$GUARD")
+r2=$(printf '{"tool_name":"Write","tool_input":{"file_path":"/x/notes.md","content":"splinter-twin"}}' | PATH="$ab:$PATH" "$B" "$GUARD")
+case $r1 in *'"permissionDecision":"deny"'*) [ -z "$r2" ] && pass || fail "main: ${r2:0:100}" ;; *) fail "twin allowed: ${r1:0:100}" ;; esac
+
 # ---------------------------------------------------------------- quoted dot
 t "round 2: a quoted ' . ' (perl concatenation) is not a source; a real . still is"
 bad=0
