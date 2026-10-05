@@ -1,0 +1,17 @@
+x=${v,,}
+x=${v^^}
+mapfile -t a < f
+readarray a
+coproc cat
+declare -A m
+local -n r=x
+printf '%(%F)T' -1
+n=$EPOCHSECONDS
+cmd |& tee
+cmd &>> log
+a) x ;;&
+b) y ;&
+x=${v@Q}
+x=${a[-1]}
+wait -n
+shopt -s globstar
