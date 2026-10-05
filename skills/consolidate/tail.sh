@@ -44,19 +44,28 @@ function skipws() {
     if (c == " " || c == "\t" || c == "\r" || c == "\n") P++; else return
   }
 }
-# Read a JSON string starting at P (on the opening quote). Returns the raw,
-# still-escaped content and leaves P after the closing quote.
-function rstr(   start, rest, q, k, bs) {
-  P++; start = P
-  while (1) {
-    rest = substr(S, P)
-    q = index(rest, "\"")
-    if (q == 0) { P = L + 1; BAD = 1; return "" }
-    k = P + q - 2; bs = 0
-    while (k >= start && substr(S, k, 1) == "\\") { bs++; k-- }
-    P = P + q
-    if (bs % 2 == 0) return substr(S, start, P - 1 - start)
+# Every quote position in the record, found once. A quote is escaped when
+# the text before it ends in an odd run of backslashes. Strings are then read
+# by offset: no copy of the rest of the record per string.
+function quotes(   n, i, pos) {
+  n = split(S, QPIECE, "\"")
+  pos = 0; NQ = n - 1; QI = 1
+  for (i = 1; i <= NQ; i++) {
+    pos += length(QPIECE[i]) + 1; QPOS[i] = pos
+    QESC[i] = (match(QPIECE[i], /\\+$/) && RLENGTH % 2 == 1) ? 1 : 0
   }
+}
+# Read a JSON string starting at P (on the opening quote). Returns the raw,
+# still-escaped content (only when keep is set) and leaves P after the
+# closing quote.
+function rstr(keep,   start, j) {
+  while (QI <= NQ && QPOS[QI] < P) QI++
+  if (QI > NQ || QPOS[QI] != P) { BAD = 1; P = L + 1; return "" }
+  start = P + 1; j = QI + 1
+  while (j <= NQ && QESC[j]) j++
+  if (j > NQ) { BAD = 1; P = L + 1; return "" }
+  QI = j + 1; P = QPOS[j] + 1
+  return keep ? substr(S, start, QPOS[j] - start) : ""
 }
 function want(path) {
   return path ~ /^(type|uuid|timestamp|isMeta|isSidechain|isCompactSummary|isVisibleInTranscriptOnly|origin\.kind|message\.role|message\.content|message\.content\[[0-9]+\]\.(type|text))$/
@@ -70,8 +79,12 @@ function rval(path, depth,   c, key, i, start) {
     while (P <= L && !BAD) {
       skipws()
       if (substr(S, P, 1) != "\"") { BAD = 1; return }
-      key = rstr(); skipws()
+      key = rstr(1); skipws()
+      # A key written with an escape (isMet\u0061) would be read by a real
+      # JSON parser as a different key than it is here: fail closed.
+      if (index(key, "\\")) { BAD = 1; return }
       if (path == "" && key == "origin") { if (HASORIGIN) { BAD = 1; return } HASORIGIN = 1 }
+      if (path == "origin") { OKEYS++; if (key != "kind") ORIGX = 1 }
       if (substr(S, P, 1) != ":") { BAD = 1; return }
       P++
       rval(path == "" ? key : path "." key, depth + 1)
@@ -94,8 +107,9 @@ function rval(path, depth,   c, key, i, start) {
     }
     return
   }
+  if (path == "origin" && c != "{") ORIGX = 1
   if (c == "\"") {
-    if (want(path)) { if (path in V) { BAD = 1; return } V[path] = rstr(); T[path] = "s" } else rstr()
+    if (want(path)) { if (path in V) { BAD = 1; return } V[path] = rstr(1); T[path] = "s" } else rstr(0)
     return
   }
   start = P
@@ -107,16 +121,13 @@ function rval(path, depth,   c, key, i, start) {
   if (want(path)) { if (path in V) { BAD = 1; return } V[path] = substr(S, start, P - start); T[path] = "l" }
 }
 # \n and \t escapes become a space; every other escape is left as written.
-function unesc(s,   out, i, c, d) {
-  out = ""
-  for (i = 1; i <= length(s); i++) {
-    c = substr(s, i, 1)
-    if (c != "\\") { out = out c; continue }
-    d = substr(s, i + 1, 1)
-    if (d == "n" || d == "t") out = out " "
-    else out = out c d
-    i++
-  }
+# Linear: an escaped backslash is set aside first so "\\n" stays as written.
+function unesc(s,   n, i, part, out) {
+  gsub(/\\\\/, SOH, s)
+  gsub(/\\[nt]/, " ", s)
+  if (index(s, SOH) == 0) return s
+  n = split(s, part, SOH); out = part[1]
+  for (i = 2; i <= n; i++) out = out BS2 part[i]
   return out
 }
 # --- human turns -------------------------------------------------------------
@@ -179,8 +190,15 @@ function lastclose(s, t,   lc, off, p, last) {
 }
 # One block of a human record -> the typed words it holds; sets CUT when any
 # of it was removed as harness text.
+function census(s,   r, nm) {
+  while (match(s, /<[A-Za-z][A-Za-z0-9_-]*/)) {
+    nm = tolower(substr(s, RSTART + 1, RLENGTH - 1)); TAGS[nm]++
+    s = substr(s, RSTART + RLENGTH)
+  }
+}
 function userblock(s,   lt, p, t) {
   s = norm(s)
+  census(s)
   lt = leadtag(s)
   if (lt == "artifact-view-context") {
     t = "</artifact-view-context>"
@@ -189,7 +207,7 @@ function userblock(s,   lt, p, t) {
     s = substr(s, p + length(t))
     lt = leadtag(s)
   }
-  if (lt != "" && !(lt in ALLOW)) { CUT = 1; return "" }
+  # An unknown tag is not cut (A-35); it is counted in the tag census.
   p = firsttag(s)
   if (p > 0) { CUT = 1; s = substr(s, 1, p - 1) }
   # A tag name left open at the end of the block continues in the next block
@@ -214,6 +232,7 @@ function clean(s) {
 }
 BEGIN {
   NH = split("system-reminder artifact-view-context local-command-stdout local-command-stderr local-command-caveat bash-input bash-stdout bash-stderr user-prompt-submit-hook ide_opened_file ide_selection ide_diagnostics task-notification cross-session-message agent-message", HT, " ")
+  SOH = sprintf("%c", 1); BS2 = sprintf("%c%c", 92, 92)
   CLOSERE = "</[ ]*("
   for (k = 1; k <= NH; k++) CLOSERE = CLOSERE (k > 1 ? "|" : "") HT[k]
   CLOSERE = CLOSERE ")"
@@ -226,7 +245,8 @@ BEGIN {
   # Pasted images ride inside user turns as base64; drop the payload, keep the turn.
   if (length(S) > 65536) gsub(/"data": ?"[A-Za-z0-9+\/=]+"/, "\"data\":\"\"", S)
   if (length(S) > 1048576) { SKIP++; next }
-  L = length(S); P = 1; BAD = 0; HASORIGIN = 0
+  L = length(S); P = 1; BAD = 0; HASORIGIN = 0; OKEYS = 0; ORIGX = 0
+  quotes()
   split("", V); split("", T)
   rval("", 0)
   if (BAD) { SKIP++; next }
@@ -241,7 +261,22 @@ BEGIN {
     # Human only with an origin object whose kind is the string "human".
     # No origin, an origin of another shape, or another kind: not typed by
     # the human (fail closed; every human turn in current transcripts has one).
-    if (!HASORIGIN || !("origin.kind" in V) || T["origin.kind"] != "s" || V["origin.kind"] != "human") next
+    if (!HASORIGIN) {
+      # A user record with no origin and none of the flags: an older shape,
+      # or one a newer app writes differently. Counted, never emitted.
+      # Only text records count: a tool_result never carries an origin.
+      if (V["isMeta"] != "true" && V["isSidechain"] != "true" && V["isCompactSummary"] != "true" && V["isVisibleInTranscriptOnly"] != "true") {
+        hastext = (T["message.content"] == "s" && V["message.content"] != ""); notext = 0
+        for (i = 0; ("message.content[" i "].type") in V; i++) {
+          bt = V["message.content[" i "].type"]
+          if (bt == "text" && V["message.content[" i "].text"] != "") hastext = 1
+          else if (bt != "text" && bt != "image") notext = 1
+        }
+        if (hastext && !notext) NOORIGIN++
+      }
+      next
+    }
+    if (ORIGX || OKEYS != 1 || !("origin.kind" in V) || T["origin.kind"] != "s" || V["origin.kind"] != "human") next
     human = 1
   }
   text = ""; other = 0; CUT = 0
@@ -269,6 +304,11 @@ BEGIN {
   ts = V["timestamp"]; if (ts !~ /^[0-9T:.Z+-]+$/) ts = "-"
   print u "\t" ty "\t" ts "\t" out
 }
-END { print "tail.sh: skipped=" (SKIP + 0) > "/dev/stderr" }' | tail -n "$n"
+END {
+  print "tail.sh: skipped=" (SKIP + 0) > "/dev/stderr"
+  print "tail.sh: noorigin=" (NOORIGIN + 0) > "/dev/stderr"
+  line = ""; for (t in TAGS) line = line (line == "" ? "" : ",") t ":" TAGS[t]
+  print "tail.sh: tags=" line > "/dev/stderr"
+}' | tail -n "$n"
 echo "--- END ---"
 exit 0
