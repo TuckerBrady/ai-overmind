@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# mapfile in a comment
+  # declare -A in a comment
+now=${EPOCHSECONDS:-$(date +%s)}
+echo hi # wait -n
