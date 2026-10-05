@@ -399,7 +399,9 @@ inbox_growth() {
   prev=$(getn "$st/unread")
   pset=""
   if [ -z "$first" ] && (( cur <= 256 && prev <= 256 )) && [ -f "$st/unread_h" ]; then
-    slurp "$st/unread_h"; pset=$nl$S; S=""
+    # The extra line feed: on bash 3.2 slurp's command substitution drops
+    # the file's last one.
+    slurp "$st/unread_h"; pset=$nl$S$nl; S=""
     for h in "${uh[@]}"; do
       case $pset in *"$nl$h$nl"*) ;; *) newu=$(( newu + 1 )) ;; esac
     done
