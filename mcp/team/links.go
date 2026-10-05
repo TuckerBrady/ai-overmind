@@ -13,7 +13,10 @@ import (
 // spinning.
 const maxLinkHops = 255
 
-var errLinkLoop = errors.New("too many levels of links")
+var (
+	errLinkLoop       = errors.New("too many levels of links")
+	errUnreadableLink = errors.New("a link or reparse point whose target cannot be read")
+)
 
 // realPath resolves every symlink in an absolute path (CONTRACT 3.4).
 //
@@ -22,6 +25,7 @@ var errLinkLoop = errors.New("too many levels of links")
 // comes back unresolved, which would pass a containment check while leading
 // anywhere on disk. So on Windows each component is resolved by hand, and
 // any component that os.Readlink can read (symlink or junction) is followed.
+// A reparse point it cannot read is refused (fail closed).
 func realPath(path string) (string, error) {
 	if runtime.GOOS != "windows" {
 		return filepath.EvalSymlinks(path)
@@ -41,23 +45,42 @@ func walkLinks(path string, hops *int) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if info.Mode()&(fs.ModeSymlink|fs.ModeIrregular) != 0 {
-			if target, err := os.Readlink(next); err == nil {
-				if *hops++; *hops > maxLinkHops {
-					return "", &fs.PathError{Op: "resolve", Path: next, Err: errLinkLoop}
-				}
-				if !filepath.IsAbs(target) {
-					target = filepath.Join(cur, target)
-				}
-				resolved, err := walkLinks(target, hops)
-				if err != nil {
-					return "", err
-				}
-				cur = resolved
-				continue
+		if isLinkLike(info.Mode()) {
+			target, err := linkTarget(next)
+			if err != nil {
+				return "", err
 			}
+			if *hops++; *hops > maxLinkHops {
+				return "", &fs.PathError{Op: "resolve", Path: next, Err: errLinkLoop}
+			}
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(cur, target)
+			}
+			resolved, err := walkLinks(target, hops)
+			if err != nil {
+				return "", err
+			}
+			cur = resolved
+			continue
 		}
 		cur = next
 	}
 	return cur, nil
+}
+
+// isLinkLike reports a component that may lead somewhere else: a symlink,
+// or (on Windows) a junction or other reparse point, which Go reports as
+// irregular.
+func isLinkLike(mode fs.FileMode) bool { return mode&(fs.ModeSymlink|fs.ModeIrregular) != 0 }
+
+// linkTarget reads a link-like component's target. A reparse point that
+// os.Readlink cannot decode (an app execution alias, a cloud placeholder, a
+// tag Go does not know) is refused, never treated as a plain file: its
+// destination is unknown, so containment cannot be proven (A-5).
+func linkTarget(path string) (string, error) {
+	target, err := os.Readlink(path)
+	if err != nil || target == "" {
+		return "", &fs.PathError{Op: "resolve", Path: path, Err: errUnreadableLink}
+	}
+	return target, nil
 }

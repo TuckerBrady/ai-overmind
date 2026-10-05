@@ -10,6 +10,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -926,5 +927,46 @@ func TestMCP4_WalkLinksResolvesLikeTheOS(t *testing.T) {
 	hops = 0
 	if _, err := walkLinks(filepath.Join(base, "missing", "f.md"), &hops); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("missing path: %v", err)
+	}
+}
+
+// A link-like component whose target cannot be read is refused, never
+// walked through as a plain file (A-5). A regular file makes os.Readlink
+// fail on every OS, which is the same failure an undecodable reparse point
+// produces.
+func TestMCP4_UnreadableLinkFailsClosed(t *testing.T) {
+	dir := t.TempDir()
+	plain := filepath.Join(dir, "plain.md")
+	w(t, plain, "x")
+	if _, err := linkTarget(plain); !errors.Is(err, errUnreadableLink) {
+		t.Errorf("linkTarget(regular file) err = %v, want errUnreadableLink", err)
+	}
+	link(t, filepath.Join(dir, "l"), dir)
+	if got, err := linkTarget(filepath.Join(dir, "l")); err != nil || got == "" {
+		t.Errorf("linkTarget(real link) = %q %v", got, err)
+	}
+	for _, c := range []struct {
+		mode fs.FileMode
+		want bool
+	}{{fs.ModeSymlink, true}, {fs.ModeIrregular, true}, {fs.ModeDir, false}, {0, false}} {
+		if isLinkLike(c.mode) != c.want {
+			t.Errorf("isLinkLike(%v) = %v", c.mode, !c.want)
+		}
+	}
+	// Real undecodable reparse points, wherever the host has them: Windows
+	// app execution aliases are irregular and os.Readlink cannot read them.
+	aliases, _ := filepath.Glob(filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WindowsApps", "*.exe"))
+	for _, a := range aliases {
+		info, err := os.Lstat(a)
+		if err != nil || !isLinkLike(info.Mode()) {
+			continue
+		}
+		if _, err := os.Readlink(a); err == nil {
+			continue
+		}
+		hops := 0
+		if got, err := walkLinks(a, &hops); !errors.Is(err, errUnreadableLink) {
+			t.Errorf("walkLinks(%s) = %q %v, want refusal", filepath.Base(a), got, err)
+		}
 	}
 }
