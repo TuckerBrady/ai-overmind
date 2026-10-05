@@ -10,9 +10,12 @@
 # Every iteration also feeds the specialist's HANDOFF and INBOX. Two turns are
 # run for the Overmind and a specialist. Every output line must match one
 # regex in tests/l2/grammar.txt and be printable ASCII (no byte 0x00-0x1F other
-# than the line feed, no 0x7F). Each invocation must exit 0 within 1.0 s on
-# Linux and macOS, 2.0 s on Windows Git Bash (amendment A-10; fork cost),
-# measured with the time keyword, TIMEFORMAT=%R.
+# than the line feed, no 0x7F). Each invocation must exit 0. Its wall time
+# (the time keyword, TIMEFORMAT=%R) is informational (amendment A-20): the
+# slowest is reported as maxtime, and runs over 1.0 s on Linux and macOS or
+# 2.0 s on Windows Git Bash are counted as slow, but neither fails the run.
+# Wall time depends on machine load; tests/l2/test_perf.sh gates the cost
+# by counting external commands instead.
 #
 # Positive control: the first FUZZ_CONTROL_N corpus items (default 20,
 # amendment A-9) also run against hooks/tars.sh at d2913e8. They must produce
@@ -216,7 +219,7 @@ done
 nk=0; rest=$kinds; while [ -n "$rest" ]; do rest=${rest#*|}; rest=${rest#*|}; nk=$(( nk + 1 )); done
 echo "  lines=$lines_new distinct-line-openings=$nk"
 echo "  unreachable=$unreach maxtime=${maxms}ms slow=$slow badexit=$badexit"
-echo "  limit=${limit_ms}ms control-items=$(( CN < N ? CN : N ))"
+echo "  limit=${limit_ms}ms (informational, A-20) control-items=$(( CN < N ? CN : N ))"
 echo "violations=$viol_new control=$viol_old seed=$seed n=$N"
 if [ "$viol_old" -lt 1 ]; then echo "CONTROL FAILED"; exit 1; fi
-[ "$viol_new" -eq 0 ] && [ "$slow" -eq 0 ] && [ "$badexit" -eq 0 ]
+[ "$viol_new" -eq 0 ] && [ "$badexit" -eq 0 ]

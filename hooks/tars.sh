@@ -32,10 +32,24 @@
 # TARS_COLLECTIVE_SYNC=1 (run the Collective check in the foreground) and
 # TARS_CLAIM_FRESH_SEC.
 
+#
+# Bounded reads (amendment A-13): the hook input, INBOX.md and the board are
+# read 512 KiB at most, the excess ignored; a claim file's line is read 256
+# bytes at most; every other line read from a team file stops at 4096 bytes.
+# Whole files are taken in one read, never one read per line: on Windows Git
+# Bash each read of a file costs a system call per byte.
+
 set +e
 export LC_ALL=C
 
-IFS= read -r -d '' input
+CAP=524288
+# bash 4.1+ reads a fixed count (-N) with buffered I/O; -n reads a byte at a
+# time. Both stop at CAP bytes.
+newread=""
+(( BASH_VERSINFO[0] > 4 || ( BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1 ) )) && newread=1
+if [ -n "$newread" ]; then IFS= read -r -d '' -N "$CAP" input
+else IFS= read -r -d '' -n "$CAP" input
+fi
 input=${input//$'\n'/ }
 input=${input//$'\r'/ }
 
@@ -45,8 +59,8 @@ field() {
 }
 
 # Value classes (CONTRACT 7.3 and 7.4).
-re_m='^[A-Z][A-Z0-9]{1,9}-[0-9]{1,5}[a-z]?$'
-re_mfind='(^|[^A-Za-z0-9])([A-Z][A-Z0-9]{1,9}-[0-9]{1,5}[a-z]?)([^A-Za-z0-9]|$)'
+re_m='^[A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?$'
+re_mfind='(^|[^A-Za-z0-9])([A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?)([^A-Za-z0-9]|$)'
 re_sid='^[A-Za-z0-9_-]{1,40}$'
 re_s='^[A-Za-z0-9 ._()-]{1,60}$'
 re_g='^[A-Za-z0-9-]{1,39}$'
@@ -55,7 +69,8 @@ re_f='^WORKING_WITH_[A-Za-z0-9_-]{1,40}\.md$'
 re_sha='^[0-9a-fA-F]{7,64}$'
 re_ws='^([0-9]{1,5}k|[0-9]{1,4}M)$'
 re_init='^#+[[:space:]]*Initiative setting:[[:space:]]*([0-9]{1,3})%([^0-9]|$)'
-tab=$'\t' cr=$'\r'
+# Control characters, set once for every function.
+tab=$'\t' cr=$'\r' nl=$'\n' us=$'\037'
 
 # num VALUE MAXDIGITS: VALUE is 1 to MAXDIGITS decimal digits.
 num() { case $1 in ''|*[!0-9]*) return 1 ;; esac; [ ${#1} -le "$2" ]; }
@@ -75,19 +90,63 @@ now=${TARS_NOW:-}
 case $now in ''|*[!0-9]*) now=${EPOCHSECONDS:-$(date +%s)} ;; esac
 case $now in ''|*[!0-9]*) now=0 ;; esac
 
-out=""
 # emit LINE: the last gate. Printable ASCII only; anything else is dropped.
-emit() { case $1 in *[!\ -~]*) return ;; esac; out+="$1"$'\n'; }
+# Each line is written the moment it is known, never buffered to the end
+# (amendment A-13): a claimed event is printed right after its claim, so a
+# hook killed later in the turn cannot lose it.
+emit() { case $1 in *[!\ -~]*) return ;; esac; printf '%s\n' "$1"; }
 say() { emit "TARS: $1"; }
 cue() { emit "TARS (cue): $1"; }
-getn() { local v=""; [ -f "$1" ] && read -r v < "$1"; num "$v" 12 || v=0; printf '%s' "$v"; }
+getn() { local v=""; [ -f "$1" ] && read -r -n 64 v < "$1"; num "$v" 12 || v=0; printf '%s' "$v"; }
 put() { printf '%s' "$2" > "$1"; }
+# slurp FILE: up to CAP bytes of FILE into S, in one read. bash 4.1+ reads a
+# fixed count with buffered I/O; older bash (macOS 3.2) uses one head.
+slurp() {
+  S=""
+  if [ -n "$newread" ]; then
+    IFS= read -r -d '' -N "$CAP" S < "$1"
+  else
+    { S=$(head -c "$CAP" -- "$1"); } 2>/dev/null
+  fi
+  return 0
+}
+# lines TEXT [FIRST]: TEXT split into the array L at line feeds (blank lines
+# drop out). With FIRST, a bracket-expression list of characters, only lines
+# that start with one of them are kept. Splitting and filtering are each one
+# builtin pass over the whole array, not a step per line. The filter runs
+# with the default IFS: bash 3.2 joins "${L[@]/.../}" into one word when IFS
+# is a newline (seen on the macOS CI job).
+lines() {
+  local IFS j
+  IFS=$nl
+  set -f
+  L=($1)
+  if [ -n "${2:-}" ]; then
+    IFS=$' \t\n'; L=("${L[@]/#[!$2]*/}")
+    IFS=$nl; j="${L[*]}"; L=($j)
+  fi
+  set +f
+}
+# The 2048-candidate cap (accepted with A-13, OPS-030 L2b). After the
+# first-character filter in lines(), the inbox and board loops act on at most
+# MAXL lines; the rest are ignored, like bytes past CAP. Without the cap a
+# 512 KiB INBOX of nothing but "## x" headers took about 12 s on Windows Git
+# Bash. The trade-off: entries past the 2048th candidate line (a "## "
+# header, a fence, or another line starting with # ` ~ or a space; for the
+# board, # or |) are not counted. Real team files run 1 to 171 such lines.
+MAXL=2048
 # claim KEY: the first session to make the directory owns the event. Keys
 # are scoped to the team root (amendment A-12): rootkey sets rk to the cksum
-# of the pinned root path, computed on the first event only.
+# of the pinned root path, resolved to its physical form (cd -P, pwd -P) so
+# two spellings of one folder share their claims. Computed once per turn.
 claim() { mkdir "$home/claims/$1" 2>/dev/null; }
 rk=""
-rootkey() { [ -n "$rk" ] || { rk=$(printf '%s' "$root" | cksum); rk=${rk// /-}; }; }
+rootkey() {
+  [ -n "$rk" ] && return
+  local p=$root o=$PWD
+  if cd -P -- "$root" 2>/dev/null; then p=$PWD; cd -- "$o" 2>/dev/null; fi
+  rk=$(printf '%s' "$p" | cksum); rk=${rk// /-}
+}
 
 first=""
 if [ ! -f "$st/started" ]; then
@@ -281,17 +340,28 @@ if [ -z "$first" ] && [ -f "$seatdir/BOOT.md" ] && [ -f "$st/bootref" ] && [ "$s
   : > "$st/bootref"
 fi
 
-# Unread inbox entries: recount only when the inbox changed; report growth.
+# Unread inbox entries: recount only when the inbox changed; report new ones.
 # An entry is a "## " header (amendment A-8, shared with overmind-mcp): split
 # it on " — " or " - "; in order, each segment's first whitespace token with
 # any surrounding [ ] removed; the first token that is exactly READ or UNREAD
-# is the status. No such token means unread. Builtins only.
+# is the status. No such token means unread. Builtins only; the first 512 KiB
+# of the file is read in one go.
+#
+# What is reported is new unread entries, not a net rise (amendment A-13): one
+# entry marked READ while another arrives still speaks. A new entry is an
+# unread header whose text (first 120 bytes) was not unread last scan; the
+# texts are kept while there are 256 or fewer. A bare rise in the count also
+# speaks, which covers a new entry with a duplicate header.
 inbox_growth() {
-  local f="$1/INBOX.md" cur=0 prev line rest seg tok status us=$'\037'
+  local f="$1/INBOX.md" cur=0 prev line rest seg tok status
   [ -f "$f" ] || return
   [ -z "$first" ] && [ ! "$f" -nt "$st/marker" ] && return
-  local fc="" fl=0 lead t r bq='`'
-  while IFS= read -r line || [ -n "$line" ]; do
+  local fc="" fl=0 lead t r bq='`' uh h newu=0 pset
+  uh=()
+  # Only a "## " header or a fence (indent 0-3) matters: keep the lines that
+  # start with # ` ~ or a space, and act on at most MAXL of them.
+  slurp "$f"; lines "$S" '#`~ '; S=""
+  for line in "${L[@]:0:MAXL}"; do
     line=${line%"$cr"}
     # A "## " inside a fenced code block (``` or ~~~, indent 0-3) is not an
     # entry. A fence closes on a run of the same character at least as long.
@@ -321,12 +391,25 @@ inbox_growth() {
       case $tok in READ|UNREAD) status=$tok; break ;; esac
       case $rest in *"$us"*) rest=${rest#*"$us"} ;; *) break ;; esac
     done
-    [ "$status" = READ ] || cur=$(( cur + 1 ))
-  done < "$f"
+    [ "$status" = READ ] && continue
+    cur=$(( cur + 1 ))
+    (( cur <= 256 )) && uh+=("${line:0:120}")
+  done
+  L=()
   prev=$(getn "$st/unread")
+  pset=""
+  if [ -z "$first" ] && (( cur <= 256 && prev <= 256 )) && [ -f "$st/unread_h" ]; then
+    # The extra line feed: on bash 3.2 slurp's command substitution drops
+    # the file's last one.
+    slurp "$st/unread_h"; pset=$nl$S$nl; S=""
+    for h in "${uh[@]}"; do
+      case $pset in *"$nl$h$nl"*) ;; *) newu=$(( newu + 1 )) ;; esac
+    done
+  fi
   put "$st/unread" "$cur"
+  if (( cur <= 256 )); then printf '%s\n' "${uh[@]}" > "$st/unread_h"; else : > "$st/unread_h"; fi
   [ -n "$first" ] && return
-  (( cur > prev )) && num "$cur" 6 && num "$prev" 6 && say "$cur unread inbox entries (was $prev)."
+  (( newu > 0 || cur > prev )) && num "$cur" 6 && num "$prev" 6 && say "$cur unread inbox entries (was $prev)."
 }
 
 # newbrief FILE: written since the last turn, not stamped ACTIVATED or
@@ -336,15 +419,12 @@ newbrief() {
   local re_stamp='^[[:space:]*_]*(ACTIVATED|CONSOLIDATED-INTO):'
   local re_self='^[[:space:]*_]*TYPE:[[:space:]*_]*[Ss][Ee][Ll][Ff]'
   [ -f "$1" ] && [ "$1" -nt "$st/marker" ] || return 1
-  while (( n++ < 40 )) && IFS= read -r line; do
+  while (( n++ < 40 )) && IFS= read -r -n 4096 line; do
     [[ $line =~ $re_stamp ]] && return 1
     [[ $line =~ $re_self ]] && return 1
   done < "$1"
   return 0
 }
-
-# Status cell tokens: split on / , ; and whitespace.
-tokens() { local s=${1//[\/,;]/ }; s=${s//"$tab"/ }; printf '%s' "$s"; }
 
 # ---------------------------------------------------------------- missions
 if [ -n "$root" ]; then
@@ -355,7 +435,7 @@ if [ -n "$root" ]; then
       d=${f%/*}; who=${d##*/}; fn=${f##*/}; mid=""
       if [ "$fn" = mission-complete.md ]; then
         n=0
-        while (( n++ < 40 )) && IFS= read -r line; do
+        while (( n++ < 40 )) && IFS= read -r -n 4096 line; do
           [[ $line =~ $re_mfind ]] && { mid=${BASH_REMATCH[2]}; break; }
         done < "$f"
       else
@@ -375,11 +455,16 @@ if [ -n "$root" ]; then
     if [ -f "$board" ]; then
       # Re-scan only when the board changed. Rows count only in the "## Active"
       # section; status and priority come from the cells under the "Status"
-      # and "Priority" headers.
+      # and "Priority" headers. The first 512 KiB is read in one go and every
+      # row is split by builtin word splitting: no fork and no read per row
+      # (amendment A-13). Only lines starting with # or | are kept, and at
+      # most MAXL of them are read. Status and priority cells split on / , ;
+      # and whitespace.
       if [ ! -f "$st/boardscan" ] || [ "$board" -nt "$st/boardscan" ]; then
         count=0 tier="" insec="" sc=-1 pc=-1
+        slurp "$board"; lines "$S" '#|'; S=""
         set -f
-        while IFS= read -r line || [ -n "$line" ]; do
+        for line in "${L[@]:0:MAXL}"; do
           line=${line%"$cr"}
           case $line in
             '## Active'|'## Active '*) insec=1; sc=-1; pc=-1; continue ;;
@@ -388,7 +473,7 @@ if [ -n "$root" ]; then
           [ -n "$insec" ] || continue
           case $line in '|'*) ;; *) continue ;; esac
           line=${line//\\|/}
-          IFS='|' read -r -a cells <<< "$line"
+          IFS='|'; cells=($line); IFS=$' \t\n'
           if (( sc < 0 )); then
             i=0
             while (( i < ${#cells[@]} )); do
@@ -401,14 +486,14 @@ if [ -n "$root" ]; then
           fi
           (( sc < ${#cells[@]} )) || continue
           live=""
-          for w in $(tokens "${cells[sc]}"); do
-            case $w in ACTIVE|QUEUED|BLOCKED|REVIEW|PENDING) live=1 ;; esac
+          for w in ${cells[sc]//[\/,;]/ }; do
+            case $w in ACTIVE|QUEUED|BLOCKED|REVIEW|PENDING) live=1; break ;; esac
           done
           [ -n "$live" ] || continue
           count=$(( count + 1 ))
           rt=LOW
           if (( pc >= 0 && pc < ${#cells[@]} )); then
-            for w in $(tokens "${cells[pc]}"); do
+            for w in ${cells[pc]//[\/,;]/ }; do
               case $w in
                 CRITICAL|P0|HIGH) rt=CRITICAL ;;
                 STANDARD|P1|MEDIUM) [ "$rt" = CRITICAL ] || rt=STANDARD ;;
@@ -421,7 +506,8 @@ if [ -n "$root" ]; then
             STANDARD/*) tier=STANDARD ;;
             LOW/) tier=LOW ;;
           esac
-        done < "$board"
+        done
+        L=() cells=()
         set +f
         put "$st/boardscan" "$count $tier"
       fi
@@ -460,7 +546,7 @@ if [ -n "$root" ] && [ -z "$first" ]; then
     name=${f##*/}
     [[ $name =~ $re_f ]] || continue
     pct="" n=0
-    while (( n++ < 40 )) && IFS= read -r line; do
+    while (( n++ < 40 )) && IFS= read -r -n 4096 line; do
       [[ $line =~ $re_init ]] && { pct=${BASH_REMATCH[1]}; break; }
     done < "$f"
     case $pct in 25|50|75|90|100) ;; *) pct="" ;; esac
@@ -472,8 +558,9 @@ fi
 # ---------------------------------------------------------------- claims
 # Heartbeat this session's mission claims, then look for another session of
 # the same seat holding the same mission. Names that fail the claim classes
-# are ignored and never written; so are symlinks.
-if [ -n "$root" ] && [ -d "$root/_claims" ] && [ "$sid" != nosession ] && [[ $sid =~ $re_sid ]]; then
+# are ignored and never written; so are symlinks, and a _claims folder that is
+# itself a symlink is not read at all. A claim line is read 256 bytes at most.
+if [ -n "$root" ] && [ -d "$root/_claims" ] && [ ! -L "$root/_claims" ] && [ "$sid" != nosession ] && [[ $sid =~ $re_sid ]]; then
   fresh=${TARS_CLAIM_FRESH_SEC:-1800}; num "$fresh" 9 || fresh=1800
   own_m=() own_s=()
   shopt -s nullglob
@@ -481,7 +568,7 @@ if [ -n "$root" ] && [ -d "$root/_claims" ] && [ "$sid" != nosession ] && [[ $si
     [ -f "$f" ] && [ ! -L "$f" ] || continue
     n=${f##*/}; m=${n%."$sid"}
     [ "$m.$sid" = "$n" ] && [[ $m =~ $re_m ]] || continue
-    ln=""; IFS= read -r ln < "$f"; ln=${ln%"$cr"}
+    ln=""; IFS= read -r -n 256 ln < "$f"; ln=${ln%"$cr"}
     ep=${ln%% *}; sf=${ln#* }
     [ "$ep" != "$ln" ] && num "$ep" 12 && [[ $sf =~ $re_s ]] || continue
     printf '%s %s\n' "$now" "$sf" > "$f"
@@ -494,7 +581,7 @@ if [ -n "$root" ] && [ -d "$root/_claims" ] && [ "$sid" != nosession ] && [[ $si
       [ -f "$g" ] && [ ! -L "$g" ] || continue
       n=${g##*/}; o=${n#"$m".}
       [ "$o" != "$sid" ] && [[ $o =~ $re_sid ]] || continue
-      ln=""; IFS= read -r ln < "$g"; ln=${ln%"$cr"}
+      ln=""; IFS= read -r -n 256 ln < "$g"; ln=${ln%"$cr"}
       ep=${ln%% *}; sf=${ln#* }
       [ "$ep" != "$ln" ] && num "$ep" 12 && [ "$sf" = "${own_s[i]}" ] || continue
       age=$(( now - 10#$ep )); (( age < 0 )) && age=0
@@ -513,10 +600,29 @@ fi
 # author login) and whether GitHub verified the commit. The gh query asks for
 # nothing else. Each session keeps its own seen-set; its first check seeds it
 # silently (the boot sweep covers the backlog).
+#
+# Each check writes its records to its own pending.<epoch>.<pid> file, whole,
+# through a temp file and mv; a mkdir lock keeps two checks of one session
+# from overlapping (amendment A-13).
 tmo() {
   if command -v timeout >/dev/null 2>&1; then timeout 8 "$@"
   elif command -v gtimeout >/dev/null 2>&1; then gtimeout 8 "$@"
-  else "$@"
+  else
+    # Builtin watchdog: neither timeout nor gtimeout exists (stock macOS).
+    # The command is stopped after 8 seconds and reported as a timeout.
+    local p w rc
+    "$@" &
+    p=$!
+    ( s=0
+      while kill -0 "$p" 2>/dev/null; do
+        if (( s >= 8 )); then kill "$p" 2>/dev/null; exit 0; fi
+        s=$(( s + 1 )); sleep 1
+      done ) </dev/null >/dev/null 2>&1 &
+    w=$!
+    wait "$p"; rc=$?
+    kill "$w" 2>/dev/null
+    (( rc > 128 )) && rc=124
+    return "$rc"
   fi
 }
 
@@ -527,38 +633,46 @@ why() { # RC STDERR: the reason code for a failed gh call
   fi
 }
 
+# okrepo NAME: class R, with no "." or ".." segment.
+okrepo() { [[ $1 =~ $re_r ]] || return 1; case /$1/ in */./*|*/../*) return 1 ;; esac; return 0; }
+
+crecs=""
 collective_check() {
-  local line n=-1 rest r repos=" " recs="" ep err rc lines row rows sha al cl ver
+  local line n=-1 n0=0 rest r repos=" " ep err rc lines row rows sha al cl ver
   local who tag key i k new seen seenstr s plus seenf gk gc
   local re='`(github:)?([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)`'
   local q='.[] | [.sha, (.author.login // ""), (.committer.login // ""), (.commit.verification.verified // false | tostring)] | @tsv'
   # Binder roots: backticked owner/repo names on the "Binder roots" line of the
-  # Overmind's BOOT.md and the 12 lines after it.
-  while IFS= read -r line || [ -n "$line" ]; do
-    if (( n < 0 )); then case $line in *'Binder roots'*) n=0 ;; *) continue ;; esac; fi
+  # Overmind's BOOT.md and the 12 lines after it. Lines are read 4096 bytes at
+  # most, and the search gives up after 4000 of them.
+  while IFS= read -r -n 4096 line || [ -n "$line" ]; do
+    if (( n < 0 )); then
+      (( n0++ < 4000 )) || break
+      case $line in *'Binder roots'*) n=0 ;; *) continue ;; esac
+    fi
     rest=$line
     while [[ $rest =~ $re ]]; do
       r=${BASH_REMATCH[2]}
       rest=${rest#*"${BASH_REMATCH[0]}"}
       case $r in *.md) continue ;; esac
-      [[ $r =~ $re_r ]] || continue
+      okrepo "$r" || continue
       case $repos in *" $r "*) ;; *) repos+="$r " ;; esac
     done
     n=$(( n + 1 )); (( n > 12 )) && break
   done < "$seatdir/BOOT.md"
   [ "$repos" = " " ] && return 0
-  if ! command -v gh >/dev/null 2>&1; then printf 'U notinstalled\n' >> "$coll/pending"; return 0; fi
+  if ! command -v gh >/dev/null 2>&1; then crecs+="U notinstalled"$'\n'; return 0; fi
   # The login probe exists only to tell "gh not authenticated" apart. Its
   # answer is cached for 24 hours.
-  ep=""; [ -f "$home/gh_auth" ] && read -r ep < "$home/gh_auth"
+  ep=""; [ -f "$home/gh_auth" ] && read -r -n 64 ep < "$home/gh_auth"
   if ! num "$ep" 12 || (( now - ep >= 86400 || now < ep )); then
     err=$(tmo gh api user --jq .login 2>&1 >/dev/null); rc=$?
-    if [ "$rc" != 0 ]; then printf 'U %s\n' "$(why "$rc" "$err")" >> "$coll/pending"; return 0; fi
+    if [ "$rc" != 0 ]; then crecs+="U $(why "$rc" "$err")"$'\n'; return 0; fi
     printf '%s\n' "$now" > "$home/gh_auth"
   fi
   for r in $repos; do
     lines=$(tmo gh api "repos/$r/commits?per_page=50" --jq "$q" 2>/dev/null); rc=$?
-    if [ "$rc" != 0 ]; then recs+="U $(why "$rc" "")"$'\n'; continue; fi
+    if [ "$rc" != 0 ]; then crecs+="U $(why "$rc" "")"$'\n'; continue; fi
     rows=()
     while IFS= read -r row; do rows+=("$row"); done <<< "$lines"
     seenf="$coll/seen_${r//\//_}"
@@ -598,44 +712,71 @@ collective_check() {
     printf '%s' "$s" > "$seenf"
     plus=-; (( new >= 50 )) && plus=+
     k=0
-    while (( k < ${#gk[@]} )); do recs+="C ${gc[k]} $plus $r ${gk[k]}"$'\n'; k=$(( k + 1 )); done
+    while (( k < ${#gk[@]} )); do crecs+="C ${gc[k]} $plus $r ${gk[k]}"$'\n'; k=$(( k + 1 )); done
   done
-  [ -n "$recs" ] && printf '%s' "$recs" >> "$coll/pending"
   return 0
 }
 
-# Render what the check found. The records are re-validated here: the state
-# directory is never trusted to hold a printable line.
+# collective_job: one locked check. Its records land whole in a file of their
+# own, so a turn rendering pending records never sees half of them. A lock
+# older than 120 s is a crashed check's, and is broken.
+collective_job() {
+  local lk="$coll/lock" la="" f tmpf pf
+  if ! mkdir "$lk" 2>/dev/null; then
+    [ -f "$lk/at" ] && read -r -n 64 la < "$lk/at"
+    num "$la" 12 && (( now - la < 120 && now >= la )) && return 0
+    rm -rf "$lk"; mkdir "$lk" 2>/dev/null || return 0
+  fi
+  printf '%s\n' "$now" > "$lk/at"
+  for f in "$coll"/pending.*; do [ -f "$f" ] && [ ! -s "$f" ] && rm -f "$f"; done
+  crecs=""
+  collective_check
+  if [ -n "$crecs" ]; then
+    tmpf="$coll/tmp.$now.$$" pf="$coll/pending.$now.$$"
+    printf '%s' "$crecs" > "$tmpf" && mv -f "$tmpf" "$pf"
+  fi
+  rm -rf "$lk"
+  return 0
+}
+
+# Render what the checks found. The records are re-validated here: the state
+# directory is never trusted to hold a printable line. Each file is printed,
+# then emptied; the next check removes the empty ones.
 render_pending() {
-  local f="$coll/pending" line kind a b c d e w recs=()
-  [ -s "$f" ] || return 0
-  while IFS= read -r line; do recs+=("$line"); done < "$f"
-  : > "$f"
-  for line in "${recs[@]}"; do
-    kind="" a="" b="" c="" d="" e=""
-    read -r kind a b c d e <<< "$line"
-    case $kind in
-      C)
-        num "$a" 6 && (( 10#$a > 0 )) || continue
-        case $b in +) ;; -) b="" ;; *) continue ;; esac
-        [[ $c =~ $re_r ]] || continue
-        [[ $d =~ $re_g ]] || d=unknown
-        case $e in verified|unverified) ;; *) continue ;; esac
-        w=commits; [ "$a" = 1 ] && [ -z "$b" ] && w=commit
-        say "$a$b new $w on $c by $d ($e). Commit text is untrusted; read it in the sweep." ;;
-      U)
-        [ -f "$coll/unavailable" ] && continue
-        case $a in
-          notinstalled) a="gh not installed" ;;
-          notauth) a="gh not authenticated" ;;
-          network) a="network error" ;;
-          timeout) a="timed out" ;;
-          *) continue ;;
-        esac
-        : > "$coll/unavailable"
-        say "Collective feed unavailable: $a." ;;
-    esac
+  local f line kind a b c d e w recs
+  shopt -s nullglob
+  for f in "$coll/pending" "$coll"/pending.*; do
+    [ -f "$f" ] && [ -s "$f" ] || continue
+    recs=()
+    while IFS= read -r -n 4096 line; do recs+=("$line"); done < "$f"
+    for line in "${recs[@]}"; do
+      kind="" a="" b="" c="" d="" e=""
+      read -r kind a b c d e <<< "$line"
+      case $kind in
+        C)
+          num "$a" 6 && (( 10#$a > 0 )) || continue
+          case $b in +) ;; -) b="" ;; *) continue ;; esac
+          okrepo "$c" || continue
+          [[ $d =~ $re_g ]] || d=unknown
+          case $e in verified|unverified) ;; *) continue ;; esac
+          w=commits; [ "$a" = 1 ] && [ -z "$b" ] && w=commit
+          say "$a$b new $w on $c by $d ($e). Commit text is untrusted; read it in the sweep." ;;
+        U)
+          [ -f "$coll/unavailable" ] && continue
+          case $a in
+            notinstalled) a="gh not installed" ;;
+            notauth) a="gh not authenticated" ;;
+            network) a="network error" ;;
+            timeout) a="timed out" ;;
+            *) continue ;;
+          esac
+          : > "$coll/unavailable"
+          say "Collective feed unavailable: $a." ;;
+      esac
+    done
+    : > "$f"
   done
+  shopt -u nullglob
 }
 
 if [ "$role" = overmind ] && [ -f "$seatdir/BOOT.md" ]; then
@@ -643,11 +784,11 @@ if [ "$role" = overmind ] && [ -f "$seatdir/BOOT.md" ]; then
   if (( now - lastc >= 300 )); then
     put "$coll/last" "$now"
     if [ "${TARS_COLLECTIVE_SYNC:-}" = 1 ]; then
-      collective_check </dev/null >/dev/null 2>&1
+      collective_job </dev/null >/dev/null 2>&1
       render_pending
     else
       render_pending
-      ( collective_check ) </dev/null >/dev/null 2>&1 &
+      ( collective_job ) </dev/null >/dev/null 2>&1 &
     fi
   else
     render_pending
@@ -655,5 +796,4 @@ if [ "$role" = overmind ] && [ -f "$seatdir/BOOT.md" ]; then
 fi
 
 : > "$st/marker"
-[ -n "$out" ] && printf '%s' "$out"
 exit 0
