@@ -29,6 +29,10 @@
 #      discarded).
 #      Every protected file is hashed on every Pre and every Post (A-37 B1):
 #      file times and sizes are never trusted to show a file is unchanged.
+#      Every live root the two walks find is snapshotted (A-38 P2). Post
+#      re-hashes the files Pre recorded and logs any change before it walks
+#      for new ones; a per-call busy marker lets the next Pre report a check
+#      that never finished (A-38 P1).
 #
 # Platform facts, from the Claude Code hooks reference,
 # https://code.claude.com/docs/en/hooks :
@@ -97,12 +101,23 @@
 
 export LC_ALL=C
 CAP=524288
-# One bounded read. bash 4.1+ reads a fixed count with buffered I/O (-N);
-# older bash (macOS 3.2) reads a byte per call with -n, so it uses one head.
+# One bounded read. bash 4.1+ reads a fixed count with buffered I/O (-N) and
+# leaves the rest on stdin. Older bash (macOS 3.2) has no -N, and -n reads a
+# byte per call; head on a pipe may read past its count (stdio buffers), and
+# those bytes would be lost (A-38 D-1). So bash < 4.1 saves the whole input to
+# a private temp file first, and reads the cap from the file.
+tf=""
 if (( BASH_VERSINFO[0] > 4 || ( BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1 ) )); then
   IFS= read -r -d '' -N $((CAP + 1)) in
 else
-  in=$(head -c $((CAP + 1)))
+  tf=$(umask 077; mktemp "${TMPDIR:-/tmp}/ovm-guard-in.XXXXXX" 2>/dev/null) || tf=""
+  if [ -n "$tf" ]; then
+    trap 'rm -f "$tf"' EXIT
+    cat > "$tf" 2>/dev/null
+    in=$(head -c $((CAP + 1)) < "$tf")
+  else
+    in=$(head -c $((CAP + 1)))
+  fi
 fi
 
 event=PreToolUse
@@ -115,25 +130,26 @@ deny() {
   exit 0
 }
 
-# The cap comes before the twin test (A-33 S-3, round 2 ruling): past the cap
-# the input is cut, and agent_type can sit after a huge tool_input. So an
-# over-cap input is streamed whole, once, through one grep that stops at the
-# first agent_type key (unescaped quotes: inside a JSON string every quote is
+# The cap comes before the twin test (A-33 S-3, round 2 ruling; A-38): past the
+# cap the input is cut, and agent_type can sit after a huge tool_input. So the
+# whole over-cap input is scanned once by one grep that stops at the first
+# agent_type key (unescaped quotes: inside a JSON string every quote is
 # escaped, so only a real key matches), whatever the field order:
 #   - its value names splinter-twin: a twin. PreToolUse is denied (fail
 #     closed); PostToolUse is alerted, since its record can't be checked;
-#   - no agent_type at all: a main session. Allowed, the guard is skipped;
-#   - the stream read failed: deny only when the bytes read so far name
-#     splinter-twin anywhere; otherwise allow.
+#   - no agent_type key (including when reading the input failed before one
+#     turned up): a main session. Allowed, the guard is skipped.
 # A main session is never refused.
 overcap=""
 if [ ${#in} -gt $CAP ]; then
   re_at='(^|[^\])"agent_type"[[:space:]]*:[[:space:]]*"[^"]*"'
-  at=$( { printf '%s' "$in"; cat || printf '\n"_ovm_readfail_":"1"\n'; } 2>/dev/null |
-        grep -Eo -m 1 "$re_at"'|"_ovm_readfail_":"1"' 2>/dev/null )
+  if [ -n "$tf" ]; then
+    at=$(grep -Eo -m 1 "$re_at" "$tf" 2>/dev/null)
+  else
+    at=$( { printf '%s' "$in"; cat; } 2>/dev/null | grep -Eo -m 1 "$re_at" 2>/dev/null )
+  fi
   case $at in
     *'"agent_type"'*splinter-twin*) ;;
-    *_ovm_readfail_*) case $in in *splinter-twin*) ;; *) exit 0 ;; esac ;;
     *) exit 0 ;;
   esac
   if [ "$event" = PreToolUse ]; then
@@ -221,7 +237,7 @@ parsed=""
   { s = $0; n = length(s); p = 1; bad = 0; val("", 0); ws(); if (bad || p <= n) print "ERR\t1" }' <<< "$in") || parsed=ERR   # an awk that fails is unreadable input, never a pass
 
 agent="" aid="" tool="" tuid="" cwd="" fpath="" cmd="" err=""
-nl=$'\n' ctl=$'\002' tab=$'\t'
+nl=$'\n' ctl=$'\002' tab=$'\t' BS='\'
 while IFS= read -r line; do
   k=${line%%"$tab"*}; v=${line#*"$tab"}
   case $k in
@@ -274,26 +290,38 @@ liveboard() {
   return 0
 }
 teamroot() {
-  local d n found="" o=$PWD f fl
-  TROOT=""
+  local d n found="" o=$PWD f r p keep
+  TROOT="" TROOTS=""
   for d in "$cwd" "${CLAUDE_PROJECT_DIR:-}"; do
     d=${d//\\//}; d=${d%/}
     [ -n "$d" ] && [ -d "$d" ] || continue
     n=0
     while [ $n -le 3 ]; do
-      liveboard "$d" && found="$found$d"$'\n'
+      if liveboard "$d" && CDPATH= cd -P -- "$d" 2>/dev/null; then
+        found="$found$PWD"$'\n'; cd -- "$o" 2>/dev/null
+      fi
       d="$d/.."; n=$((n + 1))
     done
   done
-  # Of every live board found, the outermost: the shortest physical path.
+  # Every live root the two walks found, minus any that sits inside another
+  # (A-38 P2: when the walks disagree, both trees are watched). TROOT is the
+  # outermost, the shortest path.
   while IFS= read -r f; do
-    [ -n "$f" ] && CDPATH= cd -P -- "$f" 2>/dev/null || continue
-    if [ -z "$TROOT" ] || [ ${#PWD} -lt ${#TROOT} ]; then TROOT=$PWD; fi
-    cd -- "$o" 2>/dev/null
+    [ -n "$f" ] || continue
+    keep=1
+    while IFS= read -r p; do
+      [ -n "$p" ] && [ "$p" != "$f" ] || continue
+      case $f/ in "$p"/*) keep=0; break ;; esac
+    done <<EOF
+$found
+EOF
+    case $nl$TROOTS in *"$nl$f$nl"*) keep=0 ;; esac
+    [ $keep -eq 1 ] || continue
+    TROOTS="$TROOTS$f$nl"
+    if [ -z "$TROOT" ] || [ ${#f} -lt ${#TROOT} ]; then TROOT=$f; fi
   done <<EOF
 $found
 EOF
-  cd -- "$o" 2>/dev/null
 }
 
 # The hash for the snapshot: sha256 (sha256sum, else shasum -a 256), cksum
@@ -406,62 +434,134 @@ sanit "${aid:-noagent}"; callid=$S; sanit "${tuid:-notool}"; callid="$callid.$S"
 sanit "$agent"; s_agent=$S; sanit "$aid"; s_aid=$S; sanit "$tuid"; s_tuid=$S
 snapfile="$gdir/$callid.snap"; markfile="$gdir/$callid.ok"
 BUDGET=5
+now=${EPOCHSECONDS:-$(date +%s)}
 
-alert() { # ROOT EVENT LINES... -> log each line under ROOT, print them as context
-  local root=$1 ev=$2 ts ctx="" sep="" msg esc
+alert() { # ROOTS EVENT LINES... -> log each line under each root listed (one
+  # per line; none with NOLOG=1), and print them as context
+  local roots=$1 ev=$2 ctx="" sep="" msg esc
   shift 2
-  ts=$(date '+%Y-%m-%d %H:%M:%S')
   for msg in "$@"; do
-    [ -n "$root" ] && printf '%s agent=%s id=%s tool_use=%s %s\n' "$ts" "$s_agent" "$s_aid" "$s_tuid" "$msg" >> "$root/_twin-guard.log" 2>/dev/null
-    ctx="$ctx$sep$msg"; sep=$'\n'
+    [ -n "${NOLOG:-}" ] || logline "$roots" "$msg"
+    ctx="$ctx$sep$msg"; sep=$nl
   done
-  ctx="$ctx"$'\n'"This twin's result is quarantined until the human or the orchestrator reviews the diff (reference/twins.md). Report this alert to your spawner."
+  ctx="$ctx$nl""This twin's result is quarantined until the human or the orchestrator reviews the diff (reference/twins.md). Report this alert to your spawner."
   esc=${ctx//\\/\\\\}; esc=${esc//\"/\\\"}; esc=${esc//$'\n'/\\n}; esc=${esc//$'\r'/}; esc=${esc//$'\t'/ }
   esc=$(printf '%s' "$esc" | tr -d '\000-\010\013\014\016-\037')
   printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}\n' "$ev" "$esc"
+}
+
+# recheck SNAPFILE -> SNAPOUT gets "C <relpath>" for every file the Pre
+# record lists whose content changed or which is gone. No walk: only the
+# recorded files are hashed, so this is quick however many files a command
+# created (A-38 P1).
+recheck() {
+  local sf=$1 r ck=0 hf="$gdir/$callid.h"
+  [ "$HASH" = cksum ] && ck=1
+  IFS= read -r r < "$sf"; r=${r#root }
+  # shellcheck disable=SC2086
+  awk -v r="$r" 'FNR > 1 && $1 != "dir" { p = $0; sub(/^[^ ]+ /, "", p); print r "/" p }' "$sf" |
+    tr '\n' '\000' | xargs -0 $HASH > "$hf" 2>/dev/null
+  SNAPOUT=$(awk -v r="$r" -v ck="$ck" '
+    FILENAME == ARGV[1] { if (FNR == 1 || $1 == "dir") next; k = $0; sub(/^[^ ]+ /, "", k); old[k] = $1; next }
+    {
+      if (substr($0, 1, 1) == "\\") next
+      if (ck) { h = $1 ":" $2; p = $0; sub(/^[^ ]+ [^ ]+ /, "", p) }
+      else { h = $1; p = $0; sub(/^[^ ]+ [ *]?/, "", p) }
+      if (index(p, r "/") == 1) now[substr(p, length(r) + 2)] = h
+    }
+    END { for (k in old) if (!(k in now) || "" now[k] != "" old[k]) print "C " k }' "$sf" "$hf")
+  : > "$hf"
+}
+
+# logline ROOTS MSG -> append MSG to <root>/_twin-guard.log for each root
+# listed (one per line; duplicates once).
+logline() {
+  local ts r seen=$nl
+  ts=$(date '+%Y-%m-%d %H:%M:%S')
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    case $seen in *"$nl$r$nl"*) continue ;; esac
+    seen="$seen$r$nl"
+    printf '%s agent=%s id=%s tool_use=%s %s\n' "$ts" "$s_agent" "$s_aid" "$s_tuid" "$2" >> "$r/_twin-guard.log" 2>/dev/null
+  done <<EOF
+$1
+EOF
 }
 
 # ---------------------------------------------------------------- post: detect
 if [ "$event" != PreToolUse ]; then
   [ "$tool" = Bash ] || exit 0
   teamroot; root=$TROOT
+  busy="$gdir/$callid.busy"
+  [ -d "$gdir" ] && printf 'post %s\n' "$now" > "$busy" 2>/dev/null
   if [ -n "$overcap" ]; then
-    alert "$root" "$event" "TWIN-GUARD ALERT: hook input over the 512 KiB cap; protected files were not checked"
-    exit 0
+    alert "$TROOTS" "$event" "TWIN-GUARD ALERT: hook input over the 512 KiB cap; protected files were not checked"
+    : > "$busy" 2>/dev/null; exit 0
   fi
-  if [ ! -s "$markfile" ] || [ ! -s "$snapfile" ]; then
-    # Pre allowed this call (Post only fires for a call that ran), so its record
-    # must exist. A missing or emptied record means something removed it.
-    [ -f "$markfile" ] && : > "$markfile"
-    [ -f "$snapfile" ] && : > "$snapfile"
-    alert "$root" "$event" "TWIN-GUARD ALERT: snapshot missing for this twin command; protected files were not checked"
-    exit 0
-  fi
-  mark=""; IFS= read -r mark < "$markfile"
-  sroot=""; IFS= read -r sroot < "$snapfile"; sroot=${sroot#root }
-  : > "$markfile"
+  mark="" nroots=""
+  if [ -s "$markfile" ]; then { IFS= read -r mark; IFS= read -r nroots; } < "$markfile"; fi
+  : > "$markfile" 2>/dev/null
+  nroots=${nroots#roots }
+  case $nroots in ''|*[!0-9]*) nroots=1 ;; esac
   if [ "$mark" = noroot ]; then
-    : > "$snapfile"
+    : > "$snapfile"; : > "$busy"
     # Pre found no team root. If one resolves now, the call ran unwatched, or
     # something rewrote the marker: say so (A-33 S-2).
-    [ -n "$root" ] && alert "$root" "$event" "TWIN-GUARD ALERT: no team root at PreToolUse but one resolves now; protected files were not checked"
+    [ -n "$root" ] && alert "$TROOTS" "$event" "TWIN-GUARD ALERT: no team root at PreToolUse but one resolves now; protected files were not checked"
     exit 0
   fi
-  if [ "$mark" != "ok $callid" ] || [ -z "$sroot" ] || [ ! -d "$sroot" ]; then
-    : > "$snapfile"
-    alert "$root" "$event" "TWIN-GUARD ALERT: snapshot missing for this twin command; protected files were not checked"
+  # The Pre records, one per root; any missing one means something removed it.
+  sfs=() sroots="" missing=""
+  i=1
+  while [ $i -le "$nroots" ] && [ $i -le 16 ]; do
+    sf=$snapfile; [ $i -gt 1 ] && sf="$snapfile.$i"
+    sr=""; [ -s "$sf" ] && IFS= read -r sr < "$sf"; sr=${sr#root }
+    [ -n "$sr" ] && [ -d "$sr" ] && sroots="$sroots$sr$nl"
+    if [ "$mark" != "ok $callid" ] || [ -z "$sr" ] || [ ! -d "$sr" ]; then missing=1
+    else sfs+=("$sf"); fi
+    i=$((i + 1))
+  done
+  if [ -n "$missing" ]; then
+    for sf in ${sfs[@]+"${sfs[@]}"}; do : > "$sf"; done; : > "$snapfile"; : > "$busy"
+    alert "$TROOTS$sroots" "$event" "TWIN-GUARD ALERT: snapshot missing for this twin command; protected files were not checked"
     exit 0
   fi
-  snapshot post "$sroot" "$snapfile"
-  : > "$snapfile"
-  msgs=()
-  while IFS= read -r rel; do
-    case $rel in 'C '?*) msgs+=("TWIN-GUARD ALERT: protected file changed during twin command: ${rel#C }") ;; esac
-  done <<EOF
+  # 1. Re-hash what Pre recorded, and log any change at once, before the
+  #    walk: a command that floods the tree with new files can make the walk
+  #    outrun the hook's timeout, and the log keeps what was found (A-38 P1).
+  msgs=() seenc=$nl
+  for sf in "${sfs[@]}"; do
+    recheck "$sf"
+    while IFS= read -r rel; do
+      case $rel in 'C '?*) ;; *) continue ;; esac
+      rel=${rel#C }; seenc="$seenc$rel$nl"
+      msgs+=("TWIN-GUARD ALERT: protected file changed during twin command: $rel")
+      logline "$root$nl$sroots" "TWIN-GUARD ALERT: protected file changed during twin command: $rel"
+    done <<EOF
 $SNAPOUT
 EOF
+  done
+  # 2. The full walk, for files added or removed.
+  nlog=${#msgs[@]}
+  for sf in "${sfs[@]}"; do
+    IFS= read -r sr < "$sf"; sr=${sr#root }
+    snapshot post "$sr" "$sf"
+    while IFS= read -r rel; do
+      case $rel in 'C '?*) ;; *) continue ;; esac
+      rel=${rel#C }
+      case $seenc in *"$nl$rel$nl"*) continue ;; esac
+      seenc="$seenc$rel$nl"
+      msgs+=("TWIN-GUARD ALERT: protected file changed during twin command: $rel")
+    done <<EOF
+$SNAPOUT
+EOF
+    : > "$sf"
+  done
+  : > "$busy"
   [ ${#msgs[@]} -gt 0 ] || exit 0
-  alert "$sroot" "$event" "${msgs[@]}"
+  i=$nlog
+  while [ $i -lt ${#msgs[@]} ]; do logline "$root$nl$sroots" "${msgs[i]}"; i=$((i + 1)); done
+  NOLOG=1 alert "" "$event" "${msgs[@]}"
   exit 0
 fi
 
@@ -624,13 +724,15 @@ qdot() {
       A) case $c in '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)) ;; "'") q=""; seg="$seg$c" ;; *) seg="$seg$c" ;; esac; continue ;;
       '"')
         case $c in
-          '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)); continue ;;
+          '\') if [ "${s:i+1:1}" = '`' ]; then q=""; i=$((i + 1)); c=';'; else seg="$seg$c${s:i+1:1}"; i=$((i + 1)); continue; fi ;;
           '"') q=""; seg="$seg$c"; continue ;;
           '`') q=""; c=';' ;;
           '$') if [ "${s:i+1:1}" = '(' ]; then q=""; i=$((i + 1)); c=';'; else seg="$seg$c"; continue; fi ;;
           *) seg="$seg$c"; continue ;;
         esac ;;
     esac
+    # An escaped backtick inside backticks is a nested command substitution.
+    if [ "$c" = '\' ] && [ "${s:i+1:1}" = '`' ]; then i=$((i + 1)); c=';'; fi
     case $c in
       '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)) ;;
       "'"|'"') q=$c; seg="$seg$c" ;;
@@ -638,9 +740,9 @@ qdot() {
       ''|';'|'&'|'|'|'('|')'|'`'|$'\n')
         split_words "$seg"; seg=""; j=0
         while [ $j -lt ${#words[@]} ]; do
-          case ${words[j]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') j=$((j+1)) ;; *) break ;; esac
+          case ${words[j]//"$BS"/} in *=*|sudo|command|env|exec|coproc|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') j=$((j+1)) ;; *) break ;; esac
         done
-        [ $j -lt ${#words[@]} ] && [ "${words[j]}" = . ] && return 0 ;;
+        [ $j -lt ${#words[@]} ] && [ "${words[j]//"$BS"/}" = . ] && return 0 ;;
       *) seg="$seg$c" ;;
     esac
   done
@@ -656,14 +758,17 @@ while IFS= read -r seg; do
   [ ${#words[@]} -gt 0 ] || continue
   i=0
   while [ $i -lt ${#words[@]} ]; do
-    case ${words[i]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') i=$((i+1)) ;; *) break ;; esac
+    case ${words[i]//"$BS"/} in *=*|sudo|command|env|exec|coproc|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') i=$((i+1)) ;; *) break ;; esac
   done
   [ $i -lt ${#words[@]} ] || continue
   verb=${words[i]##*[/\\]}; verb=${verb%.[Ee][Xx][Ee]}
   args=("${words[@]:i+1}")
   sn=${seg//\'/}; sn=${sn//\"/}; sn=${sn//\\/}
   smention=0; [[ $sn =~ $re_name ]] && smention=1
-  case $verb in eval|source) deny "$verb" ;; .) qdot && deny "$verb" ;; esac
+  # The command word with quotes (split_words) and backslashes removed, as
+  # bash reads it: e\val and \. are eval and . (A-38 P3).
+  vs=${words[i]//"$BS"/}; vs=${vs##*/}
+  case $vs in eval|source) deny "$vs" ;; .) qdot && deny "$vs" ;; esac
   rec=0
   for a in ${args[@]+"${args[@]}"}; do case $a in -*[rR]*|--recursive) rec=1 ;; esac; done
   case $verb in
@@ -719,16 +824,50 @@ fi
 # Now and then, sweep records over a day old (emptied ones included).
 [ $((RANDOM % 64)) -eq 0 ] && find "$gdir" -type f -mmin +1440 -exec rm -f {} + 2>/dev/null
 teamroot; root=$TROOT
+
+# A check that never finished (A-38 P1). Each call's busy marker says "pre T"
+# from its Pre and "post T" from its Post, and Post empties it when done. A
+# "post" marker over 15 s old means a Post was cut off (the hook has 10 s); a
+# "pre" marker over 11 minutes old means the Post never ran (a Bash call ends
+# within 10). Either is reported once, by this twin's next Pre, which is denied
+# so the report can't be missed.
+unfinished=()
+for b in "$gdir/$s_aid".*.busy; do
+  [ -s "$b" ] || continue
+  st="" t=""; read -r st t < "$b" 2>/dev/null
+  case $t in ''|*[!0-9]*) t=0 ;; esac
+  age=$(( now - t ))
+  if { [ "$st" = post ] && [ $age -gt 15 ]; } || { [ "$st" = pre ] && [ $age -gt 660 ]; }; then
+    unfinished+=("TWIN-GUARD ALERT: previous check did not finish (${b##*/}: $st, ${age}s ago); protected files may have changed unseen")
+    : > "$b"
+  fi
+done
+if [ ${#unfinished[@]} -gt 0 ]; then
+  for m in "${unfinished[@]}"; do logline "$TROOTS" "$m"; done
+  why="${unfinished[0]} - report this alert to your spawner; the result is quarantined until the diff is reviewed"
+  why=${why//[^A-Za-z0-9 ._:\/(),;-]/}
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "${why:0:400}"
+  exit 0
+fi
+
 if [ -z "$root" ]; then
   printf 'root \n' > "$snapfile"; printf 'noroot\n' > "$markfile"
   exit 0
 fi
+printf 'pre %s\n' "$now" > "$gdir/$callid.busy"
 t0=$SECONDS
-snapshot pre "$root" /dev/null "$snapfile"
+i=0
+while IFS= read -r r; do
+  [ -n "$r" ] || continue
+  i=$((i + 1)); [ $i -le 16 ] || break
+  sf=$snapfile; [ $i -gt 1 ] && sf="$snapfile.$i"
+  snapshot pre "$r" /dev/null "$sf"
+done <<EOF
+$TROOTS
+EOF
 el=$((SECONDS - t0))
-printf 'ok %s\n' "$callid" > "$markfile"
+printf 'ok %s\nroots %s\n' "$callid" "$i" > "$markfile"
 if [ "$el" -gt "$BUDGET" ]; then
-  printf '%s agent=%s id=%s tool_use=%s TWIN-GUARD NOTE: detector over budget (%ss snapshot; budget %ss)\n' \
-    "$(date '+%Y-%m-%d %H:%M:%S')" "$s_agent" "$s_aid" "$s_tuid" "$el" "$BUDGET" >> "$root/_twin-guard.log" 2>/dev/null
+  logline "$TROOTS" "TWIN-GUARD NOTE: detector over budget (${el}s snapshot; budget ${BUDGET}s)"
 fi
 exit 0

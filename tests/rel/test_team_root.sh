@@ -2,8 +2,9 @@
 # tests/rel/test_team_root.sh -- the team root under retired bridge copies
 # (OPS-030 release lane). Every live seat folder keeps a MISSION_BOARD.md
 # headed "RETIRED BRIDGE COPY" as a pointer. TARS and /go's claim.sh must take
-# the OUTERMOST live board (cwd plus two parents for TARS; the seat folder's
-# parent and grandparent for claim.sh), never a seat folder's stub.
+# the NEAREST live board (A-37 P2: cwd plus two parents for TARS; the seat
+# folder's parent and grandparent for claim.sh), never a seat folder's stub,
+# and never a board planted above the team root.
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 TH="$tmp/tarshome"

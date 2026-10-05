@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # tests/rel/test_twin_guard_rel.sh -- the OPS-030 release fixes to
-# hooks/twin-guard.sh (AMENDMENTS A-33 S-1, S-2, S-3; A-31).
+# hooks/twin-guard.sh (AMENDMENTS A-33 S-1, S-2, S-3; A-37; A-38).
 #   S-1  a folder that holds a BOOT.md is walked even when it holds a .git;
 #        only the .git itself is pruned (live: a seat folder that is a repo).
 #   S-2  ovm-twin-guard is a protected name; Post alerts when the marker says
 #        noroot but a team root resolves.
 #   S-3  the 512 KiB cap is checked before the twin test: agent_type placed
 #        after a huge tool_input can't slip a write through.
-#   A-31 the snapshot is cached by path, mtime, ctime, size and inode: a quiet
-#        call hashes nothing, and an edit that restores the mtime is still seen.
+#   A-37 no snapshot cache: every protected file is hashed on every Pre and
+#        Post, so restoring mtime and ctime can't hide an edit; the root skips
+#        RETIRED BRIDGE COPY stubs; the JSON reader is linear in every awk.
+#   A-38 bash < 4.1 saves its input to a file (head can't read past the cap);
+#        Post re-hashes Pre's files before it walks, and an unfinished check is
+#        reported; every live root of both walks is watched; the command word
+#        is read without quotes or backslashes.
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 
@@ -244,6 +249,127 @@ t "A-37 B2: a seat holding only a stub, with no live board in reach, has no team
 lone2="$tmp/lone2/Seat/drafts/X"; mkdir -p "$lone2"; printf '# MISSION BOARD \342\200\224 RETIRED BRIDGE COPY\n' > "$tmp/lone2/Seat/MISSION_BOARD.md"
 gk "" PreToolUse "$lone2" true b2b > /dev/null
 [ "$(cat "$tmp/snaps/ovm-twin-guard/agentr.b2b.ok" 2>/dev/null)" = noroot ] && pass || fail "a stub became a root"
+
+# ---------------------------------------------------------------- A-38
+# tmo10 CMD...: run CMD with a 10 s limit, like the hook timeout (no timeout(1)
+# on stock macOS). Prints CMD's output; returns 124 when it was cut off.
+tmo10() {
+  local o="$tmp/tmo.out" p w rc
+  { "$@" > "$o" 2>/dev/null & } 2>/dev/null; p=$!
+  ( sleep 10; kill -9 "$p" 2>/dev/null ) & w=$!
+  wait "$p" 2>/dev/null; rc=$?
+  kill "$w" 2>/dev/null; wait "$w" 2>/dev/null
+  cat "$o"; [ $rc -gt 128 ] && return 124; return $rc
+}
+mkab() { # mkab ROOT: a plain team, seats Seat and Other with BOOT.md and INBOX.md
+  mkdir -p "$1/Seat" "$1/Other"; printf '# MB\n' > "$1/MISSION_BOARD.md"
+  for s in Seat Other; do printf 'b\n' > "$1/$s/BOOT.md"; printf '## x - READ\n' > "$1/$s/INBOX.md"; done
+}
+
+t "A-38 D-1: agent_type at CAP+100 is found (this bash's read path), and the bash < 4.1 path with a block-reading head"
+d1="$tmp/d1"; mkab "$d1"
+pre='{"session_id":"s","cwd":"'"$d1/Seat"'","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"'"$d1/Seat/INBOX.md"'","content":"'
+post='"},"tool_use_id":"t","agent_id":"a","agent_type":"'"$TWIN"'"}'
+need=$(( 524288 + 100 - ${#pre} - ${#post} + 40 ))
+printf '%s%s%s' "$pre" "$(printf '%*s' $need '' | tr ' ' 'x')" "$post" > "$tmp/d1.json"
+sed 's/^if (( BASH_VERSINFO\[0\] > 4 .*then$/if false; then/' "$GUARD" > "$tmp/g32.sh"
+mkdir -p "$tmp/blkbin"
+dd_ok=0; printf 'abc' | dd bs=2 count=1 iflag=fullblock >/dev/null 2>&1 && dd_ok=1
+if [ $dd_ok -eq 1 ]; then
+  printf '#!/usr/bin/env bash\nn=$2; blk=16384; cnt=$(( (n + blk - 1) / blk ))\ndd bs=$blk count=$cnt iflag=fullblock 2>/dev/null | %s -c "$n"\n' "$(command -v head)" > "$tmp/blkbin/head"
+else
+  printf '#!/usr/bin/env bash\nn=$2; blk=16384; cnt=$(( (n + blk - 1) / blk ))\ndd bs=$blk count=$cnt 2>/dev/null | %s -c "$n"\n' "$(command -v head)" > "$tmp/blkbin/head"
+fi
+chmod +x "$tmp/blkbin/head"
+echo "  bash $BASH_VERSION; agent_type at byte $(grep -bo '"agent_type"' "$tmp/d1.json" | cut -d: -f1)"
+r1=$(TMPDIR="$tmp/snaps" "$B" "$GUARD" < "$tmp/d1.json")
+r2=$(cat "$tmp/d1.json" | TMPDIR="$tmp/snaps" "$B" "$GUARD")
+r3=$(cat "$tmp/d1.json" | PATH="$tmp/blkbin:$PATH" TMPDIR="$tmp/snaps" "$B" "$tmp/g32.sh")
+bad=""
+case $r1 in *'"permissionDecision":"deny"'*) ;; *) bad="$bad file" ;; esac
+case $r2 in *'"permissionDecision":"deny"'*) ;; *) bad="$bad pipe" ;; esac
+grep -q '^if false; then' "$tmp/g32.sh" || bad="$bad patch"
+case $r3 in *'"permissionDecision":"deny"'*) ;; *) bad="$bad bash<4.1-blockhead" ;; esac
+[ -z "$bad" ] && pass || fail "allowed:$bad"
+
+t "A-38 P1: Post re-hashes Pre's files first, so a change is logged even when the walk is cut off"
+p1="$tmp/p1"; mkab "$p1"; rm -rf "$tmp/snaps"; mkdir -p "$tmp/snaps"
+gk "" PreToolUse "$p1/Seat" true p1a > /dev/null
+printf 'twin\n' >> "$p1/Other/INBOX.md"
+# A find that hangs stands for a walk that outruns the hook's 10 s.
+mkdir -p "$tmp/slowbin"; printf '#!/bin/sh\nsleep 30\n' > "$tmp/slowbin/find"; chmod +x "$tmp/slowbin/find"
+s0=$SECONDS
+PATH="$tmp/slowbin:$PATH" tmo10 gk "" PostToolUse "$p1/Seat" true p1a > /dev/null; rc=$?
+echo "  Post with a hanging walk: rc $rc after $((SECONDS - s0)) s"
+grep -q 'protected file changed during twin command: Other/INBOX.md' "$p1/_twin-guard.log" 2>/dev/null && pass || fail "nothing logged"
+
+t "A-38 P1: the next Pre reports that the previous check did not finish"
+sleep 16
+out=$(gk "" PreToolUse "$p1/Seat" true p1b)
+case $out in *'previous check did not finish'*) grep -q 'previous check did not finish' "$p1/_twin-guard.log" && pass || fail "not logged" ;; *) fail "got: ${out:0:200}" ;; esac
+out=$(gk "" PreToolUse "$p1/Seat" true p1c)
+case $out in *'previous check did not finish'*) fail "reported twice" ;; *) pass ;; esac
+
+t "A-38 P1: 20k created files plus one edited INBOX are alerted within the hook's 10 s"
+py=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 && "$c" -c 'import os' >/dev/null 2>&1 && { py=$c; break; }; done
+if [ -z "$py" ]; then echo "  SKIP: no python to create 20k files quickly"; pass
+else
+  p2="$tmp/p2"; mkab "$p2"
+  cat > "$p2/Seat/w.py" <<'PY'
+import os
+open(os.path.join('..', 'Other', 'IN' + 'BOX.md'), 'a').write('twin\n')
+for i in range(20000):
+    d = os.path.join('..', 'work', 'd%03d' % (i // 100), 'e%05d' % i)
+    os.makedirs(d, exist_ok=True)
+    open(os.path.join(d, 'IN' + 'BOX.md'), 'w').write('x')
+PY
+  gk "" PreToolUse "$p2/Seat" "$py w.py" p2a > /dev/null
+  (cd "$p2/Seat" && "$py" w.py)
+  s0=$SECONDS; o=$(tmo10 gk "" PostToolUse "$p2/Seat" "$py w.py" p2a); rc=$?
+  echo "  Post over 20k new files: rc $rc after $((SECONDS - s0)) s"
+  grep -q 'protected file changed during twin command: Other/INBOX.md' "$p2/_twin-guard.log" 2>/dev/null && pass || fail "nothing logged (rc $rc)"
+fi
+
+t "A-38 P2: when the cwd walk and the project-dir walk find different teams, both are watched"
+dA="$tmp/p3/deep/er/teamA"; dB="$tmp/p3/tB"; mkab "$dA"; mkab "$dB"
+echo 'printf t >> "../Other/IN""BOX.md"' > "$tmp/w4.sh"
+out=$(CLAUDE_PROJECT_DIR="$dB/Seat" twinrun "" "$dA/Seat" "sh '$tmp/w4.sh'" p3a)
+echo 'printf t >> "'"$dB"'/Other/IN""BOX.md"' > "$tmp/w5.sh"
+out2=$(CLAUDE_PROJECT_DIR="$dB/Seat" twinrun "" "$dA/Seat" "sh '$tmp/w5.sh'" p3b)
+case $out in *'changed during twin command: Other/INBOX.md'*)
+  case $out2 in *'changed during twin command: Other/INBOX.md'*) pass ;; *) fail "project-dir team unwatched: ${out2:0:160}" ;; esac ;;
+  *) fail "cwd team unwatched: ${out:0:160}" ;; esac
+
+t "A-38 P3: the command word is read without quotes or backslashes; coproc is skipped"
+bad=0
+while IFS= read -r c; do
+  [ -n "$c" ] || continue
+  r=$(gk "" PreToolUse "$seat" "$c" q38)
+  case $r in *'"permissionDecision":"deny"'*) ;; *) bad=1; echo "    allowed: $c" ;; esac
+done <<'CORPUS'
+\. ./x.sh
+e\val true
+so\urce ./x.sh
+"eval" true
+s"ource" ./x.sh
+coproc . ./x.sh
+coproc eval true
+echo `echo \`. ./x.sh\``
+CORPUS
+[ $bad -eq 0 ] && pass || fail "see above"
+
+t "A-38 P3: an over-cap input with no agent_type key passes, even when it names splinter-twin"
+printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x.md","content":"splinter-twin %s"},"tool_use_id":"c4"}' "$(js "$seat")" "$pad" > "$tmp/nokey.json"
+r=$(TMPDIR="$tmp/snaps" "$B" "$GUARD" < "$tmp/nokey.json")
+[ -z "$r" ] && pass || fail "got: ${r:0:120}"
+
+t "A-38 P3: an alert is logged under the Pre snapshot's root too, when Post runs from elsewhere"
+p4="$tmp/p4"; mkab "$p4"; lone4="$tmp/lone4"; mkdir -p "$lone4"
+rm -f "$tmp/snaps/ovm-twin-guard/"*.busy   # the cut-off Posts above would be reported first
+gk "" PreToolUse "$p4/Seat" true p4a > /dev/null
+printf 'tampered\n' > "$tmp/snaps/ovm-twin-guard/agentr.p4a.ok"
+out=$(gk "" PostToolUse "$lone4" true p4a)
+case $out in *'snapshot missing'*) grep -q 'snapshot missing' "$p4/_twin-guard.log" 2>/dev/null && pass || fail "not logged under the Pre root" ;; *) fail "got: ${out:0:160}" ;; esac
 
 t "informational: Pre + Post cost on the fixture team (every file hashed)"
 s=$SECONDS

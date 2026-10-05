@@ -37,7 +37,7 @@ case $c in *'go test -v ./... -count=1'*) pass ;; *) fail "no -v on the ubuntu g
 
 t "GAP-1: the mcp/firmware copies of the edited reference files match their sources"
 bad=""
-for f in tars.md activation.md dispatch.md twins.md; do
+for f in tars.md activation.md dispatch.md twins.md collective.md; do
   cmp -s <(g "reference/$f") <(g "mcp/firmware/reference/$f") || bad="$bad $f"
 done
 [ -z "$bad" ] && pass || fail "stale copies:$bad"
