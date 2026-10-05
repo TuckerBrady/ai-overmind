@@ -41,7 +41,7 @@ Extract from the human's message:
 
 ### Step 2: Find the specialist's folder
 
-The team root is the folder that holds `MISSION_BOARD.md`: your working directory, or its parent when you work from your own seat folder. The specialist's folder is `[team-root]/[Specialist Folder]/`.
+The team root is the folder that holds `MISSION_BOARD.md`: your working directory, or its parent when you work from your own seat folder. A `MISSION_BOARD.md` inside a seat folder whose first line says `RETIRED BRIDGE COPY` is only a pointer; the team root is the outer folder. The specialist's folder is `[team-root]/[Specialist Folder]/`.
 
 ### Step 3: Assign the mission ID and lanes
 
@@ -49,7 +49,7 @@ The team root is the folder that holds `MISSION_BOARD.md`: your working director
 
 **The mission number is the GOAL, not the assignment.** Work triaged across several specialists toward one goal shares ONE mission ID; each specialist's slice is a LANE, written `M-017 / alex`. Solo dispatch is the degenerate case: one mission, one lane.
 
-**Allocate the ID without a race.** An ID is a prefix (a capital letter, then up to nine capitals or digits), a dash and a number: `M-017`, `OPS-017`. `/go` and TARS recognize nothing else. If the team keeps its board in a database with a write script (`[team-root]/_Team/team.py` exists), allocate through that script: it is the board's source of truth, and the Markdown board is only its view. Otherwise allocate with the dispatch skill's script (it takes a team prefix of two to five capitals, such as `OPS`), which claims the number with an atomic `mkdir` under `[team-root]/_ids/` and retries on a collision:
+**Allocate the ID without a race.** An ID is a prefix (a capital letter, then up to nine capitals or digits), a dash and a number: `M-017`, `OPS-017`. `/go` and TARS recognize nothing else. If the team keeps its board in a database with a write script (`[team-root]/_Team/team.py` exists), allocate through that script: it is the board's source of truth, and the Markdown board is only its view. Otherwise allocate with the dispatch skill's script (it takes a team prefix of a capital letter, then up to four more capitals or digits, such as `OPS` or `M`), which claims the number with an atomic `mkdir` under `[team-root]/_ids/` and retries on a collision:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/dispatch/alloc-id.sh" "[team-root]" OPS
