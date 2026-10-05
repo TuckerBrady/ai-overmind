@@ -218,11 +218,13 @@ expect allow "$(hook "$TWIN" Bash "$(bash_in 'python3 build.py --out out/report.
 expect allow "$(hook "$TWIN" Bash "$(bash_in 'cp a.txt "$S/out.txt"')")" "an expansion that can't complete a protected name" || bad=1
 [ $bad -eq 0 ] && pass
 
-t "A-25.2: input over the 512 KiB cap fails closed for a twin, and passes for a main session"
+# A-33 S-3 changed the main-session half: the cap is checked before the twin
+# test, and every over-cap PreToolUse fails closed (tests/rel/test_twin_guard_rel.sh).
+t "A-25.2 + A-33 S-3: input over the 512 KiB cap fails closed for a twin and for a main session"
 pad=$(printf '%*s' 530000 '' | tr ' ' 'x')
 out=$(printf '{"session_id":"s","cwd":"/x","hook_event_name":"PreToolUse","agent_id":"a","agent_type":"%s","tool_name":"Write","tool_input":{"file_path":"/x/notes.md","content":"%s"}}' "$TWIN" "$pad" | bash "$GUARD")
 out2=$(printf '{"session_id":"s","cwd":"/x","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/x/notes.md","content":"%s"}}' "$pad" | bash "$GUARD")
-case $out in *'"permissionDecision":"deny"'*) [ -z "$out2" ] && pass || fail "main session blocked" ;; *) fail "twin over cap allowed" ;; esac
+case $out in *'"permissionDecision":"deny"'*) case $out2 in *'"permissionDecision":"deny"'*) pass ;; *) fail "main session over cap allowed" ;; esac ;; *) fail "twin over cap allowed" ;; esac
 
 t "agent_type is read from the top level only: text inside tool_input can't spoof it"
 bad=0

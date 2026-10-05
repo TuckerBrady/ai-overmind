@@ -19,10 +19,17 @@
 #      TARS rewrites it every turn. Write and Edit are not snapshotted; they are
 #      denied by path before they run. Team root: the outermost folder holding
 #      MISSION_BOARD.md among the cwd and up to three folders above it (else the
-#      project dir); with none in reach, only the pre-check runs. The walk prunes
+#      project dir); with none in reach, only the pre-check runs, and a Post
+#      that finds a root the Pre did not alerts (A-33 S-2). The walk prunes
 #      drafts/, .git/, node_modules/ and any repo clone (a folder holding .git),
-#      and a Pre snapshot over 5 s is logged as "detector over budget" (the hook
-#      has 10 s; output after a timeout is discarded).
+#      except a folder that also holds a BOOT.md (a seat kept in git): there
+#      only the .git is pruned (A-33 S-1). A Pre snapshot over 5 s is logged as
+#      "detector over budget" (the hook has 10 s; output after a timeout is
+#      discarded).
+#   3. Snapshot cache (A-31): a file is re-hashed only when its mtime, ctime,
+#      size or inode moved, or it changed within a second of the record it is
+#      compared with. A write always moves the ctime, so a restored mtime can't
+#      hide an edit.
 #
 # Platform facts, from the Claude Code hooks reference,
 # https://code.claude.com/docs/en/hooks :
@@ -45,7 +52,8 @@
 # aliases, trailing dots or spaces and :streams, count as the name):
 #   INBOX.md  HANDOFF*.md  BOOT.md  CLAUDE.md  WORKING_WITH_*.md
 #   mission-complete*.md  GOPHER_REGISTRY.md  MISSION_BOARD.md  team.db
-#   _twin-guard.log, and any path through _claims/, .go-claim/ or _ids/.
+#   _twin-guard.log, and any path through _claims/, .go-claim/, _ids/ or the
+#   guard's own record folder ovm-twin-guard/ (A-33 S-2).
 #   Any basename with ~<digit> (an 8.3 short name such as MISSIO~1.MD) is
 #   treated as protected, since NTFS can alias it to any of these.
 #
@@ -72,23 +80,24 @@
 #     of it that does so must start with a read-only verb (cat, grep, head,
 #     tail, wc, diff, less, awk without -i, sed without -i, git
 #     log|show|diff|status) and no redirection may write a file.
-# Input over the 512 KiB cap that names a twin fails CLOSED at PreToolUse.
+# Input over the 512 KiB cap fails CLOSED at PreToolUse for every session: the
+# cap is checked before the twin test (A-33 S-3).
 #
 # Residual risks (reference/twins.md): a program that builds a protected path
 # at run time (reported after the fact, not prevented); a Bash command left
 # running in the background past the PostToolUse check; files outside the
 # root, under the pruned folders, or anywhere when no root is in reach or the
 # snapshot outruns the timeout; a same-user program that finds and rewrites
-# the call's record; a Write through a symlink; another session writing in the
+# the call's record or the snapshot cache; a Write through a symlink; another session writing in the
 # same window (the detector alerts, it can't tell who).
 #
-# A session that is not a twin pays one builtin read and one substring test.
+# A session that is not a twin pays one builtin read, one length test and one
+# substring test (a PostToolUse over the cap also pays one grep).
 # Every path exits 0.
 
 export LC_ALL=C
 CAP=524288
 IFS= read -r -d '' -n $((CAP + 1)) in
-case $in in *splinter-twin*) ;; *) exit 0 ;; esac
 
 event=PreToolUse
 case $in in *'"hook_event_name":"PostToolUseFailure"'*|*'"hook_event_name": "PostToolUseFailure"'*) event=PostToolUseFailure ;;
@@ -100,15 +109,30 @@ deny() {
   exit 0
 }
 
+# The cap comes before the twin test (A-33 S-3): past the cap the input is cut,
+# and agent_type can sit after a huge tool_input. PreToolUse fires only for the
+# five write-capable tools (hooks.json), and a cut input can't show whether the
+# caller is a twin, so every over-cap PreToolUse fails closed. A PostToolUse
+# over the cap (a large tool_response) is scanned whole for a twin's agent_type
+# key (unescaped quotes: inside a JSON string every quote is escaped); a twin's
+# gets an alert, since its record can't be found and checked.
+overcap=""
 if [ ${#in} -gt $CAP ]; then
-  [ "$event" = PreToolUse ] && deny "hook input over the 512 KiB cap"
-  exit 0
+  if [ "$event" = PreToolUse ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The tool input is over the 512 KiB cap that the ai-overmind twin guard can check, so the call is refused. Split it into smaller calls."}}\n'
+    exit 0
+  fi
+  re_twin='(^|[^\])"agent_type"[[:space:]]*:[[:space:]]*"[^"]*splinter-twin'
+  { printf '%s' "$in"; cat; } | grep -Eq "$re_twin" || exit 0
+  overcap=1
 fi
+case $in in *splinter-twin*) ;; *) [ -n "$overcap" ] || exit 0 ;; esac
 
 # Minimal JSON reader: top-level fields and tool_input's file_path,
 # notebook_path and command. A key name inside a string value is never
 # mistaken for a key. Escapes are decoded; \uXXXX below 128 too.
-parsed=$(printf '%s' "$in" | awk 'BEGIN { RS = "\001" }
+parsed=""
+[ -n "$overcap" ] || parsed=$(awk 'BEGIN { RS = "\001" }
   function ws() { while (p <= n && index(" \t\r\n", substr(s, p, 1))) p++ }
   function hex(h,   i, v, c) { v = 0; for (i = 1; i <= 4; i++) { c = index("0123456789abcdef", tolower(substr(h, i, 1))); if (!c) return -1; v = v * 16 + c - 1 } return v }
   function str(   o, c, e, v) {
@@ -163,7 +187,7 @@ parsed=$(printf '%s' "$in" | awk 'BEGIN { RS = "\001" }
       if (!(path in seen)) { seen[path] = 1; gsub(/\n/, "\002", v); print substr(path, 2) "\t" v }
     }
   }
-  { s = $0; n = length(s); p = 1; bad = 0; val("", 0); ws(); if (bad || p <= n) print "ERR\t1" }')
+  { s = $0; n = length(s); p = 1; bad = 0; val("", 0); ws(); if (bad || p <= n) print "ERR\t1" }' <<< "$in")
 
 agent="" aid="" tool="" tuid="" cwd="" fpath="" cmd="" err=""
 nl=$'\n' ctl=$'\002' tab=$'\t'
@@ -184,6 +208,12 @@ done <<EOF
 $parsed
 EOF
 
+if [ -n "$overcap" ]; then
+  # Only PostToolUse gets here, and it is registered for Bash alone.
+  agent=splinter-twin tool=Bash
+  re_cwd='"cwd"[[:space:]]*:[[:space:]]*"([^"]*)"'
+  if [[ $in =~ $re_cwd ]]; then cwd=${BASH_REMATCH[1]}; cwd=${cwd//\\\\//}; fi
+fi
 if [ -n "$err" ]; then
   # Malformed input that names a twin: fail closed for the write tools.
   [ "$event" = PreToolUse ] && deny "unreadable hook input"
@@ -196,9 +226,11 @@ case $agent in *splinter-twin*) ;; *) exit 0 ;; esac
 # to three folders above it that holds MISSION_BOARD.md (live seat folders keep
 # stale MISSION_BOARD.md copies, and the nearest would shrink the snapshot to one
 # seat); failing that, the same walk from the session's project dir. With no team root the pre-check still
-# runs; only the detector is off (reference/twins.md).
+# runs; only the detector is off (reference/twins.md). Sets TROOT with
+# builtins only: on Windows every subshell or program costs about 80 ms.
 teamroot() {
-  local d n found
+  local d n found o=$PWD
+  TROOT=""
   for d in "$cwd" "${CLAUDE_PROJECT_DIR:-}"; do
     d=${d//\\//}; d=${d%/}
     [ -n "$d" ] && [ -d "$d" ] || continue
@@ -207,7 +239,9 @@ teamroot() {
       [ -f "$d/MISSION_BOARD.md" ] && found=$d
       d="$d/.."; n=$((n + 1))
     done
-    if [ -n "$found" ]; then (cd "$found" && pwd); return; fi
+    if [ -n "$found" ] && CDPATH= cd -- "$found" 2>/dev/null; then
+      TROOT=$PWD; cd -- "$o" 2>/dev/null; return
+    fi
   done
 }
 
@@ -217,50 +251,165 @@ if command -v sha256sum >/dev/null 2>&1; then HASH="sha256sum"
 elif command -v shasum >/dev/null 2>&1; then HASH="shasum -a 256"
 else HASH="cksum"; fi
 
-# snapshot ROOT -> "<hash> <relpath>" per protected file ("dir <relpath>" for a
-# claim or ID folder), sorted. Protected names match at any depth. Pruned:
-# .git, node_modules, drafts, _claims (TARS's), and any folder that holds a
-# .git (a repo clone): none of them hold team state, and walking them can
-# blow the hook's 10 s timeout.
-snapshot() {
-  local r=$1 g pr=()
-  while IFS= read -r g; do
-    [ -n "$g" ] || continue
-    g=${g%/.git}; [ "$g" = "$r" ] && continue
-    pr+=(-o -path "$g")
-  done <<EOF
-$(find "$r" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o -name .git -print -prune 2>/dev/null)
-EOF
-  find "$r" \( -name .git -o -name node_modules -o -name drafts -o -name _claims ${pr[@]+"${pr[@]}"} \) -prune -o \
-    \( -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
-         -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
-         -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
-         -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec $HASH {} + \) -o \
-    \( -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -print \) 2>/dev/null |
-  awk -v r="$r/" -v ck="$([ "$HASH" = cksum ] && echo 1 || echo 0)" '
-    {
-      if (index($0, r) == 1) { print "dir " substr($0, length(r) + 1); next }
-      if (ck) { h = $1 ":" $2; p = $0; sub(/^[^ ]+ [^ ]+ /, "", p) }
-      else { h = $1; p = $0; sub(/^[^ ]+ [ *]?/, "", p) }
-      if (index(p, r) == 1) p = substr(p, length(r) + 1)
-      print h " " p
-    }' | LC_ALL=C sort
+# listing ROOT FILE -> FILE gets one line per candidate under ROOT, from one walk:
+#   F <mtime>:<ctime>:<size>:<inode> <path>   a protected file
+#   G - <path>                                a .git (file or folder)
+#   D - <path>                                a claim or ID folder
+# Pruned by name: .git, node_modules, drafts and _claims (TARS's). GNU find
+# prints the stat fields itself; BSD find (macOS) hands them to stat(1).
+listing() {
+  local r=$1
+  case ${OSTYPE:-} in
+    darwin*|*bsd*)
+      /usr/bin/find "$r" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
+        -name .git -prune -exec printf 'G - %s\n' {} + -o \
+        -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
+           -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
+           -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
+           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec /usr/bin/stat -f 'F %m:%c:%z:%i %N' {} + -o \
+        -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'D - %s\n' {} + > "$2" 2>/dev/null ;;
+    *)
+      find "$r" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
+        -name .git -printf 'G - %p\n' -prune -o \
+        -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
+           -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
+           -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
+           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -printf 'F %T@:%C@:%s:%i %p\n' -o \
+        -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -printf 'D - %p\n' > "$2" 2>/dev/null ;;
+  esac
 }
 
-sanit() { local s=${1//[^A-Za-z0-9_-]/}; printf '%s' "${s:0:64}"; }
+# The snapshot program (A-25.3; A-33 S-1; A-31). Inputs, in order: REF (an
+# earlier record of this root: the cache at Pre, the call's own snapshot at
+# Post), HASHES ("<hash> <path>" lines from $HASH, or none), then the listing
+# on stdin.
+#   Repo clones (S-1): a file under a folder that holds a .git is dropped,
+#   unless that folder holds a BOOT.md (a seat kept in git, like a seat folder
+#   that is its own repo). Then only the .git itself is pruned.
+#   The cache (A-31): a file's hash is taken from REF only when its mtime,
+#   ctime, size and inode all match REF's and both times are older than REF's
+#   own time minus one second. Any write moves the ctime, and no user call can
+#   set the ctime back, so an edit that restores the mtime is still re-hashed;
+#   the one-second margin covers filesystems that keep whole seconds. Every
+#   other file is hashed: with no HASHES, the program prints "NEED <path>"
+#   lines and stops.
+#   mode=pre writes the snapshot to OUT ("root" line, entries, "time" line
+#   last) and, when anything was hashed or the set changed, the same to CACHE,
+#   and prints DIRTY. mode=post prints "C <relpath>" for every entry added,
+#   removed or changed since REF.
+SNAP='
+  function dirn(p) { sub(/\/[^\/]*$/, "", p); return p }
+  function base(p) { sub(/^.*\//, "", p); return tolower(p) }
+  FILENAME == ref {
+    if ($1 == "root") { if (substr($0, 6) != root) badref = 1; next }
+    if (badref) next
+    if ($1 == "time") { rt = $2 + 0; next }
+    k = $0; sub(/^[^ ]+ [^ ]+ /, "", k)
+    if ($1 == "dir") { rdir[k] = 1; nr++; next }
+    if (length($1) >= 8) { rh[k] = $1; rk[k] = $2; nr++ }
+    next
+  }
+  hashes != "" && FILENAME == hashes {
+    if (substr($0, 1, 1) == "\\") next
+    if (ck) { h = $1 ":" $2; p = $0; sub(/^[^ ]+ [^ ]+ /, "", p) }
+    else { h = $1; p = $0; sub(/^[^ ]+ [ *]?/, "", p) }
+    hh[p] = h; next
+  }
+  {
+    t = substr($0, 1, 1); p = $0; sub(/^. [^ ]+ /, "", p)
+    if (t == "G") { g = dirn(p); if (g != root) git[g] = 1; next }
+    if (t != "F" && t != "D") next
+    n++; typ[n] = t; ap[n] = p; key[n] = $2
+    if (t == "F" && base(p) == "boot.md") boot[dirn(p)] = 1
+  }
+  END {
+    for (g in git) if (!(g in boot)) pr[g] = 1
+    need = 0; dirty = 0; m = 0
+    for (i = 1; i <= n; i++) {
+      p = ap[i]
+      if (index(p, root "/") != 1) continue
+      d = dirn(p); skip = 0
+      while (length(d) > length(root)) { if (d in pr) { skip = 1; break }; d = dirn(d) }
+      if (skip) continue
+      rel = substr(p, length(root) + 2)
+      if (typ[i] == "D") { m++; ed[m] = "dir - " rel; er[m] = rel; ek[m] = "dir"; continue }
+      h = ""
+      if (p in hh) { h = hh[p]; dirty = 1 }
+      else if ((rel in rk) && rk[rel] == key[i]) {
+        split(key[i], f, ":")
+        if (f[1] + 0 < rt - 1 && f[2] + 0 < rt - 1) h = rh[rel]
+      }
+      if (h == "") {
+        if (hashes == "") { print "NEED " p; need++; continue }
+        h = "unreadable"; dirty = 1
+      }
+      m++; ed[m] = h " " key[i] " " rel; er[m] = rel; ek[m] = h
+    }
+    if (need) exit
+    if (mode == "pre") {
+      print "root " root > out
+      for (i = 1; i <= m; i++) if (ek[i] != "dir") print ed[i] > out
+      for (i = 1; i <= m; i++) if (ek[i] == "dir") print ed[i] > out
+      print "time " now > out
+      if (m != nr) dirty = 1
+      if (dirty && cache != "") {
+        print "root " root > cache
+        for (i = 1; i <= m; i++) print ed[i] > cache
+        print "time " now > cache
+        print "DIRTY"
+      }
+      exit
+    }
+    for (i = 1; i <= m; i++) {
+      r = er[i]; seen[r] = 1
+      if (ek[i] == "dir") { if (!(r in rdir)) print "C " r }
+      else if (!(r in rh) || "" rh[r] != "" ek[i]) print "C " r
+    }
+    for (r in rh) if (!(r in seen)) print "C " r
+    for (r in rdir) if (!(r in seen)) print "C " r
+  }'
+
+# snapshot MODE ROOT REF [OUT CACHE] -> runs SNAP over a fresh listing,
+# hashing only the files it asks for; sets SNAPOUT to the program's output.
+snapshot() {
+  local mode=$1 r=$2 ref=$3 out=${4:-} cache=${5:-} hf need ck=0 lf="$gdir/$callid.l"
+  [ "$HASH" = cksum ] && ck=1
+  [ -f "$ref" ] || ref=/dev/null
+  listing "$r" "$lf"
+  SNAPOUT=$(awk -v mode="$mode" -v root="$r" -v ref="$ref" -v hashes="" -v ck="$ck" \
+    -v out="$out" -v cache="$cache" -v now="$now" "$SNAP" "$ref" "$lf")
+  case $SNAPOUT in
+    'NEED '*)
+      need=${SNAPOUT#NEED }; need=${need//$'\n'NEED /$'\n'}
+      hf="$gdir/$callid.h"
+      # shellcheck disable=SC2086
+      printf '%s\n' "$need" | tr '\n' '\000' | xargs -0 $HASH > "$hf" 2>/dev/null
+      SNAPOUT=$(awk -v mode="$mode" -v root="$r" -v ref="$ref" -v hashes="$hf" -v ck="$ck" \
+        -v out="$out" -v cache="$cache" -v now="$now" "$SNAP" "$ref" "$hf" "$lf")
+      : > "$hf" ;;
+  esac
+  : > "$lf"
+}
+
+# sanit TEXT -> S: TEXT reduced to [A-Za-z0-9_-], at most 64 characters.
+sanit() { S=${1//[^A-Za-z0-9_-]/}; S=${S:0:64}; }
 # Per-call records live in a folder the guard creates with mode 700; each call
-# gets its own snapshot and marker, keyed by agent_id and tool_use_id.
+# gets its own snapshot and marker, keyed by agent_id and tool_use_id. A used
+# record is emptied rather than deleted (rm is one more process); records over
+# a day old are swept now and then. The snapshot cache (A-31) lives there too.
 gdir="${TMPDIR:-${TMP:-/tmp}}/ovm-twin-guard"
-callid="$(sanit "${aid:-noagent}").$(sanit "${tuid:-notool}")"
+sanit "${aid:-noagent}"; callid=$S; sanit "${tuid:-notool}"; callid="$callid.$S"
+sanit "$agent"; s_agent=$S; sanit "$aid"; s_aid=$S; sanit "$tuid"; s_tuid=$S
 snapfile="$gdir/$callid.snap"; markfile="$gdir/$callid.ok"
 BUDGET=5
+now=${EPOCHSECONDS:-$(date +%s)}
 
 alert() { # ROOT EVENT LINES... -> log each line under ROOT, print them as context
   local root=$1 ev=$2 ts ctx="" sep="" msg esc
   shift 2
   ts=$(date '+%Y-%m-%d %H:%M:%S')
   for msg in "$@"; do
-    [ -n "$root" ] && printf '%s agent=%s id=%s tool_use=%s %s\n' "$ts" "$(sanit "$agent")" "$(sanit "$aid")" "$(sanit "$tuid")" "$msg" >> "$root/_twin-guard.log" 2>/dev/null
+    [ -n "$root" ] && printf '%s agent=%s id=%s tool_use=%s %s\n' "$ts" "$s_agent" "$s_aid" "$s_tuid" "$msg" >> "$root/_twin-guard.log" 2>/dev/null
     ctx="$ctx$sep$msg"; sep=$'\n'
   done
   ctx="$ctx"$'\n'"This twin's result is quarantined until the human or the orchestrator reviews the diff (reference/twins.md). Report this alert to your spawner."
@@ -272,36 +421,43 @@ alert() { # ROOT EVENT LINES... -> log each line under ROOT, print them as conte
 # ---------------------------------------------------------------- post: detect
 if [ "$event" != PreToolUse ]; then
   [ "$tool" = Bash ] || exit 0
-  root=$(teamroot)
-  if [ ! -f "$markfile" ] || [ ! -f "$snapfile" ]; then
+  teamroot; root=$TROOT
+  if [ -n "$overcap" ]; then
+    alert "$root" "$event" "TWIN-GUARD ALERT: hook input over the 512 KiB cap; protected files were not checked"
+    exit 0
+  fi
+  if [ ! -s "$markfile" ] || [ ! -s "$snapfile" ]; then
     # Pre allowed this call (Post only fires for a call that ran), so its record
-    # must exist. A missing record means something removed it.
-    rm -f "$snapfile" "$markfile" 2>/dev/null
+    # must exist. A missing or emptied record means something removed it.
+    [ -f "$markfile" ] && : > "$markfile"
+    [ -f "$snapfile" ] && : > "$snapfile"
     alert "$root" "$event" "TWIN-GUARD ALERT: snapshot missing for this twin command; protected files were not checked"
     exit 0
   fi
   mark=""; IFS= read -r mark < "$markfile"
   sroot=""; IFS= read -r sroot < "$snapfile"; sroot=${sroot#root }
-  rm -f "$markfile"
-  case $mark in
-    noroot) rm -f "$snapfile"; exit 0 ;;
-  esac
+  : > "$markfile"
+  if [ "$mark" = noroot ]; then
+    : > "$snapfile"
+    # Pre found no team root. If one resolves now, the call ran unwatched, or
+    # something rewrote the marker: say so (A-33 S-2).
+    [ -n "$root" ] && alert "$root" "$event" "TWIN-GUARD ALERT: no team root at PreToolUse but one resolves now; protected files were not checked"
+    exit 0
+  fi
   if [ "$mark" != "ok $callid" ] || [ -z "$sroot" ] || [ ! -d "$sroot" ]; then
-    rm -f "$snapfile"
+    : > "$snapfile"
     alert "$root" "$event" "TWIN-GUARD ALERT: snapshot missing for this twin command; protected files were not checked"
     exit 0
   fi
-  changed=$(snapshot "$sroot" | awk 'NR == FNR { if (FNR > 1) { k = $0; sub(/^[^ ]+ /, "", k); old[k] = $1 } ; next }
-    { k = $0; sub(/^[^ ]+ /, "", k); now[k] = 1; if (!(k in old) || old[k] != $1) print k }
-    END { for (k in old) if (!(k in now)) print k }' "$snapfile" - | LC_ALL=C sort -u)
-  rm -f "$snapfile"
-  [ -n "$changed" ] || exit 0
+  snapshot post "$sroot" "$snapfile"
+  : > "$snapfile"
   msgs=()
   while IFS= read -r rel; do
-    [ -n "$rel" ] && msgs+=("TWIN-GUARD ALERT: protected file changed during twin command: $rel")
+    case $rel in 'C '?*) msgs+=("TWIN-GUARD ALERT: protected file changed during twin command: ${rel#C }") ;; esac
   done <<EOF
-$changed
+$SNAPOUT
 EOF
+  [ ${#msgs[@]} -gt 0 ] || exit 0
   alert "$sroot" "$event" "${msgs[@]}"
   exit 0
 fi
@@ -318,7 +474,7 @@ pname() {
   # An 8.3 short name (MISSIO~1.MD) can alias any protected file on NTFS.
   case $b in *~[0-9]*) return 0 ;; esac
   case $b in
-    inbox.md|handoff*.md|boot.md|claude.md|working_with_*.md|mission-complete*.md|gopher_registry.md|mission_board.md|team.db|_twin-guard.log|_claims|.go-claim|_ids) return 0 ;;
+    inbox.md|handoff*.md|boot.md|claude.md|working_with_*.md|mission-complete*.md|gopher_registry.md|mission_board.md|team.db|_twin-guard.log|_claims|.go-claim|_ids|ovm-twin-guard) return 0 ;;
   esac
   return 1
 }
@@ -328,17 +484,17 @@ prot() {
   local p q
   for q in "${1//\\//}" "${1//\\/}"; do
     p=$q; p=${p#\"}; p=${p%\"}; p=${p#\'}; p=${p%\'}
-    case "/$p/" in */_claims/*|*/.go-claim/*|*/_ids/*) return 0 ;; esac
+    case "/$p/" in */_claims/*|*/.go-claim/*|*/_ids/*|*/ovm-twin-guard/*) return 0 ;; esac
     p=${p%/}; pname "${p##*/}" && return 0
   done
   return 1
 }
-protnames="inbox.md handoff.md handoff-x.md boot.md claude.md working_with_x.md mission-complete.md mission-complete-x.md gopher_registry.md mission_board.md team.db _twin-guard.log _claims .go-claim _ids"
+protnames="inbox.md handoff.md handoff-x.md boot.md claude.md working_with_x.md mission-complete.md mission-complete-x.md gopher_registry.md mission_board.md team.db _twin-guard.log _claims .go-claim _ids ovm-twin-guard"
 # globhit PATTERN -> 0 when a glob's last part could match a protected name.
 globhit() {
   local g=${1//\\//} b name
   b=${g##*/}
-  case "/$g/" in */_claims/*|*/.go-claim/*|*/_ids/*) return 0 ;; esac
+  case "/$g/" in */_claims/*|*/.go-claim/*|*/_ids/*|*/ovm-twin-guard/*) return 0 ;; esac
   for name in $protnames; do
     # shellcheck disable=SC2053
     [[ $name == $b ]] && return 0
@@ -379,7 +535,7 @@ esac
 
 # The command with quotes and backslashes removed: split names rejoin.
 norm=${cmd//\'/}; norm=${norm//\"/}; norm=${norm//\\/}
-re_name='(inbox\.md|handoff[^[:space:];&|<>()/]*\.md|boot\.md|claude\.md|working_with_[^[:space:];&|<>()/]*\.md|mission-complete[^[:space:];&|<>()/]*\.md|gopher_registry\.md|mission_board\.md|team\.db|_twin-guard\.log|\.go-claim|(^|[^a-z0-9])_ids([/[:space:]]|$)|(^|[^a-z0-9])_claims([/[:space:]]|$))'
+re_name='(inbox\.md|handoff[^[:space:];&|<>()/]*\.md|boot\.md|claude\.md|working_with_[^[:space:];&|<>()/]*\.md|mission-complete[^[:space:];&|<>()/]*\.md|gopher_registry\.md|mission_board\.md|team\.db|_twin-guard\.log|\.go-claim|ovm-twin-guard|(^|[^a-z0-9])_ids([/[:space:]]|$)|(^|[^a-z0-9])_claims([/[:space:]]|$))'
 mentions=0; [[ $norm =~ $re_name ]] && mentions=1
 re_teamdir='(^|[^a-z0-9])_team([/[:space:]]|$)'
 mteam=0; [[ $norm =~ $re_teamdir ]] && mteam=1
@@ -450,7 +606,7 @@ readonly_ok() { # verb, args... -> 0 when the part only reads
 
 # Simple commands: split on ; & | ( ) and newlines.
 set -f
-segs=$(printf '%s\n' "$cmd" | tr ';&|()' '\n\n\n\n\n')
+segs=${cmd//[;&|()]/$'\n'}
 while IFS= read -r seg; do
   split_words "$seg"
   [ ${#words[@]} -gt 0 ] || continue
@@ -513,18 +669,27 @@ set +f
 # record is written for every allowed twin Bash call, "noroot" included, so a
 # record missing at Post always means something removed it.
 if [ -L "$gdir" ]; then rm -f "$gdir"; fi
-( umask 077; mkdir -p "$gdir" ) 2>/dev/null; chmod 700 "$gdir" 2>/dev/null
-root=$(teamroot)
+if [ ! -d "$gdir" ] || [ ! -O "$gdir" ]; then
+  ( umask 077; mkdir -p "$gdir" ) 2>/dev/null; chmod 700 "$gdir" 2>/dev/null
+fi
+# Now and then, sweep records over a day old (emptied ones included).
+[ $((RANDOM % 64)) -eq 0 ] && find "$gdir" -type f -mmin +1440 -exec rm -f {} + 2>/dev/null
+teamroot; root=$TROOT
 if [ -z "$root" ]; then
   printf 'root \n' > "$snapfile"; printf 'noroot\n' > "$markfile"
   exit 0
 fi
 t0=$SECONDS
-{ printf 'root %s\n' "$root"; snapshot "$root"; } > "$snapfile" 2>/dev/null
+# One cache per team root, named from the root's last 48 safe characters; its
+# "root" line is checked, so a name collision only costs a full re-hash.
+S=${root//[^A-Za-z0-9_-]/}; [ ${#S} -gt 48 ] && S=${S:$((${#S} - 48))}
+cache="$gdir/cache.$S"
+snapshot pre "$root" "$cache" "$snapfile" "$cache.$$"
+case $SNAPOUT in *DIRTY*) mv -f "$cache.$$" "$cache" 2>/dev/null || rm -f "$cache.$$" ;; esac
 el=$((SECONDS - t0))
 printf 'ok %s\n' "$callid" > "$markfile"
 if [ "$el" -gt "$BUDGET" ]; then
   printf '%s agent=%s id=%s tool_use=%s TWIN-GUARD NOTE: detector over budget (%ss snapshot; budget %ss)\n' \
-    "$(date '+%Y-%m-%d %H:%M:%S')" "$(sanit "$agent")" "$(sanit "$aid")" "$(sanit "$tuid")" "$el" "$BUDGET" >> "$root/_twin-guard.log" 2>/dev/null
+    "$(date '+%Y-%m-%d %H:%M:%S')" "$s_agent" "$s_aid" "$s_tuid" "$el" "$BUDGET" >> "$root/_twin-guard.log" 2>/dev/null
 fi
 exit 0

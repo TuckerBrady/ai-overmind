@@ -183,7 +183,8 @@ fresh() { rm -rf "$tmp/team" "$tmp/snaps"; mkdir -p "$tmp/snaps"; cp -R "$pr" "$
 
 t "round 4 #1: a command that deletes its own snapshot gets 'snapshot missing', and it is logged"
 fresh
-out=$(run4 "$tmp/team/$seatn" 'rm -rf "$TMPDIR/ovm-twin-guard"; ls | xargs -n1 cp "$SRC"' tu41)
+# A-33 S-2 denies the folder by name, so the deletion builds the name at run time.
+out=$(run4 "$tmp/team/$seatn" 'perl -MFile::Path=rmtree -e '"'"'rmtree($ENV{TMPDIR} . "/ovm-" . "twin-guard")'"'"'; ls | xargs -n1 cp "$SRC"' tu41)
 case $out in *'TWIN-GUARD ALERT: snapshot missing'*) grep -q 'snapshot missing' "$tmp/team/_twin-guard.log" && pass || fail "not logged" ;; *) fail "got: ${out:0:160}" ;; esac
 
 t "round 4 #1: the per-call records live in a folder the guard made with mode 700"
