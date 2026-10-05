@@ -37,6 +37,8 @@ expect() { # want got label
 }
 
 targets=("INBOX.md" "HANDOFF.md" "HANDOFF-AXM-1.md" "mission-complete-AXM-1.md" "GOPHER_REGISTRY.md" "MISSION_BOARD.md" "_Team/team.db" "_claims/AXM-1.s1")
+# A-25.1 additions, checked below.
+targets2=("BOOT.md" "CLAUDE.md" "WORKING_WITH_SAM.md" "HANDOFF.superseded-20261005-0900.md" ".go-claim/AXM-1-20261005-0900/owner" "_ids/OPS-002" "_twin-guard.log")
 
 t "matrix: 8 protected targets x {Write, Edit, Bash redirect} denied for a twin"
 bad=0
@@ -62,9 +64,9 @@ done
 
 t "reads are always allowed for a twin"
 bad=0
-for c in "cat \"$work/INBOX.md\"" "grep -n UNREAD INBOX.md" "head -40 HANDOFF.md" "cat INBOX.md > /tmp/copy.txt" \
-         "cat INBOX.md 2>/dev/null | wc -l" "python ../_Team/team.py board mine Nash" "python ../_Team/team.py gopher show" \
-         "bash skills/go/claim.sh --check . ./HANDOFF.md s1 Nash" "awk '/UNREAD/' INBOX.md" "cp HANDOFF.md /tmp/brief.md"; do
+for c in "cat \"$work/INBOX.md\"" "grep -n UNREAD INBOX.md" "head -40 HANDOFF.md" "tail -5 BOOT.md" \
+         "cat INBOX.md 2>/dev/null | wc -l" "diff HANDOFF.md HANDOFF.superseded-x.md" "less CLAUDE.md" \
+         "git log -- INBOX.md" "git diff HANDOFF.md" "awk '/UNREAD/' INBOX.md" "sed -n 1,5p HANDOFF.md" "ls -la && pwd"; do
   expect allow "$(hook "$TWIN" Bash "$(bash_in "$c")")" "read: $c" || bad=1
 done
 expect allow "$(hook "$TWIN" Read "$(printf '{"file_path":"%s"}' "$(js "$work/INBOX.md")")")" "Read tool" || bad=1
@@ -136,12 +138,12 @@ for c in "python ../_Team/team.py board set OPS-1 status ACTIVE --as Nash" "pyth
 done
 [ $bad -eq 0 ] && pass
 
-t "the plugin's own brief writers are denied for a twin (claim.sh --check stays allowed)"
+t "the plugin's own brief writers are denied for a twin"
 bad=0
 expect deny "$(hook "$TWIN" Bash "$(bash_in "bash \"\${CLAUDE_PLUGIN_ROOT}/skills/go/handoff.sh\" place . ./draft.md")")" "handoff.sh place" || bad=1
 expect deny "$(hook "$TWIN" Bash "$(bash_in "bash skills/go/handoff.sh migrate .")")" "handoff.sh migrate" || bad=1
 expect deny "$(hook "$TWIN" Bash "$(bash_in "bash skills/go/claim.sh . ./HANDOFF.md s1 Nash")")" "claim.sh" || bad=1
-expect allow "$(hook "$TWIN" Bash "$(bash_in "bash skills/go/claim.sh --check . ./HANDOFF.md s1 Nash")")" "claim.sh --check" || bad=1
+expect deny "$(hook "$TWIN" Bash "$(bash_in "bash skills/go/claim.sh --check . ./HANDOFF.md s1 Nash")")" "claim.sh --check (bash is not a read-only verb)" || bad=1
 [ $bad -eq 0 ] && pass
 
 t "globs, expansions and folder-wide writes that reach a protected file are denied"
@@ -153,6 +155,66 @@ expect deny "$(hook "$TWIN" Bash "$(bash_in "rm -rf \"$work\"")")" "rm -rf seat 
 expect deny "$(hook "$TWIN" Bash "$(bash_in "find . -name INBOX.md -delete")")" "find -delete" || bad=1
 expect allow "$(hook "$TWIN" Bash "$(bash_in "rm -f *.tmp build/*.o")")" "unrelated glob" || bad=1
 [ $bad -eq 0 ] && pass
+
+t "A-25.1: the expanded protected set is denied"
+bad=0
+for tg in "${targets2[@]}"; do
+  p="$work/$tg"
+  expect deny "$(hook "$TWIN" Write "$(write_in "$p")")" "Write $tg" || bad=1
+  expect deny "$(hook "$TWIN" Bash "$(bash_in "echo note >> \"$p\"")")" "Bash >> $tg" || bad=1
+done
+[ $bad -eq 0 ] && pass
+
+t "A-25.2: every argument of cp, mv, ln, install and rsync is checked, sources included"
+bad=0
+for c in "ln HANDOFF.md h.txt" "cp HANDOFF.md /tmp/brief.md" "ln -s ../INBOX.md x" "install -m644 BOOT.md /tmp/b" "rsync -a CLAUDE.md /tmp/c" "mv INBOX.md /tmp/i"; do
+  expect deny "$(hook "$TWIN" Bash "$(bash_in "$c")")" "$c" || bad=1
+done
+expect deny "$(hook "$TWIN" Bash "$(bash_in "cp /tmp/new.md .")")" "cp into a seat folder holding team state" || bad=1
+expect allow "$(hook "$TWIN" Bash "$(bash_in "cp /tmp/new.md drafts/")")" "cp into an ordinary folder" || bad=1
+[ $bad -eq 0 ] && pass
+
+t "A-25.2: split names, eval, source, \$ redirects and interpreters are denied"
+bad=0
+while IFS= read -r c; do
+  [ -n "$c" ] || continue
+  expect deny "$(hook "$TWIN" Bash "$(bash_in "$c")")" "$c" || bad=1
+done <<'CORPUS'
+echo x >> IN''BOX.md
+echo x >> INB\OX.md
+f=INB; echo x >> ${f}OX.md
+f=INB; cp /tmp/a ${f}OX.md
+eval 'true'
+source ./x.sh
+. ./x.sh
+echo x > "$OUT"
+python3.12 -c 'print(1)' INBOX.md
+bun run x.ts BOOT.md
+uv run x.py HANDOFF.md
+cmd //c type INBOX.md
+sqlite3 ../_Team/team.db .tables
+ls | xargs grep -l x INBOX.md
+bash -c 'cat INBOX.md'
+perl5.36 -pe 1 INBOX.md
+node x.js ../_Team/x
+vim INBOX.md
+patch INBOX.md < p.diff
+tar -cf /tmp/t.tar INBOX.md
+for f in *; do echo x >> $f; done
+cat INBOX.md > /tmp/copy.txt
+git checkout -- INBOX.md
+chmod 000 BOOT.md
+python ../_Team/team.py board mine Nash
+CORPUS
+expect allow "$(hook "$TWIN" Bash "$(bash_in 'python3 build.py --out out/report.json')")" "an interpreter that names no team file" || bad=1
+expect allow "$(hook "$TWIN" Bash "$(bash_in 'cp a.txt "$S/out.txt"')")" "an expansion that can't complete a protected name" || bad=1
+[ $bad -eq 0 ] && pass
+
+t "A-25.2: input over the 512 KiB cap fails closed for a twin, and passes for a main session"
+pad=$(printf '%*s' 530000 '' | tr ' ' 'x')
+out=$(printf '{"session_id":"s","cwd":"/x","hook_event_name":"PreToolUse","agent_id":"a","agent_type":"%s","tool_name":"Write","tool_input":{"file_path":"/x/notes.md","content":"%s"}}' "$TWIN" "$pad" | bash "$GUARD")
+out2=$(printf '{"session_id":"s","cwd":"/x","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/x/notes.md","content":"%s"}}' "$pad" | bash "$GUARD")
+case $out in *'"permissionDecision":"deny"'*) [ -z "$out2" ] && pass || fail "main session blocked" ;; *) fail "twin over cap allowed" ;; esac
 
 t "agent_type is read from the top level only: text inside tool_input can't spoof it"
 bad=0
