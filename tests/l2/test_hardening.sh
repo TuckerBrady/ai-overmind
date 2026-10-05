@@ -7,6 +7,7 @@
 #   SHOULD  new inbox headers, not the net count; "." and ".." repo segments;
 #           a builtin watchdog without timeout; the collective lock; the
 #           physical team root in claim keys; a symlinked _claims refused
+#   A-17    M-017 is a mission ID; m-017, -17 and M- are not
 # Timed runs are stopped after 15 s, so a slow script fails fast.
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
@@ -220,5 +221,41 @@ if mkln "$tmp/elsewhere" "$root5/_claims"; then
 else
   echo "  unreachable on this FS: symlinked _claims"
 fi
+
+# ---------------------------------------------------------------- A-17
+# The mission class is ^[A-Z][A-Z0-9]{0,9}-[0-9]{1,5}[a-z]?$: the plugin's
+# single-letter M-017 is valid; m-017, -17 and M- are not.
+# Windows folders ignore case, so M-017 and m-017 claims live in two teams.
+root6="$tmp/team6"; mkteam "$root6"; root7="$tmp/team7"; mkteam "$root7"
+om6="$root6/T-Bot - The Overmind"; dev6="$root6/Nash - Developer"
+om7="$root7/T-Bot - The Overmind"; dev7="$root7/Nash - Developer"
+mkdir -p "$root6/_claims" "$root7/_claims"
+printf '100 T-Bot\n' > "$root7/_claims/M-017.a17"
+for m in m-017 -17 M-; do printf '100 T-Bot\n' > "$root6/_claims/$m.r17"; done
+hook a17 "$om7" >/dev/null; backdate a17
+hook r17 "$om6" >/dev/null
+printf '5000 T-Bot\n' > "$root7/_claims/M-017.peer"
+for m in m-017 -17 M-; do printf '5000 T-Bot\n' > "$root6/_claims/$m.peer"; done
+printf 'RESULT: PASS\n' > "$dev7/mission-complete-M-017.md"
+out=$(TARS_NOW=5060 hook a17 "$om7")
+out6=$(TARS_NOW=5060 hook r17 "$om6")
+r=no
+[ "$(count 'TARS: another session also holds M-017 (last active 1 min ago). /consolidate folds it in.' "$out")" = 1 ] &&
+  [ "$(count 'TARS: Nash - Developer wrote mission-complete for M-017.' "$out")" = 1 ] &&
+  [ "$(read -r e x < "$root7/_claims/M-017.a17"; printf '%s' "$e")" = 5060 ] && r=yes
+[ "$r" = yes ] || r="no (M-017 not accepted)"
+[ -z "$out6" ] || r="no (a rejected ID was reported: $out6)"
+for m in m-017 -17 M-; do
+  [ "$(read -r e x < "$root6/_claims/$m.r17"; printf '%s' "$e")" = 100 ] || r="no ($m heartbeat)"
+done
+backdate r17
+printf 'RESULT: PASS\n' > "$dev6/mission-complete-m-017.md"
+o1=$(TARS_NOW=5120 hook r17 "$om6"); backdate r17
+rm -f "$dev6/mission-complete-m-017.md"
+printf 'RESULT: PASS\n' > "$dev6/mission-complete-M-.md"
+o2=$(TARS_NOW=5180 hook r17 "$om6")
+[ "$o1$o2" = "TARS: Nash - Developer wrote mission-complete.TARS: Nash - Developer wrote mission-complete." ] || r="no (rejected IDs in mission-complete names: $o1 / $o2)"
+t "A-17 M-017 is accepted (claims and mission-complete); m-017, -17 and M- are rejected"
+expect "$r; got: $out" test "$r" = yes
 
 finish
