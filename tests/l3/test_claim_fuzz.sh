@@ -21,20 +21,25 @@ ctl="$tmp/ctl"; mkdir -p "$ctl"
 cp "$repo/skills/go/header.sh" "$ctl/"
 grep -v 'refuse SEAT_MISMATCH' "$repo/skills/go/claim.sh" > "$ctl/claim.sh"
 
-pick() { local a=("$@"); printf '%s' "${a[RANDOM % ${#a[@]}]}"; }
+# pick VAR choices... : set VAR in this shell. A $(...) subshell would reseed
+# RANDOM on some bash versions and break the fixed seed.
+pick() { local _v=$1; shift; local a=("$@"); eval "$_v=\${a[RANDOM % \${#a[@]}]}"; }
 
 # gen I -> writes $tmp/c/I.md and $tmp/c/I.want ("<rc> <TOKEN|->")
 mkdir -p "$tmp/c"
+esc=$(printf '\033')
 gen() {
   local i=$1 fmt typ st mis wr stamp pay want tok f
-  fmt=$(pick lines dot boldfield wholebold quote)
-  typ=$(pick DISPATCH SELF-HANDOFF INFORMATIONAL self-handoff "Feature Build" MISSING "SELF-HANDOFF (seat)")
-  st=$(pick Nash nash "Nash (WRENCH)" Vaughn Nashville MISSING "Nash$(printf '\033')[2J")
+  pick fmt lines dot boldfield wholebold quote
+  pick typ DISPATCH SELF-HANDOFF INFORMATIONAL self-handoff "Feature Build" MISSING "SELF-HANDOFF (seat)"
+  pick st Nash nash "Nash (WRENCH)" Vaughn Nashville MISSING "Nash${esc}[2J"
   [ "$i" = 1 ] && st=Vaughn
-  mis=$(pick NONE AXM-046 OPS-033 AXM-999 MISSING "AXM-046 - repair arc" M-017 m-017 M-)
-  wr=$(pick "2026-10-05 09:00" "2026-10-05" "2026-13-01 10:00" MISSING "2026-09-26 11:55 MDT, by x")
-  stamp=$(pick none none ACTIVATED CONSOLIDATED prose)
-  pay=$(pick none fields cr esc)
+  pick mis NONE AXM-046 OPS-033 AXM-999 MISSING "AXM-046 - repair arc" M-017 m-017 M-
+  pick wr "2026-10-05 09:00" "2026-10-05" "2026-13-01 10:00" MISSING "2026-09-26 11:55 MDT, by x"
+  pick stamp none none ACTIVATED CONSOLIDATED prose
+  # Item 2 is always claimable, so invariant 3 never runs on an empty set.
+  [ "$i" = 2 ] && { fmt=lines; typ=SELF-HANDOFF; st=Nash; mis=NONE; wr="2026-10-05 09:00"; stamp=none; }
+  pick pay none fields cr esc
   # ---- oracle
   local tv=1 sv=1 wv=1 mv=$mis
   case $typ in DISPATCH|SELF-HANDOFF|INFORMATIONAL|self-handoff|"SELF-HANDOFF (seat)") ;; *) tv=0 ;; esac
