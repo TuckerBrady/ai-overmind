@@ -69,7 +69,8 @@ re_f='^WORKING_WITH_[A-Za-z0-9_-]{1,40}\.md$'
 re_sha='^[0-9a-fA-F]{7,64}$'
 re_ws='^([0-9]{1,5}k|[0-9]{1,4}M)$'
 re_init='^#+[[:space:]]*Initiative setting:[[:space:]]*([0-9]{1,3})%([^0-9]|$)'
-tab=$'\t' cr=$'\r'
+# Control characters, set once for every function.
+tab=$'\t' cr=$'\r' nl=$'\n' us=$'\037'
 
 # num VALUE MAXDIGITS: VALUE is 1 to MAXDIGITS decimal digits.
 num() { case $1 in ''|*[!0-9]*) return 1 ;; esac; [ ${#1} -le "$2" ]; }
@@ -112,12 +113,18 @@ slurp() {
 # lines TEXT [FIRST]: TEXT split into the array L at line feeds (blank lines
 # drop out). With FIRST, a bracket-expression list of characters, only lines
 # that start with one of them are kept. Splitting and filtering are each one
-# builtin pass over the whole array, not a step per line.
+# builtin pass over the whole array, not a step per line. The filter runs
+# with the default IFS: bash 3.2 joins "${L[@]/.../}" into one word when IFS
+# is a newline (seen on the macOS CI job).
 lines() {
-  local IFS=$'\n' j
+  local IFS j
+  IFS=$nl
   set -f
   L=($1)
-  if [ -n "${2:-}" ]; then L=("${L[@]/#[!$2]*/}"); j="${L[*]}"; L=($j); fi
+  if [ -n "${2:-}" ]; then
+    IFS=$' \t\n'; L=("${L[@]/#[!$2]*/}")
+    IFS=$nl; j="${L[*]}"; L=($j)
+  fi
   set +f
 }
 # The 2048-candidate cap (accepted with A-13, OPS-030 L2b). After the
@@ -346,10 +353,11 @@ fi
 # texts are kept while there are 256 or fewer. A bare rise in the count also
 # speaks, which covers a new entry with a duplicate header.
 inbox_growth() {
-  local f="$1/INBOX.md" cur=0 prev line rest seg tok status us=$'\037'
+  local f="$1/INBOX.md" cur=0 prev line rest seg tok status
   [ -f "$f" ] || return
   [ -z "$first" ] && [ ! "$f" -nt "$st/marker" ] && return
-  local fc="" fl=0 lead t r bq='`' uh=() h newu=0 pset nl=$'\n'
+  local fc="" fl=0 lead t r bq='`' uh h newu=0 pset
+  uh=()
   # Only a "## " header or a fence (indent 0-3) matters: keep the lines that
   # start with # ` ~ or a space, and act on at most MAXL of them.
   slurp "$f"; lines "$S" '#`~ '; S=""
