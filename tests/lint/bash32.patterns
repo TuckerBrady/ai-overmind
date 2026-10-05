@@ -14,3 +14,4 @@ transform-operator	\$\{[A-Za-z_]+@[QEPAa]\}
 negative-index	\[-[0-9]+\]
 wait-n	wait -n
 shopt-bash4	shopt -s[^#]*(globstar|lastpipe)
+array-pattern-expansion	\$\{[A-Za-z_][A-Za-z0-9_]*\[[@*]\](/|#|%)	IFS=\$' \\t\\n'

@@ -5,6 +5,7 @@
 # Provides: t/pass/fail/finish counters, a temp dir removed on exit, the
 # script paths, a JSON string escaper and a twin-guard driver.
 set -u
+unset CLAUDE_PROJECT_DIR   # a live project dir must never become the test team root
 here=$(cd "$(dirname "$0")" && pwd)
 repo=${here%/tests/rel}
 B=${BASH:-bash}

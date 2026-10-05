@@ -15,3 +15,6 @@ x=${v@Q}
 x=${a[-1]}
 wait -n
 shopt -s globstar
+x=("${a[@]/#b/}")
+y=(${a[@]#p})
+z="${a[*]%x}"
