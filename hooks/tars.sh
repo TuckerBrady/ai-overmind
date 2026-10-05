@@ -144,7 +144,9 @@ rk=""
 rootkey() {
   [ -n "$rk" ] && return
   local p=$root o=$PWD
-  if cd -P -- "$root" 2>/dev/null; then p=$PWD; cd -- "$o" 2>/dev/null; fi
+  # CDPATH cleared and output dropped (A-30): a CDPATH hit would print the
+  # folder, and TARS's stdout is the context.
+  if CDPATH= cd -P -- "$root" >/dev/null 2>&1; then p=$PWD; cd -- "$o" >/dev/null 2>&1; fi
   rk=$(printf '%s' "$p" | cksum); rk=${rk// /-}
 }
 
@@ -625,17 +627,22 @@ fi
 # through a temp file and mv; a mkdir lock keeps two checks of one session
 # from overlapping (amendment A-13).
 tmo() {
-  if command -v timeout >/dev/null 2>&1; then timeout 8 "$@"
-  elif command -v gtimeout >/dev/null 2>&1; then gtimeout 8 "$@"
+  if command -v timeout >/dev/null 2>&1; then timeout -k 2 8 "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then gtimeout -k 2 8 "$@"
   else
     # Builtin watchdog: neither timeout nor gtimeout exists (stock macOS).
-    # The command is stopped after 8 seconds and reported as a timeout.
+    # The command gets TERM after 8 seconds and, if it is still alive 2
+    # seconds later, KILL (A-30); either way it is reported as a timeout.
     local p w rc
     "$@" &
     p=$!
     ( s=0
       while kill -0 "$p" 2>/dev/null; do
-        if (( s >= 8 )); then kill "$p" 2>/dev/null; exit 0; fi
+        if (( s >= 8 )); then
+          kill "$p" 2>/dev/null; sleep 2
+          kill -0 "$p" 2>/dev/null && kill -9 "$p" 2>/dev/null
+          exit 0
+        fi
         s=$(( s + 1 )); sleep 1
       done ) </dev/null >/dev/null 2>&1 &
     w=$!
