@@ -125,6 +125,22 @@ o2=$(printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PostToolUse","tool
   "$(js "$seat")" "$pad" "$TWIN" | TMPDIR="$tmp/snaps" "$B" "$GUARD")
 case $o1 in *'TWIN-GUARD ALERT: hook input over the 512 KiB cap'*) [ -z "$o2" ] && pass || fail "main session: ${o2:0:160}" ;; *) fail "twin: ${o1:0:160}" ;; esac
 
+
+t "A-37 P3: a twin Write just under the cap is parsed and denied within 5 s (linear-time JSON reader; macOS awk too)"
+under=$(printf '%*s' 520000 '' | tr ' ' 'y')
+printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PreToolUse","agent_id":"a","agent_type":"%s","tool_name":"Write","tool_input":{"file_path":"%s","content":"%s\\n\\"%s"},"tool_use_id":"u1"}' \
+  "$(js "$seat")" "$TWIN" "$(js "$seat/INBOX.md")" "$under" "$under" | head -c 524000 > "$tmp/under.json"
+printf '"},"tool_use_id":"u1"}' >> "$tmp/under.json"
+s0=$SECONDS
+r=$(TMPDIR="$tmp/snaps" "$B" "$GUARD" < "$tmp/under.json")
+el=$((SECONDS - s0))
+echo "  twin Write of $(wc -c < "$tmp/under.json" | tr -d ' ') bytes: ${el} s"
+case $r in *'Write on INBOX.md'*) [ $el -le 5 ] && pass || fail "took $el s" ;; *) fail "not denied by path: ${r:0:160}" ;; esac
+
+t "A-37 P3: a main session's malformed JSON with no agent_type exits 0 silently"
+out=$(printf '{"session_id":"s1","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"INBOX.md","content":"about splinter-twin' | "$B" "$GUARD"); rc=$?
+[ -z "$out" ] && [ $rc -eq 0 ] && pass || fail "rc=$rc out=${out:0:120}"
+
 # ---------------------------------------------------------------- quoted dot
 t "round 2: a quoted ' . ' (perl concatenation) is not a source; a real . still is"
 bad=0
@@ -138,7 +154,31 @@ for c in ". ./x.sh" "true; . ./x.sh" "x=1 . ./y" "(. ./z)"; do
 done
 [ $bad -eq 0 ] && pass || fail "see above"
 
-# ---------------------------------------------------------------- A-31
+t "A-37 P3: \$'..', escaped quotes, if/while/until/elif and backticks can't hide source, eval or ."
+bad=0
+while IFS= read -r c; do
+  [ -n "$c" ] || continue
+  r=$(gk "" PreToolUse "$seat" "$c" qd3)
+  case $r in *'"permissionDecision":"deny"'*) ;; *) bad=1; echo "    allowed: $c" ;; esac
+done <<'CORPUS'
+echo $'\''; . ./x.sh
+echo \"; . ./x.sh; echo \"
+echo "a'b"; . ./x.sh
+echo 'unbalanced; . ./x.sh
+if . ./x.sh; then :; fi
+while . ./x.sh; do break; done
+until . ./x.sh; do break; done
+if false; then :; elif . ./x.sh; then :; fi
+echo `. ./x.sh`
+echo "$(. ./x.sh)"
+if source ./x.sh; then :; fi
+if eval "echo hi"; then :; fi
+echo `source ./x.sh`
+echo `eval true`
+CORPUS
+[ $bad -eq 0 ] && pass || fail "see above"
+
+# ---------------------------------------------------------------- A-37 B1
 # Shims count every run of the hash programs the guard may pick.
 shim="$tmp/shim"; mkdir -p "$shim"; HASHLOG="$tmp/hashlog"; : > "$HASHLOG"
 for h in sha256sum shasum cksum; do
@@ -150,45 +190,59 @@ ck() { PATH="$shim:$PATH" gk "" "$@"; }
 hashes() { local n; n=$(wc -l < "$HASHLOG"); printf '%s' "${n// /}"; }
 team2="$tmp/team2"; mkteam "$team2"; seat2="$team2/Nash - Developer"
 rm -rf "$tmp/snaps"; mkdir -p "$tmp/snaps"
-sleep 3   # every fixture file is now over a second older than the next snapshot
+sleep 3   # every fixture file is now well over a second old
 
-t "A-31: the first call hashes; a quiet second call hashes nothing at Pre or Post"
+t "A-37 B1: no cache: a quiet call still hashes at Pre and at Post"
 ck PreToolUse "$seat2" true c1 > /dev/null; ck PostToolUse "$seat2" true c1 > /dev/null
-first=$(hashes); : > "$HASHLOG"
-t0=$SECONDS
-ck PreToolUse "$seat2" true c2 > /dev/null; out=$(ck PostToolUse "$seat2" true c2)
-second=$(hashes)
-[ "$first" -ge 1 ] && [ "$second" -eq 0 ] && [ -z "$out" ] && pass || fail "first=$first second=$second out=${out:0:120}"
+: > "$HASHLOG"; ck PreToolUse "$seat2" true c2 > /dev/null; pre=$(hashes)
+: > "$HASHLOG"; out=$(ck PostToolUse "$seat2" true c2); post=$(hashes)
+[ "$pre" -ge 1 ] && [ "$post" -ge 1 ] && [ -z "$out" ] && pass || fail "pre=$pre post=$post out=${out:0:120}"
 
-t "A-31: an edit that keeps size and restores mtime during the call is alerted"
+t "an edit that keeps size and restores mtime during the call is alerted"
 f="$seat2/INBOX.md"; cp -p "$f" "$tmp/ref"
 ck PreToolUse "$seat2" true c3 > /dev/null
 printf '## 2026-10-05 - note - UNRE\n' > "$f"; touch -r "$tmp/ref" "$f"
 out=$(ck PostToolUse "$seat2" true c3)
 case $out in *'protected file changed during twin command: Nash - Developer/INBOX.md'*) pass ;; *) fail "got: ${out:0:200}" ;; esac
 
-t "A-31: an mtime-preserving edit between calls is re-hashed, so undoing it in a call is alerted"
-sleep 2
-cp -p "$f" "$tmp/ref2"; printf '## 2026-10-05 - note - XXXX\n' > "$f"; touch -r "$tmp/ref2" "$f"
-sleep 2
-ck PreToolUse "$seat2" true c4 > /dev/null
-cp "$tmp/ref2" "$f"; touch -r "$tmp/ref2" "$f"
-out=$(ck PostToolUse "$seat2" true c4)
+t "A-37 B1: an edit that restores both mtime and ctime (NTFS) is alerted"
+py=""
+for p in python3 python py; do command -v "$p" >/dev/null 2>&1 && "$p" -c 'import ctypes; ctypes.WinDLL' >/dev/null 2>&1 && { py=$p; break; }; done
+if [ -z "$py" ]; then
+  echo "  SKIP: no Windows python here (SetFileInformationByHandle, which sets the NTFS ChangeTime, exists only on Windows)"
+  pass
+else
+  sleep 2
+  ck PreToolUse "$seat2" true c9 > /dev/null; ck PostToolUse "$seat2" true c9 > /dev/null
+  pyf=$(cygpath -w "$here/fixtures/ctime_restore.py"); sw=$(cygpath -w "$seat2")
+  c="$py '$pyf' '$sw'"
+  st0=$(find "$f" -printf '%T@ %C@ %s'); h0=$(cksum < "$f")
+  out=$(twinrun "" "$seat2" "$c" c10)
+  st1=$(find "$f" -printf '%T@ %C@ %s'); h1=$(cksum < "$f")
+  echo "  stat before/after: [$st0] [$st1]; content changed: $([ "$h0" != "$h1" ] && echo yes || echo no)"
+  if [ "$h0" = "$h1" ]; then fail "the attack did not change the file"
+  else case $out in *'protected file changed during twin command: Nash - Developer/INBOX.md'*) pass ;; *) fail "silent: ${out:0:200}" ;; esac
+  fi
+fi
+
+# ---------------------------------------------------------------- A-37 B2
+t "A-37 B2: real Morph layout (cwd seat/drafts/MORPH/X, project dir the seat, stubs in every seat): a write to another seat's INBOX is alerted"
+t3="$tmp/team3"; mkteam "$t3"; tb="$t3/T-Bot - The Overmind"; mkdir -p "$tb/drafts/MORPH/OPS-030"
+printf '# BOOT\n' > "$tb/BOOT.md"
+for s in "$t3/Nash - Developer" "$t3/Mercer - Media" "$tb"; do printf '# MISSION BOARD \342\200\224 RETIRED BRIDGE COPY\n' > "$s/MISSION_BOARD.md"; done
+echo 'printf "twin was here\n" >> "../../../../Nash - Developer/IN""BOX.md"' > "$tmp/w3.sh"
+out=$(CLAUDE_PROJECT_DIR="$tb" twinrun "" "$tb/drafts/MORPH/OPS-030" "sh '$tmp/w3.sh'" b2a)
 case $out in *'protected file changed during twin command: Nash - Developer/INBOX.md'*) pass ;; *) fail "got: ${out:0:200}" ;; esac
 
-t "A-31: a file whose ctime is within a second of the cache's time is re-hashed, not trusted"
-sleep 2
-ck PreToolUse "$seat2" true c5 > /dev/null; ck PostToolUse "$seat2" true c5 > /dev/null
-printf '## 2026-10-05 - note - YYYY\n' > "$f"; touch -r "$tmp/ref2" "$f"
-: > "$HASHLOG"
-ck PreToolUse "$seat2" true c7 > /dev/null; ck PostToolUse "$seat2" true c7 > /dev/null
-[ "$(hashes)" -ge 1 ] && pass || fail "a just-changed file was taken from the cache"
+t "A-37 B2: a seat holding only a stub, with no live board in reach, has no team root"
+lone2="$tmp/lone2/Seat/drafts/X"; mkdir -p "$lone2"; printf '# MISSION BOARD \342\200\224 RETIRED BRIDGE COPY\n' > "$tmp/lone2/Seat/MISSION_BOARD.md"
+gk "" PreToolUse "$lone2" true b2b > /dev/null
+[ "$(cat "$tmp/snaps/ovm-twin-guard/agentr.b2b.ok" 2>/dev/null)" = noroot ] && pass || fail "a stub became a root"
 
-t "informational: warm Pre + Post cost on the fixture team"
-ck PreToolUse "$seat2" true c6 > /dev/null; ck PostToolUse "$seat2" true c6 > /dev/null
+t "informational: Pre + Post cost on the fixture team (every file hashed)"
 s=$SECONDS
 for i in 1 2 3; do gk "" PreToolUse "$seat2" true "w$i" > /dev/null; gk "" PostToolUse "$seat2" true "w$i" > /dev/null; done
-echo "  three warm Pre+Post pairs: $((SECONDS - s)) s"
+echo "  three Pre+Post pairs: $((SECONDS - s)) s"
 pass
 
 finish

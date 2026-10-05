@@ -92,4 +92,25 @@ brief "$team/Nash - Developer/HANDOFF.md" DISPATCH Nash AXM-046 "2026-10-05 09:0
 out=$("$B" "$CLAIM" --check "$team/Nash - Developer" "$team/Nash - Developer/HANDOFF.md" s1 Nash 2>&1; echo "rc=$?")
 case $out in *CLAIMABLE*"rc=0") pass ;; *) fail "$(printf '%s' "$out" | tr '\n' ' ')" ;; esac
 
+# ---------------------------------------------------------------- A-37 P2
+# A live board planted above the team root must not take it over: TARS and
+# claim.sh take the NEAREST live board (only the twin guard takes the outermost).
+printf '# MISSION BOARD
+
+## Active
+
+| ID | Mission | Owner | Assignee | Status |
+|----|---------|-------|----------|--------|
+' > "$tmp/MISSION_BOARD.md"
+
+t "A-37 P2: TARS keeps the team root when a live board is planted above it"
+turn plant1 "$team/Nash - Developer" > /dev/null
+r=$(pin plant1 2)
+[ "${r##*/}" = team ] && pass || fail "root moved to $r"
+
+t "A-37 P2: claim.sh's verdict doesn't change when a live board is planted above the team root"
+out=$("$B" "$CLAIM" --check "$team/Nash - Developer" "$team/Nash - Developer/HANDOFF.md" s1 Nash 2>&1; echo "rc=$?")
+case $out in *CLAIMABLE*"rc=0") pass ;; *) fail "$(printf '%s' "$out" | tr '\n' ' ')" ;; esac
+rm -f "$tmp/MISSION_BOARD.md"
+
 finish

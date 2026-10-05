@@ -28,8 +28,8 @@ t "A-30: reference/tars.md documents the 512 KiB and 2,048-line caps"
 x=$(g reference/tars.md)
 case $x in *'512 KiB'*'2,048 candidate lines'*) pass ;; *) fail "caps not documented" ;; esac
 
-t "reference/tars.md states the outermost-live-board team root and the retired copy"
-case $x in *'outermost of that directory and its two parents that holds a live `MISSION_BOARD.md`'*'RETIRED BRIDGE COPY'*) pass ;; *) fail "team-root rule not stated" ;; esac
+t "reference/tars.md states the nearest-live-board team root and the retired copy"
+case $x in *'nearest of that directory and its two parents that holds a live `MISSION_BOARD.md`'*'RETIRED BRIDGE COPY'*) pass ;; *) fail "team-root rule not stated" ;; esac
 
 t "A-16: the ubuntu CI job runs go test -v"
 c=$(g .github/workflows/ci.yml | sed -n '/^  ubuntu:/,/^  macos:/p')

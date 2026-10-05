@@ -309,11 +309,12 @@ fi
 # Pinned on turn 1 (or the first turn that finds no pin): the role, the team
 # root and the seat folder. A later cd elsewhere doesn't change who this is.
 #
-# Team root (OPS-030 release lane): the OUTERMOST of the cwd and its two
-# parents that holds a live MISSION_BOARD.md, the rule twin-guard.sh uses. A
-# board whose first line says RETIRED BRIDGE COPY doesn't count: the live team
-# keeps one in every seat folder as a pointer, and the nearest-board rule made
-# each seat folder its own team root. The seat folder is the root's child on
+# Team root (OPS-030 release lane, A-37 P2): the NEAREST of the cwd and its
+# two parents that holds a live MISSION_BOARD.md. A board whose first line says
+# RETIRED BRIDGE COPY doesn't count: the live team keeps one in every seat
+# folder as a pointer, and counting it made each seat folder its own team root.
+# Nearest, so a board planted above the team root can't take it over (only the
+# twin guard takes the outermost board, for coverage). The seat folder is the root's child on
 # the way to the cwd. A pin whose root holds a retired copy is re-derived.
 liveboard() {
   local l=""
@@ -332,7 +333,7 @@ if [ -z "$role" ]; then
   root=""
   d=$cwd n=0
   while (( n <= 2 )) && [ -n "$d" ]; do
-    liveboard "$d" && root=$d
+    liveboard "$d" && { root=$d; break; }
     case $d in */*) d=${d%/*} ;; *) break ;; esac
     n=$(( n + 1 ))
   done

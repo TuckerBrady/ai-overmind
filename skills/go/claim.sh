@@ -39,8 +39,8 @@
 # characters), so /go's claim and TARS's heartbeat name the same file.
 #
 # Team root: CONTRACT 7.1 applied to the seat folder's parent (GAP-31), with
-# the OPS-030 release rule: the outermost of the parent and the grandparent
-# that holds a MISSION_BOARD.md not headed RETIRED BRIDGE COPY.
+# the OPS-030 release rule (A-37 P2): the nearest of the parent and the
+# grandparent that holds a MISSION_BOARD.md not headed RETIRED BRIDGE COPY.
 # Board rows: the "## Active" table only (COLLECTIVE_BOARD.md: any table not
 # under an Archive heading). Columns are found by
 # header cell: ID, Status, Assignees (the live team writes "Assignee"), Owner.
@@ -139,9 +139,9 @@ fi
 
 parent=$(cd "$seatdir/.." 2>/dev/null && pwd -P) || parent=""
 root=""
-# The outermost live board wins (the rule hooks/tars.sh and twin-guard.sh use):
-# a seat folder's own MISSION_BOARD.md headed RETIRED BRIDGE COPY is a pointer,
-# never a team root.
+# The nearest live board wins (as in hooks/tars.sh): a seat folder's own
+# MISSION_BOARD.md headed RETIRED BRIDGE COPY is a pointer, never a team root,
+# and a board planted above the team root can't take it over.
 liveboard() {
   local l=""
   [ -f "$1/MISSION_BOARD.md" ] || return 1
@@ -150,8 +150,8 @@ liveboard() {
   return 0
 }
 if [ -n "$parent" ]; then
-  if liveboard "$parent/.."; then root=$(cd "$parent/.." && pwd -P)
-  elif liveboard "$parent"; then root=$parent
+  if liveboard "$parent"; then root=$parent
+  elif liveboard "$parent/.."; then root=$(cd "$parent/.." && pwd -P)
   fi
 fi
 

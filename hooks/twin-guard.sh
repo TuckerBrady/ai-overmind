@@ -18,18 +18,17 @@
 #      the same file legitimately in that window. _claims/ is excluded, because
 #      TARS rewrites it every turn. Write and Edit are not snapshotted; they are
 #      denied by path before they run. Team root: the outermost folder holding
-#      MISSION_BOARD.md among the cwd and up to three folders above it (else the
-#      project dir); with none in reach, only the pre-check runs, and a Post
+#      a live MISSION_BOARD.md (not a RETIRED BRIDGE COPY) among the cwd, the
+#      session's project dir, and up to three folders above each (A-37 B2);
+#      with none in reach, only the pre-check runs, and a Post
 #      that finds a root the Pre did not alerts (A-33 S-2). The walk prunes
 #      drafts/, .git/, node_modules/ and any repo clone (a folder holding .git),
 #      except a folder that also holds a BOOT.md (a seat kept in git): there
 #      only the .git is pruned (A-33 S-1). A Pre snapshot over 5 s is logged as
 #      "detector over budget" (the hook has 10 s; output after a timeout is
 #      discarded).
-#   3. Snapshot cache (A-31): a file is re-hashed only when its mtime, ctime,
-#      size or inode moved, or it changed within a second of the record it is
-#      compared with. A write always moves the ctime, so a restored mtime can't
-#      hide an edit.
+#      Every protected file is hashed on every Pre and every Post (A-37 B1):
+#      file times and sizes are never trusted to show a file is unchanged.
 #
 # Platform facts, from the Claude Code hooks reference,
 # https://code.claude.com/docs/en/hooks :
@@ -89,7 +88,7 @@
 # running in the background past the PostToolUse check; files outside the
 # root, under the pruned folders, or anywhere when no root is in reach or the
 # snapshot outruns the timeout; a same-user program that finds and rewrites
-# the call's record or the snapshot cache; a Write through a symlink; another session writing in the
+# the call's record; a Write through a symlink; another session writing in the
 # same window (the detector alerts, it can't tell who).
 #
 # A session that is not a twin pays one builtin read, one length test and one
@@ -145,32 +144,36 @@ parsed=""
 [ -n "$overcap" ] || parsed=$(awk 'BEGIN { RS = "\001" }
   function ws() { while (p <= n && index(" \t\r\n", substr(s, p, 1))) p++ }
   function hex(h,   i, v, c) { v = 0; for (i = 1; i <= 4; i++) { c = index("0123456789abcdef", tolower(substr(h, i, 1))); if (!c) return -1; v = v * 16 + c - 1 } return v }
-  function str(   o, c, e, v) {
+  # str(MODE): a JSON string at p. MODE 0 skips it, 1 prints it (decoded,
+  # line feeds as \002) as it goes, 2 returns it. Runs of plain characters are
+  # taken with one substr, and a value is never grown one character at a time,
+  # so a long string costs linear time in every awk (A-37 P3).
+  function str(mode,   o, c, e, v, q, d, r) {
     if (substr(s, p, 1) != "\"") { bad = 1; return "" }
     p++; o = ""
     while (p <= n) {
-      c = substr(s, p, 1)
+      q = p
+      while (p <= n) { c = substr(s, p, 1); if (c == "\"" || c == "\\") break; p++ }
+      if (p > q && mode) { r = substr(s, q, p - q); if (mode == 1) { gsub(/\n/, "\002", r); printf "%s", r } else o = o r }
+      if (p > n) break
       if (c == "\"") { p++; return o }
-      if (c == "\\") {
-        e = substr(s, p + 1, 1); p += 2
-        if (e == "n") o = o "\n"; else if (e == "t") o = o " "; else if (e == "r") o = o "\n"
-        else if (e == "b" || e == "f") o = o " "
-        else if (e == "u") { v = hex(substr(s, p, 4)); p += 4; o = o ((v >= 32 && v < 127) ? sprintf("%c", v) : (v == 10 || v == 13 ? "\n" : "?")) }
-        else o = o e
-        continue
-      }
-      o = o c; p++
+      e = substr(s, p + 1, 1); p += 2
+      if (e == "n" || e == "r") d = "\n"; else if (e == "t" || e == "b" || e == "f") d = " "
+      else if (e == "u") { v = hex(substr(s, p, 4)); p += 4; d = (v >= 32 && v < 127) ? sprintf("%c", v) : (v == 10 || v == 13 ? "\n" : "?") }
+      else d = e
+      if (mode == 1) printf "%s", (d == "\n" ? "\002" : d); else if (mode == 2) o = o d
     }
     bad = 1; return o
   }
-  function val(path, depth,   c, k, i, v) {
+  function want(path) { return (path ~ /^\/(agent_type|agent_id|tool_name|tool_use_id|cwd|hook_event_name)$/ || path == "/tool_input/file_path" || path == "/tool_input/notebook_path" || path == "/tool_input/command") && !(path in seen) }
+  function val(path, depth,   c, k, i, q) {
     if (depth > 64) { bad = 1; return }
     ws(); c = substr(s, p, 1)
     if (c == "{") {
       p++; ws()
       if (substr(s, p, 1) == "}") { p++; return }
       while (!bad && p <= n) {
-        ws(); k = str(); ws()
+        ws(); k = str(2); ws()
         if (substr(s, p, 1) != ":") { bad = 1; return }
         p++; val(path "/" k, depth + 1); ws(); c = substr(s, p, 1)
         if (c == ",") { p++; continue }
@@ -191,11 +194,14 @@ parsed=""
       }
       bad = 1; return
     }
-    if (c == "\"") { v = str() }
-    else { v = ""; while (p <= n && !index(",}] \t\r\n", substr(s, p, 1))) { v = v substr(s, p, 1); p++ } if (v == "") { bad = 1; return } }
-    if (path ~ /^\/(agent_type|agent_id|tool_name|tool_use_id|cwd|hook_event_name)$/ || path == "/tool_input/file_path" || path == "/tool_input/notebook_path" || path == "/tool_input/command") {
-      if (!(path in seen)) { seen[path] = 1; gsub(/\n/, "\002", v); print substr(path, 2) "\t" v }
+    if (c == "\"") {
+      if (want(path)) { seen[path] = 1; printf "%s\t", substr(path, 2); str(1); printf "\n" }
+      else str(0)
+      return
     }
+    q = p; while (p <= n && !index(",}] \t\r\n", substr(s, p, 1))) p++
+    if (p == q) { bad = 1; return }
+    if (want(path)) { seen[path] = 1; print substr(path, 2) "\t" substr(s, q, p - q) }
   }
   { s = $0; n = length(s); p = 1; bad = 0; val("", 0); ws(); if (bad || p <= n) print "ERR\t1" }' <<< "$in")
 
@@ -225,34 +231,54 @@ if [ -n "$overcap" ]; then
   if [[ $in =~ $re_cwd ]]; then cwd=${BASH_REMATCH[1]}; cwd=${cwd//\\\\//}; fi
 fi
 if [ -n "$err" ]; then
-  # Malformed input that names a twin: fail closed for the write tools.
+  # Malformed input that names a twin: fail closed for the write tools. With
+  # no agent_type key at all it is a main session's, and passes (A-37 P3).
+  re_atk='(^|[^\])"agent_type"[[:space:]]*:'
+  [[ $in =~ $re_atk ]] || exit 0
   [ "$event" = PreToolUse ] && deny "unreadable hook input"
   exit 0
 fi
 case $agent in *splinter-twin*) ;; *) exit 0 ;; esac
 
 # ---------------------------------------------------------------- shared
-# Team root, CONTRACT 7.1 extended (round 4): the OUTERMOST of the cwd and up
-# to three folders above it that holds MISSION_BOARD.md (live seat folders keep
-# stale MISSION_BOARD.md copies, and the nearest would shrink the snapshot to one
-# seat); failing that, the same walk from the session's project dir. With no team root the pre-check still
-# runs; only the detector is off (reference/twins.md). Sets TROOT with
-# builtins only: on Windows every subshell or program costs about 80 ms.
+# Team root, CONTRACT 7.1 extended (round 4; A-37 B2): the OUTERMOST folder
+# holding a live MISSION_BOARD.md across two walks, the cwd and up to three
+# folders above it, then the session's project dir and up to three above it.
+# A board whose first line says RETIRED BRIDGE COPY is a pointer the live team
+# keeps in every seat folder and never counts (liveboard); with it counted, a
+# twin in <seat>/drafts/X whose project dir is the seat got that seat as its
+# root and could write another seat's INBOX unseen. Outermost means the widest
+# coverage; TARS and /go use the nearest live board instead. With no team root
+# the pre-check still runs; only the detector is off (reference/twins.md).
+# Sets TROOT with builtins only: on Windows every subshell costs about 80 ms.
+liveboard() {
+  local l=""
+  [ -f "$1/MISSION_BOARD.md" ] || return 1
+  IFS= read -r -n 200 l < "$1/MISSION_BOARD.md" 2>/dev/null
+  case $l in *'RETIRED BRIDGE COPY'*) return 1 ;; esac
+  return 0
+}
 teamroot() {
-  local d n found o=$PWD
+  local d n found="" o=$PWD f fl
   TROOT=""
   for d in "$cwd" "${CLAUDE_PROJECT_DIR:-}"; do
     d=${d//\\//}; d=${d%/}
     [ -n "$d" ] && [ -d "$d" ] || continue
-    n=0 found=""
+    n=0
     while [ $n -le 3 ]; do
-      [ -f "$d/MISSION_BOARD.md" ] && found=$d
+      liveboard "$d" && found="$found$d"$'\n'
       d="$d/.."; n=$((n + 1))
     done
-    if [ -n "$found" ] && CDPATH= cd -- "$found" 2>/dev/null; then
-      TROOT=$PWD; cd -- "$o" 2>/dev/null; return
-    fi
   done
+  # Of every live board found, the outermost: the shortest physical path.
+  while IFS= read -r f; do
+    [ -n "$f" ] && CDPATH= cd -P -- "$f" 2>/dev/null || continue
+    if [ -z "$TROOT" ] || [ ${#PWD} -lt ${#TROOT} ]; then TROOT=$PWD; fi
+    cd -- "$o" 2>/dev/null
+  done <<EOF
+$found
+EOF
+  cd -- "$o" 2>/dev/null
 }
 
 # The hash for the snapshot: sha256 (sha256sum, else shasum -a 256), cksum
@@ -261,80 +287,57 @@ if command -v sha256sum >/dev/null 2>&1; then HASH="sha256sum"
 elif command -v shasum >/dev/null 2>&1; then HASH="shasum -a 256"
 else HASH="cksum"; fi
 
-# listing ROOT FILE -> FILE gets one line per candidate under ROOT, from one walk:
-#   F <mtime>:<ctime>:<size>:<inode> <path>   a protected file
-#   G - <path>                                a .git (file or folder)
-#   D - <path>                                a claim or ID folder
-# Pruned by name: .git, node_modules, drafts and _claims (TARS's). GNU find
-# prints the stat fields itself; BSD find (macOS) hands them to stat(1).
+# listing ROOT FILE -> FILE gets one line per candidate under ROOT, from one
+# walk: "F <path>" a protected file, "G <path>" a .git (file or folder),
+# "D <path>" a claim or ID folder. Pruned by name: .git, node_modules, drafts
+# and _claims (TARS's).
 listing() {
-  local r=$1
-  case ${OSTYPE:-} in
-    darwin*|*bsd*)
-      /usr/bin/find "$r" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
-        -name .git -prune -exec printf 'G - %s\n' {} + -o \
-        -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
-           -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
-           -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
-           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec /usr/bin/stat -f 'F %m:%c:%z:%i %N' {} + -o \
-        -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'D - %s\n' {} + > "$2" 2>/dev/null ;;
-    *)
-      find "$r" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
-        -name .git -printf 'G - %p\n' -prune -o \
-        -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
-           -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
-           -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
-           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -printf 'F %T@:%C@:%s:%i %p\n' -o \
-        -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -printf 'D - %p\n' > "$2" 2>/dev/null ;;
-  esac
+  find "$1" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
+    -name .git -prune -exec printf 'G %s\n' {} + -o \
+    -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
+       -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
+       -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
+       -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'F %s\n' {} + -o \
+    -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'D %s\n' {} + > "$2" 2>/dev/null
 }
 
-# The snapshot program (A-25.3; A-33 S-1; A-31). Inputs, in order: REF (an
-# earlier record of this root: the cache at Pre, the call's own snapshot at
-# Post), HASHES ("<hash> <path>" lines from $HASH, or none), then the listing
-# on stdin.
+# The snapshot program (A-25.3; A-33 S-1). Inputs, in order: REF (the call's
+# own Pre snapshot, at Post; /dev/null at Pre), PASS ("1": print the files to
+# hash; "2": read HASHES and build the record), HASHES ($HASH output), then
+# the listing.
 #   Repo clones (S-1): a file under a folder that holds a .git is dropped,
 #   unless that folder holds a BOOT.md (a seat kept in git, like a seat folder
 #   that is its own repo). Then only the .git itself is pruned.
-#   The cache (A-31): a file's hash is taken from REF only when its mtime,
-#   ctime, size and inode all match REF's and both times are older than REF's
-#   own time minus one second. Any write moves the ctime, and no user call can
-#   set the ctime back, so an edit that restores the mtime is still re-hashed;
-#   the one-second margin covers filesystems that keep whole seconds. Every
-#   other file is hashed: with no HASHES, the program prints "NEED <path>"
-#   lines and stops.
-#   mode=pre writes the snapshot to OUT ("root" line, entries, "time" line
-#   last) and, when anything was hashed or the set changed, the same to CACHE,
-#   and prints DIRTY. mode=post prints "C <relpath>" for every entry added,
-#   removed or changed since REF.
+#   Every protected file is hashed on every Pre and every Post (A-37 B1). No
+#   file metadata is trusted as proof that a file is unchanged: on NTFS a user
+#   program can set the mtime and the ctime back after an edit.
+#   mode=pre writes the snapshot to OUT ("root" line, then entries). mode=post
+#   prints "C <relpath>" for every entry added, removed or changed since REF.
 SNAP='
   function dirn(p) { sub(/\/[^\/]*$/, "", p); return p }
   function base(p) { sub(/^.*\//, "", p); return tolower(p) }
   FILENAME == ref {
-    if ($1 == "root") { if (substr($0, 6) != root) badref = 1; next }
-    if (badref) next
-    if ($1 == "time") { rt = $2 + 0; next }
-    k = $0; sub(/^[^ ]+ [^ ]+ /, "", k)
-    if ($1 == "dir") { rdir[k] = 1; nr++; next }
-    if (length($1) >= 8) { rh[k] = $1; rk[k] = $2; nr++ }
+    if ($1 == "root") next
+    k = $0; sub(/^[^ ]+ /, "", k)
+    if ($1 == "dir") rdir[k] = 1; else rh[k] = $1
     next
   }
-  hashes != "" && FILENAME == hashes {
+  pass == 2 && FILENAME == hashes {
     if (substr($0, 1, 1) == "\\") next
     if (ck) { h = $1 ":" $2; p = $0; sub(/^[^ ]+ [^ ]+ /, "", p) }
     else { h = $1; p = $0; sub(/^[^ ]+ [ *]?/, "", p) }
     hh[p] = h; next
   }
   {
-    t = substr($0, 1, 1); p = $0; sub(/^. [^ ]+ /, "", p)
+    t = substr($0, 1, 1); p = substr($0, 3)
     if (t == "G") { g = dirn(p); if (g != root) git[g] = 1; next }
     if (t != "F" && t != "D") next
-    n++; typ[n] = t; ap[n] = p; key[n] = $2
+    n++; typ[n] = t; ap[n] = p
     if (t == "F" && base(p) == "boot.md") boot[dirn(p)] = 1
   }
   END {
     for (g in git) if (!(g in boot)) pr[g] = 1
-    need = 0; dirty = 0; m = 0
+    m = 0
     for (i = 1; i <= n; i++) {
       p = ap[i]
       if (index(p, root "/") != 1) continue
@@ -342,32 +345,16 @@ SNAP='
       while (length(d) > length(root)) { if (d in pr) { skip = 1; break }; d = dirn(d) }
       if (skip) continue
       rel = substr(p, length(root) + 2)
-      if (typ[i] == "D") { m++; ed[m] = "dir - " rel; er[m] = rel; ek[m] = "dir"; continue }
-      h = ""
-      if (p in hh) { h = hh[p]; dirty = 1 }
-      else if ((rel in rk) && rk[rel] == key[i]) {
-        split(key[i], f, ":")
-        if (f[1] + 0 < rt - 1 && f[2] + 0 < rt - 1) h = rh[rel]
-      }
-      if (h == "") {
-        if (hashes == "") { print "NEED " p; need++; continue }
-        h = "unreadable"; dirty = 1
-      }
-      m++; ed[m] = h " " key[i] " " rel; er[m] = rel; ek[m] = h
+      if (typ[i] == "D") { m++; ed[m] = "dir " rel; er[m] = rel; ek[m] = "dir"; continue }
+      if (pass == 1) { print p; continue }
+      h = (p in hh) ? hh[p] : "unreadable"
+      m++; ed[m] = h " " rel; er[m] = rel; ek[m] = h
     }
-    if (need) exit
+    if (pass == 1) exit
     if (mode == "pre") {
       print "root " root > out
       for (i = 1; i <= m; i++) if (ek[i] != "dir") print ed[i] > out
       for (i = 1; i <= m; i++) if (ek[i] == "dir") print ed[i] > out
-      print "time " now > out
-      if (m != nr) dirty = 1
-      if (dirty && cache != "") {
-        print "root " root > cache
-        for (i = 1; i <= m; i++) print ed[i] > cache
-        print "time " now > cache
-        print "DIRTY"
-      }
       exit
     }
     for (i = 1; i <= m; i++) {
@@ -379,26 +366,18 @@ SNAP='
     for (r in rdir) if (!(r in seen)) print "C " r
   }'
 
-# snapshot MODE ROOT REF [OUT CACHE] -> runs SNAP over a fresh listing,
-# hashing only the files it asks for; sets SNAPOUT to the program's output.
+# snapshot MODE ROOT REF [OUT] -> lists ROOT, hashes every protected file
+# found, and runs SNAP; sets SNAPOUT to the program's output.
 snapshot() {
-  local mode=$1 r=$2 ref=$3 out=${4:-} cache=${5:-} hf need ck=0 lf="$gdir/$callid.l"
+  local mode=$1 r=$2 ref=$3 out=${4:-} ck=0 lf="$gdir/$callid.l" hf="$gdir/$callid.h"
   [ "$HASH" = cksum ] && ck=1
   [ -f "$ref" ] || ref=/dev/null
   listing "$r" "$lf"
-  SNAPOUT=$(awk -v mode="$mode" -v root="$r" -v ref="$ref" -v hashes="" -v ck="$ck" \
-    -v out="$out" -v cache="$cache" -v now="$now" "$SNAP" "$ref" "$lf")
-  case $SNAPOUT in
-    'NEED '*)
-      need=${SNAPOUT#NEED }; need=${need//$'\n'NEED /$'\n'}
-      hf="$gdir/$callid.h"
-      # shellcheck disable=SC2086
-      printf '%s\n' "$need" | tr '\n' '\000' | xargs -0 $HASH > "$hf" 2>/dev/null
-      SNAPOUT=$(awk -v mode="$mode" -v root="$r" -v ref="$ref" -v hashes="$hf" -v ck="$ck" \
-        -v out="$out" -v cache="$cache" -v now="$now" "$SNAP" "$ref" "$hf" "$lf")
-      : > "$hf" ;;
-  esac
-  : > "$lf"
+  # shellcheck disable=SC2086
+  awk -v pass=1 -v root="$r" -v ref=/dev/null "$SNAP" /dev/null "$lf" | tr '\n' '\000' | xargs -0 $HASH > "$hf" 2>/dev/null
+  SNAPOUT=$(awk -v pass=2 -v mode="$mode" -v root="$r" -v ref="$ref" -v hashes="$hf" -v ck="$ck" \
+    -v out="$out" "$SNAP" "$ref" "$hf" "$lf")
+  : > "$lf"; : > "$hf"
 }
 
 # sanit TEXT -> S: TEXT reduced to [A-Za-z0-9_-], at most 64 characters.
@@ -406,13 +385,12 @@ sanit() { S=${1//[^A-Za-z0-9_-]/}; S=${S:0:64}; }
 # Per-call records live in a folder the guard creates with mode 700; each call
 # gets its own snapshot and marker, keyed by agent_id and tool_use_id. A used
 # record is emptied rather than deleted (rm is one more process); records over
-# a day old are swept now and then. The snapshot cache (A-31) lives there too.
+# a day old are swept now and then.
 gdir="${TMPDIR:-${TMP:-/tmp}}/ovm-twin-guard"
 sanit "${aid:-noagent}"; callid=$S; sanit "${tuid:-notool}"; callid="$callid.$S"
 sanit "$agent"; s_agent=$S; sanit "$aid"; s_aid=$S; sanit "$tuid"; s_tuid=$S
 snapfile="$gdir/$callid.snap"; markfile="$gdir/$callid.ok"
 BUDGET=5
-now=${EPOCHSECONDS:-$(date +%s)}
 
 alert() { # ROOT EVENT LINES... -> log each line under ROOT, print them as context
   local root=$1 ev=$2 ts ctx="" sep="" msg esc
@@ -614,41 +592,56 @@ readonly_ok() { # verb, args... -> 0 when the part only reads
   return 1
 }
 
-# qdot -> 0 when "." really starts a simple command: the command is split on
-# ; & | ( ) and newlines only OUTSIDE single and double quotes, so a quoted
-# " . " (perl's or awk's concatenation) is not a source. Run only when the
-# quote-blind split below finds a "." verb.
+# qdot -> 0 when "." really starts a simple command (A-37 P3): the command is
+# split on ; & | ( ) backticks and newlines only OUTSIDE quotes. Single quotes,
+# $'...' (where \' does not close) and double quotes are tracked, a backslash
+# outside single quotes escapes the next character, and a $( or backtick inside
+# double quotes starts a command. if, while, until and elif are skipped before
+# the command word, like the other prefixes. An unclosed quote counts as a ".",
+# since it can't be read safely. A quoted " . " (perl's or awk's concatenation)
+# is not a source. Run only when the quote-blind split below finds a "." verb.
 qdot() {
   local s=$cmd q="" c i n=${#cmd} seg="" j
   for ((i = 0; i <= n; i++)); do
     c=${s:i:1}
-    if [ -n "$q" ]; then
-      [ "$c" = "$q" ] && q=""
-      seg="$seg$c"; continue
-    fi
+    case $q in
+      "'") [ "$c" = "'" ] && q=""; seg="$seg$c"; continue ;;
+      A) case $c in '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)) ;; "'") q=""; seg="$seg$c" ;; *) seg="$seg$c" ;; esac; continue ;;
+      '"')
+        case $c in
+          '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)); continue ;;
+          '"') q=""; seg="$seg$c"; continue ;;
+          '`') q=""; c=';' ;;
+          '$') if [ "${s:i+1:1}" = '(' ]; then q=""; i=$((i + 1)); c=';'; else seg="$seg$c"; continue; fi ;;
+          *) seg="$seg$c"; continue ;;
+        esac ;;
+    esac
     case $c in
+      '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)) ;;
       "'"|'"') q=$c; seg="$seg$c" ;;
-      ''|';'|'&'|'|'|'('|')'|$'\n')
+      '$') if [ "${s:i+1:1}" = "'" ]; then q=A; seg="$seg\$'"; i=$((i + 1)); else seg="$seg$c"; fi ;;
+      ''|';'|'&'|'|'|'('|')'|'`'|$'\n')
         split_words "$seg"; seg=""; j=0
         while [ $j -lt ${#words[@]} ]; do
-          case ${words[j]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|'{'|'!') j=$((j+1)) ;; *) break ;; esac
+          case ${words[j]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') j=$((j+1)) ;; *) break ;; esac
         done
         [ $j -lt ${#words[@]} ] && [ "${words[j]}" = . ] && return 0 ;;
       *) seg="$seg$c" ;;
     esac
   done
+  [ -n "$q" ] && return 0
   return 1
 }
 
-# Simple commands: split on ; & | ( ) and newlines.
+# Simple commands: split on ; & | ( ) backticks and newlines.
 set -f
-segs=${cmd//[;&|()]/$'\n'}
+segs=${cmd//[;&|()\`]/$'\n'}
 while IFS= read -r seg; do
   split_words "$seg"
   [ ${#words[@]} -gt 0 ] || continue
   i=0
   while [ $i -lt ${#words[@]} ]; do
-    case ${words[i]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|'{'|'!') i=$((i+1)) ;; *) break ;; esac
+    case ${words[i]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') i=$((i+1)) ;; *) break ;; esac
   done
   [ $i -lt ${#words[@]} ] || continue
   verb=${words[i]##*[/\\]}; verb=${verb%.[Ee][Xx][Ee]}
@@ -716,12 +709,7 @@ if [ -z "$root" ]; then
   exit 0
 fi
 t0=$SECONDS
-# One cache per team root, named from the root's last 48 safe characters; its
-# "root" line is checked, so a name collision only costs a full re-hash.
-S=${root//[^A-Za-z0-9_-]/}; [ ${#S} -gt 48 ] && S=${S:$((${#S} - 48))}
-cache="$gdir/cache.$S"
-snapshot pre "$root" "$cache" "$snapfile" "$cache.$$"
-case $SNAPOUT in *DIRTY*) mv -f "$cache.$$" "$cache" 2>/dev/null || rm -f "$cache.$$" ;; esac
+snapshot pre "$root" /dev/null "$snapfile"
 el=$((SECONDS - t0))
 printf 'ok %s\n' "$callid" > "$markfile"
 if [ "$el" -gt "$BUDGET" ]; then
