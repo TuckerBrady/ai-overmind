@@ -52,7 +52,7 @@ Read the registry and the mission board TOGETHER — never cached, always fresh 
 - **Stale boot:** a row's boot stamp differs from the current fingerprint of that member's BOOT.md, so its last session booted on a superseded boot layer. In Claude Code, TARS has already told a live session to re-read the file, and an ended session picks it up on its next boot, so no chase is needed. Say so only when a change must land before the member's next piece of work (a rule that changes what they do); then drop a note in their INBOX.md. Never ask members to acknowledge a boot change: the stamp is the acknowledgment.
 - **Paper member:** a roster row with no Gopher evidence, ever. Created on paper, never booted. A member is not ACTIVE until boot evidence exists — a fresh registry row. Flag paper members; adds and resurrections stay AWAITING FIRST BOOT until the evidence lands.
 
-Report sweep findings to the human only when something needs their hands (usually: open a session or approve a permission). A stale pasted BOOT.md is not one of those; update it yourself.
+Report sweep findings to the human only when something needs their hands (usually: open a session or approve a permission). A stale boot layer in a lite-mode runtime is not one of those; update it yourself.
 
 ---
 
@@ -65,7 +65,7 @@ The inbox gives challenge/response an actual channel. A ping verifies the full c
 **The loop:**
 1. Overmind appends to the specialist's INBOX.md: `GOPHER PING — [date] — refresh your registry row and deliver your response phrase to Overmind/INBOX.md.`
 2. At the specialist's next boot, the inbox check surfaces it. They refresh their registry row, append their current response phrase to `Overmind/INBOX.md`, and flip the ping to READ.
-3. At the Overmind's next boot, its own inbox holds the response. Phrase matches the registry → channel verified. Phrase missing or mismatched after the human confirms they opened the session → the boot layer or kernel isn't reaching that session; fix it (update the pasted instructions yourself in a paste-based runtime, or repair the CLAUDE.md wrapper in a working-directory one).
+3. At the Overmind's next boot, its own inbox holds the response. Phrase matches the registry → channel verified. Phrase missing or mismatched after the human confirms they opened the session → the boot layer or kernel isn't reaching that session; fix it (repair the CLAUDE.md wrapper; in a lite-mode runtime, update that runtime's instructions yourself).
 
 A ping answers the one question a stale registry can't: is the session broken, or merely unopened?
 
@@ -83,7 +83,7 @@ Twins DO read before working: check the board for an ACTIVE mission held by the 
 
 When signals disagree, trust them in this order:
 
-1. `mission-complete.md` — the mission is done, full stop
+1. `mission-complete-<ID>.md` (or a legacy `mission-complete.md`) that a fresh grader twin spawned by the Overmind has passed — the mission is done. Before that grade it is the doer's claim
 2. MISSION_BOARD.md row status — claimed state
 3. Registry timestamp — proof of boot, nothing more
 4. Silence — means /go hasn't been typed yet, not failure
@@ -107,15 +107,17 @@ Never reuse phrases from a prior session. The registry is a liveness signal, not
 
 When a specialist finishes a dispatched mission, they write this file to signal completion. The Overmind's monitoring — TARS and the MISSION WATCH pass — looks for it.
 
-**File:** `[specialist-folder]/mission-complete.md` — the folder root, alongside HANDOFF.md and INBOX.md.
+**File:** `[specialist-folder]/mission-complete-<ID>.md` — the folder root, alongside HANDOFF.md and INBOX.md. Its first line is `MISSION: <ID>`, matching the filename; a legacy `mission-complete.md` is still read.
 
 ```markdown
+MISSION: [ID]
+
 # MISSION COMPLETE
 
 **Agent:** [specialist name]
 **Date:** [YYYY-MM-DD]
 **Mission:** [one-line summary of what was accomplished]
-**Status:** COMPLETE
+**Status:** DONE (a claim; only the Overmind's grader PASS moves the board row to COMPLETE)
 
 ## Summary
 

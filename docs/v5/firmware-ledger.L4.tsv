@@ -18,3 +18,4 @@ R	1445	DELETED	SUPERSEDED	COL-3
 R	1448	MOVED	skills/collective/SKILL.md	A later re-seating (a session died, a successor picked up the Overmind's own folder) only needs a fresh Proof A
 R	1450	MOVED	reference/collective.md	First seating is trust-on-first-use: anyone can publish a fresh anchor
 R	1474	MOVED	reference/collective.md	git log --diff-filter=AMR --name-status <ack>..HEAD -- posts/
+R	1465	MOVED	reference/collective.md	the moment this Overmind convenes or joins its first Collective (convener: at binder creation; joiner: immediately after the hello post)
