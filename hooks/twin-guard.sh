@@ -762,14 +762,14 @@ readonly_ok() { # verb, args... -> 0 when the part only reads
 #     ; & | ( ) < > ` ' " { }.
 #   - . : denied in command position only, so git add ., find . and cp x .
 #     pass: at a line start, after ; & | ( { or a backtick, or after one of
-#     the words if then do else elif while until ! time command builtin
+#     the words if then do else elif while until ! time command builtin coproc
 #     (whitespace allowed between). Assignment and sudo/env/exec prefixes are
 #     covered by the per-command check below.
 # Residual: a command word built at run time (d=.; $d ./x.sh) is not seen
 # here; only the outcome detector covers what such a command writes.
 set -f
 re_se='(^|[[:space:];&|()<>`'"'"'"{}])(source|eval)([[:space:];&|()<>`'"'"'"{}]|$)'
-re_dot='(^|[;&|({`]|(^|[[:space:];&|({`])(if|then|do|else|elif|while|until|!|time|command|builtin))[[:space:]]*[.]([[:space:];&|)<>]|$)'
+re_dot='(^|[;&|({`]|(^|[[:space:];&|({`])(if|then|do|else|elif|while|until|!|time|command|builtin|coproc))[[:space:]]*[.]([[:space:];&|)<>]|$)'
 dse=${cmd//\\/}
 for v in "$cmd" "$dse" "$norm"; do
   v=${v//$'\n'/;}; v=${v//$'\r'/;}
