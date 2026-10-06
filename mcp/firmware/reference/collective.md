@@ -74,7 +74,7 @@ The typed fingerprint must match the key, or nothing is pinned. Each Overmind al
 
 **Proof A — signed, nonce first.**
 
-1. `proof.sh issue <cid> <my-label> <peer-label>` stores a 128-bit nonce for a pinned peer in `pending/`, then prints the challenge. Nothing prints if the store fails. At most one round is in flight per Collective.
+1. `proof.sh issue <cid> <my-label> <peer-label>` stores a 128-bit nonce for a pinned peer in `pending/`, then prints the challenge. Nothing prints if the store fails. At most one round is in flight per Collective. A verify in progress holds a `.claim.<peer>.<pid>` file; one left by a killed verify (its PID dead, or older than 10 minutes) no longer blocks: the next issue clears it.
 2. The peer, on its human's yes, runs `proof.sh answer <cid> <verifier-label> <my-label> <nonce>`, which signs `ai-overmind-proof-a|<cid>|<verifier-label>|<peer-label>|<nonce>` under the namespace `ai-overmind-collective`, and posts the armored signature.
 3. `proof.sh verify <cid> <peer-label> <signature-file>` claims the nonce with `mv`, verifies against the PIN, and deletes the nonce on a pass. A signature that fails puts the nonce back, so only the pinned key can spend a round. A replay to another verifier or another Collective fails, because both are in the signed message.
 

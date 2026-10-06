@@ -38,8 +38,9 @@
 # hooks/tars.sh sanitizes the hook's session_id (keep [A-Za-z0-9_-], first 40
 # characters), so /go's claim and TARS's heartbeat name the same file.
 #
-# Team root: CONTRACT 7.1 applied to the seat folder's parent: the parent if it
-# holds MISSION_BOARD.md, else the grandparent if it does (GAP-31).
+# Team root: CONTRACT 7.1 applied to the seat folder's parent (GAP-31), with
+# the OPS-030 release rule (A-37 P2): the nearest of the parent and the
+# grandparent that holds a MISSION_BOARD.md not headed RETIRED BRIDGE COPY.
 # Board rows: the "## Active" table only (COLLECTIVE_BOARD.md: any table not
 # under an Archive heading). Columns are found by
 # header cell: ID, Status, Assignees (the live team writes "Assignee"), Owner.
@@ -138,8 +139,20 @@ fi
 
 parent=$(cd "$seatdir/.." 2>/dev/null && pwd -P) || parent=""
 root=""
-if [ -n "$parent" ] && [ -f "$parent/MISSION_BOARD.md" ]; then root=$parent
-elif [ -n "$parent" ] && [ -f "$parent/../MISSION_BOARD.md" ]; then root=$(cd "$parent/.." && pwd -P)
+# The nearest live board wins (as in hooks/tars.sh): a seat folder's own
+# MISSION_BOARD.md headed RETIRED BRIDGE COPY is a pointer, never a team root,
+# and a board planted above the team root can't take it over.
+liveboard() {
+  local l=""
+  [ -f "$1/MISSION_BOARD.md" ] || return 1
+  IFS= read -r -n 200 l < "$1/MISSION_BOARD.md"
+  case $l in *'RETIRED BRIDGE COPY'*) return 1 ;; esac
+  return 0
+}
+if [ -n "$parent" ]; then
+  if liveboard "$parent"; then root=$parent
+  elif liveboard "$parent/.."; then root=$(cd "$parent/.." && pwd -P)
+  fi
 fi
 
 if [ "$mission" != NONE ]; then

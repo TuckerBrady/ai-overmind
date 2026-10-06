@@ -3,3 +3,5 @@
   # declare -A in a comment
 now=${EPOCHSECONDS:-$(date +%s)}
 echo hi # wait -n
+IFS=$' \t\n'; L=("${L[@]/#x*/}")
+w=("${a[@]:0:3}")

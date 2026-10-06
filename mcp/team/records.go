@@ -195,14 +195,18 @@ func (t *Team) Inbox(s Seat, unreadOnly bool) ([]InboxEntry, error) {
 	}
 	var entries []InboxEntry
 	var cur *InboxEntry
+	// The body grows in a strings.Builder: appending to a string copies the
+	// whole body on every line, which took 27 s on a 1.5 MiB inbox (A-16).
+	var body strings.Builder
 	inFence := false
 	flush := func() {
 		if cur != nil {
-			cur.Body = strings.TrimSpace(cur.Body)
+			cur.Body = strings.TrimSpace(body.String())
 			if !unreadOnly || cur.Unread {
 				entries = append(entries, *cur)
 			}
 		}
+		body.Reset()
 	}
 	for _, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "```") {
@@ -215,7 +219,8 @@ func (t *Team) Inbox(s Seat, unreadOnly bool) ([]InboxEntry, error) {
 			continue
 		}
 		if cur != nil {
-			cur.Body += line + "\n"
+			body.WriteString(line)
+			body.WriteByte('\n')
 		}
 	}
 	flush()
