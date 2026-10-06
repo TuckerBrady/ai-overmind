@@ -1,4 +1,4 @@
-# ai-overmind v5.0.0
+# ai-overmind v5.0.1
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,15 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v5.0.1
+
+**`/consolidate`, hardened guards, and the finished v5.** 5.0.0 reached the marketplace mid-build. 5.0.1 is the complete, release-tested version.
+
+- **`/consolidate` (The Quickening).** Run it in the session you want to keep. It finds every other open session on the same mission, folds what they hold into this one, and closes them out. You get a short TLDR, then at most two things that need you, asked as clickable questions, then one question to close the rest. Its guard refuses to close anything holding work that isn't already pushed. When it can't tell, it asks.
+- **Collective identity by signature.** Each Overmind holds an ed25519 key. Peers pin each other's keys after an out-of-band fingerprint check, and posts count as verified only when their commit is signed by a pinned key. The Genesis hash chain is retired, because a revealed preimage could be replayed. Existing seats re-seat by key.
+- **Activation you can trust.** `/go` claims a brief atomically, runs one check path for every brief type, shows a content hash, and never overwrites an unread brief. A twin guard and an outcome detector keep in-session twins away from inboxes, handoffs and the board.
+- **TARS** prints only fixed-grammar lines, never peer text, reports each event once across sessions, warns when two sessions hold the same mission, and stays fast on large boards.
 
 ## What's New in v5.0.0
 
