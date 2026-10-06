@@ -94,6 +94,25 @@ function tokenize(   n, i, j, piece, k, c, lit, start) {
     i = j + 1
   }
 }
+# A raw JSON string with its simple escapes decoded, in one left-to-right
+# pass as a parser reads them (so an escaped backslash is never paired with
+# the character after it). Only used to compare keys; \u is refused before.
+function jdec(s,   out, i, c, d) {
+  if (!index(s, "\\")) return s
+  out = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (c != "\\") { out = out c; continue }
+    d = substr(s, ++i, 1)
+    if (d == "n") out = out "\n"
+    else if (d == "t") out = out "\t"
+    else if (d == "r") out = out "\r"
+    else if (d == "b") out = out "\b"
+    else if (d == "f") out = out "\f"
+    else out = out d          # backslash, slash, quote: the character itself
+  }
+  return out
+}
 function want(path) {
   return path ~ /^(type|uuid|timestamp|isMeta|isSidechain|isCompactSummary|isVisibleInTranscriptOnly|origin\.kind|message\.role|message\.content|message\.content\[[0-9]+\]\.(type|text|name|id|tool_use_id|is_error))$/
 }
@@ -121,8 +140,10 @@ function rval(path, depth,   t, key, i) {
       if (path == "toolUseResult.answers") {
         # A question key with a \u escape could equal another key once a
         # real parser decodes it: fail closed (N5).
-        if (key in AQSEEN || index(key, "\\u")) { BAD = 1; return }
-        AQSEEN[key] = 1
+        # Duplicates are judged on the decoded key, as a JSON parser sees
+        # it: Q/ and Q\/ are one key (r8). The key itself is kept escaped.
+        if (index(key, "\\u") || (jdec(key) in AQSEEN)) { BAD = 1; return }
+        AQSEEN[jdec(key)] = 1
         if (TT[TI] != ":") { BAD = 1; return }
         TI++; NANS++; AQ[NANS] = key
         if (TT[TI] == "s") { AA[NANS] = substr(S, TS[TI], TL[TI]); TI++ }

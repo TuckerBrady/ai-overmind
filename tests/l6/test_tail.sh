@@ -396,6 +396,31 @@ t "r8 N5 a duplicated toolUseResult, a duplicated answers key or an escaped ques
   fail "rows: $(yrow 164)$(yrow 166)$(yrow 168) / $(cat "$tmp/r8.err")"
 t "r8 an answer whose question key is empty gets an asked row of (no question text)"
 [ "$(yrow 170)" = "asked	(no question text)~answer	answer with no question~" ] && pass || fail "got: $(yrow 170)"
+# r8 probe (grade/l6-r8/fx/p.jsonl): Q/ and Q\/ are one key to a JSON parser.
+z="$tmp/r9.jsonl"
+{
+  ask 180 toolu_P1; ans 181 toolu_P1 "{\"Q/\":\"PROBE1 shadowed\",\"Q${BS}/\":\"real\"}"
+  # a lone escaped slash in a real question is kept
+  ask 182 toolu_P2; ans 182 toolu_P2 "{\"Path a${BS}/b?\":\"keep it\"}"
+  # decoding is one left-to-right pass: a\\/b (backslash, slash) and a/b differ
+  ask 183 toolu_P3; ans 184 toolu_P3 "{\"a${BS}${BS}/b\":\"first\",\"a/b\":\"second\"}"
+} > "$z"
+zout=$("$SB" "$tail_sh" "$z" 1000 2> "$tmp/r9.err"); zrc=$?
+zrow() { printf '%s\n' "$zout" | LC_ALL=C awk -F '\t' -v u="$(uuid "$1")" '$1 == u { print $2 "\t" $4 }' | tr '\n' '~'; }
+t "r9 N5 keys equal once escapes are decoded (Q/ and Q\\/) are duplicates: skipped and counted, no PROBE text"
+[ "$zrc" = 0 ] && [ -z "$(zrow 181)" ] && ! printf '%s\n' "$zout" | LC_ALL=C grep -q 'PROBE' && LC_ALL=C grep -qx 'tail.sh: skipped=1' "$tmp/r9.err" && pass ||
+  fail "rc=$zrc rows: $(zrow 181) / $(cat "$tmp/r9.err")"
+t "r9 a question key with a lone escaped slash is kept"
+case $(zrow 182) in "asked	Path a"*"b?~answer	keep it~") pass ;; *) fail "got: $(zrow 182)" ;; esac
+t "r9 escapes decode left to right: a\\\\/b and a/b are two keys, both kept"
+case $(zrow 184) in *"answer	first~"*"answer	second~") pass ;; *) fail "got: $(zrow 184)" ;; esac
+t "r9 the grader's probe file, when present, emits no PROBE text"
+pf="/c/Users/tucka/Documents/Claude/AI Team/T-Bot - The Overmind/drafts/MORPH/OPS-030/grade/l6-r8/fx/p.jsonl"
+if [ -f "$pf" ]; then
+  pout=$("$SB" "$tail_sh" "$pf" 1000 2>/dev/null); prc=$?
+  [ "$prc" = 0 ] && ! printf '%s\n' "$pout" | LC_ALL=C grep -q 'PROBE' && pass || fail "rc=$prc $(printf '%s\n' "$pout" | grep PROBE)"
+else echo "  not reachable on this host: the grader's probe file is not here"; skips=$((skips + 1)); pass; fi
+
 t "r8 real data: the multiSelect answer in transcript 0c7d43ef appears (read-only)"
 ms=""; for rt in "$HOME/.claude/projects"/*/0c7d43ef*.jsonl "${REAL_HOME:-/c/Users/tucka}/.claude/projects"/*/0c7d43ef*.jsonl; do [ -f "$rt" ] && { ms=$rt; break; }; done
 if [ -z "$ms" ]; then echo "  not reachable on this host: the real transcript is not here"; skips=$((skips + 1)); pass
