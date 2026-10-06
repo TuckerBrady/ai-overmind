@@ -153,15 +153,31 @@ r2=$(printf '{"tool_name":"Write","tool_input":{"file_path":"/x/notes.md","conte
 case $r1 in *'"permissionDecision":"deny"'*) [ -z "$r2" ] && pass || fail "main: ${r2:0:100}" ;; *) fail "twin allowed: ${r1:0:100}" ;; esac
 
 # ---------------------------------------------------------------- quoted dot
-t "round 2: a quoted ' . ' (perl concatenation) is not a source; a real . still is"
+t "A-48: . in command position, and source or eval anywhere, are denied whatever quotes or comments surround them"
 bad=0
-for c in "perl -e 'print q(a) . q(b)'" "echo 'a; . b'" "awk 'BEGIN { x = \"a\" \" . \" }'"; do
+tab=$'\t'
+while IFS= read -r c; do
+  [ -n "$c" ] || continue
   r=$(gk "" PreToolUse "$seat" "$c" qd1)
-  case $r in *'"permissionDecision":"deny"'*) bad=1; echo "    denied: $c" ;; esac
-done
-for c in ". ./x.sh" "true; . ./x.sh" "x=1 . ./y" "(. ./z)"; do
-  r=$(gk "" PreToolUse "$seat" "$c" qd2)
   case $r in *'"permissionDecision":"deny"'*) ;; *) bad=1; echo "    allowed: $c" ;; esac
+done <<EOF
+echo a\\ #b; . ./x.sh
+echo a\\${tab}#b; . ./x.sh
+echo \`#\`; . ./x.sh
+echo \${x/ #/y}; . ./x.sh
+echo \${x:- #}; . ./x.sh
+x=a\\ #b; . ./x.sh
+[[ a == a\\ #b ]]; . ./x.sh
+EOF
+for c in "echo 1"$'\n'". ./x.sh" "echo 1 # it's"$'\n'". ./x.sh"$'\n'"echo 2 # '" "echo \"source x\""; do
+  r=$(gk "" PreToolUse "$seat" "$c" qd2)
+  case $r in *'"permissionDecision":"deny"'*) ;; *) bad=1; echo "    allowed: ${c//$'\n'/ \\n }" ;; esac
+done
+# A plain work folder: a seat folder holding team files refuses cp into it on its own rule.
+plain="$tmp/plainwork"; mkdir -p "$plain"
+for c in "git add ." "find . -name x" "cp a ." "echo a.b" "cat ../x.md"; do
+  r=$(gk "" PreToolUse "$plain" "$c" qd3)
+  case $r in *'"permissionDecision":"deny"'*) bad=1; echo "    denied: $c" ;; esac
 done
 [ $bad -eq 0 ] && pass || fail "see above"
 

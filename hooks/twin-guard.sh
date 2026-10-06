@@ -750,75 +750,32 @@ readonly_ok() { # verb, args... -> 0 when the part only reads
   return 1
 }
 
-# qdot -> 0 when "." really starts a simple command (A-37 P3): the command is
-# split on ; & | ( ) backticks and newlines only OUTSIDE quotes. Single quotes,
-# $'...' (where \' does not close) and double quotes are tracked, a backslash
-# outside single quotes escapes the next character, and a $( or backtick inside
-# double quotes starts a command. if, while, until and elif are skipped before
-# the command word, like the other prefixes. An unclosed quote counts as a ".",
-# since it can't be read safely. A quoted " . " (perl's or awk's concatenation)
-# is not a source. Run only when the quote-blind split below finds a "." verb.
-qdot() {
-  local s=$cmd q="" c i n=${#cmd} seg="" j cm
-  for ((i = 0; i <= n; i++)); do
-    c=${s:i:1}
-    case $q in
-      "'") [ "$c" = "'" ] && q=""; seg="$seg$c"; continue ;;
-      A) case $c in '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)) ;; "'") q=""; seg="$seg$c" ;; *) seg="$seg$c" ;; esac; continue ;;
-      '"')
-        case $c in
-          '\') if [ "${s:i+1:1}" = '`' ]; then q=""; i=$((i + 1)); c=';'; else seg="$seg$c${s:i+1:1}"; i=$((i + 1)); continue; fi ;;
-          '"') q=""; seg="$seg$c"; continue ;;
-          '`') q=""; c=';' ;;
-          '$') if [ "${s:i+1:1}" = '(' ]; then q=""; i=$((i + 1)); c=';'; else seg="$seg$c"; continue; fi ;;
-          *) seg="$seg$c"; continue ;;
-        esac ;;
-    esac
-    # An escaped backtick inside backticks is a nested command substitution.
-    if [ "$c" = '\' ] && [ "${s:i+1:1}" = '`' ]; then i=$((i + 1)); c=';'; fi
-    # An unquoted # at the start of a word begins a comment to the end of the
-    # line: a quote inside it opens nothing (A-44).
-    if [ "$c" = '#' ]; then
-      case $seg in ''|*' '|*"$tab") cm=${s:i}; cm=${cm%%"$nl"*}; i=$((i + ${#cm} - 1)); continue ;; esac
-    fi
-    case $c in
-      '\') seg="$seg$c${s:i+1:1}"; i=$((i + 1)) ;;
-      "'"|'"') q=$c; seg="$seg$c" ;;
-      '$') if [ "${s:i+1:1}" = "'" ]; then q=A; seg="$seg\$'"; i=$((i + 1)); else seg="$seg$c"; fi ;;
-      ''|';'|'&'|'|'|'('|')'|'`'|$'\n')
-        split_words "$seg"; seg=""; j=0
-        while [ $j -lt ${#words[@]} ]; do
-          case ${words[j]//"$BS"/} in *=*|sudo|command|env|exec|coproc|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') j=$((j+1)) ;; *) break ;; esac
-        done
-        [ $j -lt ${#words[@]} ] && [ "${words[j]//"$BS"/}" = . ] && return 0 ;;
-      *) seg="$seg$c" ;;
-    esac
-  done
-  [ -n "$q" ] && return 0
-  return 1
-}
 
-# eval, source and . first, over a split that also breaks at backticks (a
-# backticked command is a command), with if/while/until/elif/coproc skipped and
-# the command word read as bash reads it: quotes and backslashes removed, so
-# e\val and \. are eval and . (A-37, A-38). This split is used for nothing
-# else: splitting the write checks at backticks would put a backticked target
-# in a segment of its own behind a read-only verb (A-44).
+# eval, source and . (A-47, A-48): a deliberate blunt instrument that reads no
+# quotes and no comments. Bash's rules for those were modelled in rounds 2 to 5
+# and every model let a real source through, so this scan ignores them: quoted
+# or commented text can only cause a false positive, and those only block a
+# twin. The text is checked as written, with backslashes removed, and with
+# quotes and backslashes removed, so e\val, ev''al, \. and "." count.
+#   - source and eval: denied as a standalone word anywhere, a word being
+#     bounded by the start or end of the text, whitespace, or one of
+#     ; & | ( ) < > ` ' " { }.
+#   - . : denied in command position only, so git add ., find . and cp x .
+#     pass: at a line start, after ; & | ( { or a backtick, or after one of
+#     the words if then do else elif while until ! time command builtin
+#     (whitespace allowed between). Assignment and sudo/env/exec prefixes are
+#     covered by the per-command check below.
+# Residual: a command word built at run time (d=.; $d ./x.sh) is not seen
+# here; only the outcome detector covers what such a command writes.
 set -f
-esegs=${cmd//[;&|()\`]/$'\n'}
-while IFS= read -r seg; do
-  split_words "$seg"
-  [ ${#words[@]} -gt 0 ] || continue
-  i=0
-  while [ $i -lt ${#words[@]} ]; do
-    case ${words[i]//"$BS"/} in *=*|sudo|command|env|exec|coproc|nohup|time|builtin|do|then|else|if|elif|while|until|'{'|'!') i=$((i+1)) ;; *) break ;; esac
-  done
-  [ $i -lt ${#words[@]} ] || continue
-  vs=${words[i]//"$BS"/}; vs=${vs##*/}
-  case $vs in eval|source) deny "$vs" ;; .) qdot && deny "$vs" ;; esac
-done <<EOF
-$esegs
-EOF
+re_se='(^|[[:space:];&|()<>`'"'"'"{}])(source|eval)([[:space:];&|()<>`'"'"'"{}]|$)'
+re_dot='(^|[;&|({`]|(^|[[:space:];&|({`])(if|then|do|else|elif|while|until|!|time|command|builtin))[[:space:]]*[.]([[:space:];&|)<>]|$)'
+dse=${cmd//\\/}
+for v in "$cmd" "$dse" "$norm"; do
+  v=${v//$'\n'/;}; v=${v//$'\r'/;}
+  if [[ $v =~ $re_se ]]; then deny "${BASH_REMATCH[2]} as a word in the command"; fi
+  if [[ $v =~ $re_dot ]]; then deny ". in command position"; fi
+done
 
 # Simple commands: split on ; & | ( ) and newlines, as fb649ac did.
 segs=${cmd//[;&|()]/$'\n'}
@@ -834,7 +791,7 @@ while IFS= read -r seg; do
   args=("${words[@]:i+1}")
   sn=${seg//\'/}; sn=${sn//\"/}; sn=${sn//\\/}
   smention=0; [[ $sn =~ $re_name ]] && smention=1
-  case $verb in eval|source) deny "$verb" ;; .) qdot && deny "$verb" ;; esac
+  case $verb in eval|source|.) deny "$verb" ;; esac
   # A write verb whose arguments hold a command substitution writes to a target
   # nobody can read from the text: denied, backticks like $( (A-44).
   case $verb in

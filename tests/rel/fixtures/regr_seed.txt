@@ -42,3 +42,10 @@ rm "`ls INBOX.md`"
 xargs rm < `ls INBOX.md`
 tee `ls ../Other/INBOX.md` < /dev/null
 dd if=/dev/zero of=`ls INBOX.md`
+echo a\ #b; . ./x.sh
+echo a\	#b; . ./x.sh
+echo `#`; . ./x.sh
+echo ${x/ #/y}; . ./x.sh
+echo ${x:- #}; . ./x.sh
+x=a\ #b; . ./x.sh
+[[ a == a\ #b ]]; . ./x.sh
