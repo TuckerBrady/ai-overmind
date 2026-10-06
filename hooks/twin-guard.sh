@@ -769,7 +769,9 @@ readonly_ok() { # verb, args... -> 0 when the part only reads
 # here; only the outcome detector covers what such a command writes.
 set -f
 re_se='(^|[[:space:];&|()<>`'"'"'"{}])(source|eval)([[:space:];&|()<>`'"'"'"{}]|$)'
-re_dot='(^|[;&|({`]|(^|[[:space:];&|({`])(if|then|do|else|elif|while|until|!|time|command|builtin|coproc))[[:space:]]*[.]([[:space:];&|)<>]|$)'
+# copro[c] is the word coproc, spelled so the bash 3.2 lint (which flags the
+# bash 4 builtin) doesn't read this pattern as a use of it.
+re_dot='(^|[;&|({`]|(^|[[:space:];&|({`])(if|then|do|else|elif|while|until|!|time|command|builtin|copro[c]))[[:space:]]*[.]([[:space:];&|)<>]|$)'
 dse=${cmd//\\/}
 for v in "$cmd" "$dse" "$norm"; do
   v=${v//$'\n'/;}; v=${v//$'\r'/;}

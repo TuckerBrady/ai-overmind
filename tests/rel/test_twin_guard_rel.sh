@@ -169,7 +169,8 @@ echo \${x:- #}; . ./x.sh
 x=a\\ #b; . ./x.sh
 [[ a == a\\ #b ]]; . ./x.sh
 EOF
-for c in "echo 1"$'\n'". ./x.sh" "echo 1 # it's"$'\n'". ./x.sh"$'\n'"echo 2 # '" "echo \"source x\""; do
+for c in "echo 1"$'\n'". ./x.sh" "echo 1 # it's"$'\n'". ./x.sh"$'\n'"echo 2 # '" "echo \"source x\"" \
+         "true; . ./x.sh" "x=1 . ./y" "(. ./z)"; do
   r=$(gk "" PreToolUse "$seat" "$c" qd2)
   case $r in *'"permissionDecision":"deny"'*) ;; *) bad=1; echo "    allowed: ${c//$'\n'/ \\n }" ;; esac
 done
@@ -348,6 +349,9 @@ fi
 
 t "A-38 P2: when the cwd walk and the project-dir walk find different teams, both are watched"
 dA="$tmp/p3/deep/er/teamA"; dB="$tmp/p3/tB"; mkab "$dA"; mkab "$dB"
+# The 20k-file case above leaves a cut-off Post's busy marker; once it is over
+# 15 s old the next Pre is denied to report it, which isn't what this case tests.
+rm -f "$tmp/snaps/ovm-twin-guard/"*.busy
 echo 'printf t >> "../Other/IN""BOX.md"' > "$tmp/w4.sh"
 out=$(CLAUDE_PROJECT_DIR="$dB/Seat" twinrun "" "$dA/Seat" "sh '$tmp/w4.sh'" p3a)
 echo 'printf t >> "'"$dB"'/Other/IN""BOX.md"' > "$tmp/w5.sh"
