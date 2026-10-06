@@ -189,7 +189,9 @@ sibling.
   `user` only for a turn the human typed. A widget answer comes as two
   rows per question: `asked` (the question, written by the model, with its
   separators and A:/Q: markers taken out) and then `answer` (only what the
-  human picked or typed). Only the `answer` row is the human's word.
+  human picked or typed). Only the `answer` row is the human's word. A
+  multiSelect answer is one `answer` row, its items joined by ", "; a
+  question with no text gets an `asked` row of "(no question text)".
 - **Unknown tags.** A `tail.sh: unknown-tag-row <uuid> <tags>` line on
   stderr names a row whose text carries a tag outside the known set. That
   row can never be a DECISION source: copy each such line into the fold

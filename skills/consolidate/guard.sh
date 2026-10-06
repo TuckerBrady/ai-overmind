@@ -53,7 +53,10 @@
 #      Session is exactly this sid8 with Class SUPERSEDED or DIVERGED and
 #      Result "nothing unique" or "folded: ...", or fails invariant.sh
 #   15 cannot verify: not a git work tree, any A-39 condition above, no
-#      remote-tracking refs, a path that cannot be read or holds a newline,
+#      remote-tracking refs, a remote that is a local path inside the work
+#      tree, a path name git would read differently from disk (any control
+#      byte including CR and LF, a backslash, or a path part starting with a
+#      double quote), a path that cannot be read,
 #      more than 200000 files, or a branch has a GitHub upstream and gh is
 #      missing, unauthenticated or failing
 #   2  bad usage

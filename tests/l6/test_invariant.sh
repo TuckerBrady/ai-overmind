@@ -133,6 +133,13 @@ r=$(check "$tmp/b2.md"); case $r in "1|"*"1589a98d-D2 cites answer:$(uuid 3) but
 t "A-46 B2: an answer: DECISION with no ## Answers at all fails"
 good | sed "s/^| 1589a98d-D2 | DECISION | user:/| 1589a98d-D2 | DECISION | answer:/" > "$tmp/b2b.md"
 r=$(check "$tmp/b2b.md"); case $r in "1|"*"not an answer listed"*) pass ;; *) fail "$r" ;; esac
+t "r8 an answer: DECISION quoting a multiSelect answer (items joined by comma) passes"
+good | sed "s/^| 1589a98d-D2 | DECISION | user:\([^|]*\)| \([^|]*\)| Tray starts with two pieces |/| 1589a98d-D2 | DECISION | answer:\1| \2| Instagram (Reels), TikTok, YouTube (Shorts) |/" > "$tmp/ms.md"
+printf '\n## Answers\n| Source | Answer |\n|---|---|\n| %s | Instagram (Reels), TikTok, YouTube (Shorts) |\n' "$(uuid 3)" >> "$tmp/ms.md"
+r=$(check "$tmp/ms.md"); case $r in "0|"*) pass ;; *) fail "$r" ;; esac
+t "r8 ...and one item short of the listed answer fails"
+sed 's/^\(| 1589a98d-D2 | DECISION .*\)| Instagram (Reels), TikTok, YouTube (Shorts) |$/\1| Instagram (Reels), TikTok |/' "$tmp/ms.md" > "$tmp/ms2.md"
+r=$(check "$tmp/ms2.md"); case $r in "1|"*"not an answer listed"*) pass ;; *) fail "$r" ;; esac
 t "A-46 N3: ## Unknown tags is required"
 good | LC_ALL=C grep -v '^## Unknown tags' > "$tmp/n3.md"
 r=$(check "$tmp/n3.md"); case $r in "1|"*"no ## Unknown tags section"*) pass ;; *) fail "$r" ;; esac

@@ -12,9 +12,13 @@
 #              {"kind":"human"}. Harness blocks the app adds to it
 #              (<system-reminder>, <artifact-view-context>, <bash-stdout>
 #              and the like) are cut out of it.
-#   answer     what the human picked or typed in an AskUserQuestion widget:
-#              the harness-written result of an AskUserQuestion call this
-#              transcript made, printed "A: <answer> | Q: <question>" (A-40).
+#   asked      the question of an AskUserQuestion call (text the model
+#              wrote), with "|", ";" and A:/Q: markers taken out, or
+#              "(no question text)"; never a DECISION source
+#   answer     what the human picked or typed in that widget, alone on its
+#              row, right after its asked row: the harness-written result of
+#              an AskUserQuestion call this transcript made (A-40, A-46). A
+#              multiSelect answer is its items joined by ", ".
 #   assistant  the assistant's own text.
 # Everything else is left out: tool_use and other tool_result payloads,
 # thinking, skill bodies and other meta records, compaction summaries,
@@ -106,12 +110,37 @@ function rval(path, depth,   t, key, i) {
       # A key written with an escape (isMet<backslash>u0061) would be read by
       # a real JSON parser as a different key than it is here: fail closed.
       if (index(key, "\\") && (path == "" || path == "message" || path == "origin" || path == "toolUseResult" || path ~ /^message\.content\[[0-9]+\]$/)) { BAD = 1; return }
+      # A key that appears twice at the top or inside toolUseResult (a real
+      # parser keeps one, this one would read another): fail closed (N5).
+      if (path == "" || path == "toolUseResult") {
+        if ((path SUBSEP key) in KSEEN) { BAD = 1; return }
+        KSEEN[path SUBSEP key] = 1
+      }
       # toolUseResult.answers: question text -> the answer the human chose
       # or typed in the AskUserQuestion widget. Only string answers count.
-      if (path == "toolUseResult.answers" && TT[TI] == ":" && TT[TI + 1] == "s") {
-        if (key in AQSEEN) { BAD = 1; return }
+      if (path == "toolUseResult.answers") {
+        # A question key with a \u escape could equal another key once a
+        # real parser decodes it: fail closed (N5).
+        if (key in AQSEEN || index(key, "\\u")) { BAD = 1; return }
         AQSEEN[key] = 1
-        TI++; NANS++; AQ[NANS] = key; AA[NANS] = substr(S, TS[TI], TL[TI]); TI++
+        if (TT[TI] != ":") { BAD = 1; return }
+        TI++; NANS++; AQ[NANS] = key
+        if (TT[TI] == "s") { AA[NANS] = substr(S, TS[TI], TL[TI]); TI++ }
+        else if (TT[TI] == "[") {
+          # multiSelect: a list of strings, joined by ", " with the
+          # separators taken out of each item
+          TI++; AA[NANS] = ""
+          while (TT[TI] != "]") {
+            if (TT[TI] != "s") { BAD = 1; return }
+            item = substr(S, TS[TI], TL[TI]); gsub(/[|;,]/, " ", item); gsub(/^ +| +$/, "", item)
+            if (item != "") AA[NANS] = AA[NANS] (AA[NANS] == "" ? "" : ", ") item
+            TI++
+            if (TT[TI] == ",") TI++
+            else if (TT[TI] != "]") { BAD = 1; return }
+          }
+          TI++
+        }
+        else { BAD = 1; return }
         if (TT[TI] == ",") { TI++; continue }
         if (TT[TI] == "}") { TI++; return }
         BAD = 1; return
@@ -290,7 +319,7 @@ BEGIN {
   if (length(S) > 65536) gsub(/"data": ?"[A-Za-z0-9+\/=]+"/, "\"data\":\"\"", S)
   if (length(S) > 1048576) { SKIP++; next }
   BAD = 0; HASORIGIN = 0; OKEYS = 0; ORIGX = 0; NANS = 0
-  split("", AQ); split("", AA); split("", AQSEEN); split("", ROWUNK)
+  split("", AQ); split("", AA); split("", AQSEEN); split("", KSEEN); split("", ROWUNK)
   split("", TT); split("", TS); split("", TL); split("", TV)
   tokenize(); TI = 1
   split("", V); split("", T)
@@ -307,10 +336,11 @@ BEGIN {
       if (V["message.content[" i "].type"] == "tool_use" && V["message.content[" i "].name"] == "AskUserQuestion")
         ASK[V["message.content[" i "].id"]] = 1
   }
-  # The harness writes the result of an AskUserQuestion call: the
-  # click or typed answer of the human (A-40), matched to a call this transcript
-  # made, and gets the same harness stripping as a typed turn. The question
-  # is model text, so the answer comes first: "A: <answer> | Q: <question>".
+  # The harness writes the result of an AskUserQuestion call: the click or
+  # typed answer of the human (A-40), matched to a call this transcript made,
+  # with the same harness stripping as a typed turn. The question is model
+  # text, so it gets its own "asked" row and the answer its own "answer"
+  # row (A-46): nothing in a question can reach an answer row.
   if (ty == "user" && !HASORIGIN && ("message.content[0].type" in V) && !("message.content[1].type" in V) &&
       V["message.content[0].type"] == "tool_result" && (V["message.content[0].tool_use_id"] in ASK) &&
       V["message.content[0].is_error"] != "true") {
@@ -328,6 +358,7 @@ BEGIN {
       q = AQ[k]
       gsub(/[|;]/, " ", q)
       gsub(/(^|[^A-Za-z])[AaQq][ ]*:/, " ", q)
+      if (q ~ /^[ ]*$/) q = "(no question text)"
       emit("asked", q)
       emit("answer", a)
     }

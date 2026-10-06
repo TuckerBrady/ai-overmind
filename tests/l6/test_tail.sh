@@ -367,6 +367,40 @@ t "A-46 N4/N5: an empty or duplicate-key answer record is skipped and counted"
 t "A-46 N2: the exact interrupt strings are not counted as noorigin"
 LC_ALL=C grep -qx 'tail.sh: noorigin=0' "$tmp/a46.err" && pass || fail "$(cat "$tmp/a46.err")"
 
+# --- r7 findings: multiSelect answers, N5 -----------------------------------------
+y="$tmp/r8.jsonl"
+{
+  # the real shape (transcript 0c7d43ef, record dd74063f): one multiSelect
+  # array among string answers
+  ask 160 toolu_M
+  ans 161 toolu_M '{"Which platforms do you actually want to post to?":["Instagram (Reels)","TikTok","YouTube (Shorts)"],"How do you want to use this app day to day?":"Just for me (Recommended)"}'
+  # separators inside an item are taken out
+  ask 162 toolu_M2
+  ans 162 toolu_M2 '{"Close which?":["Draft A; and | more","Draft B"]}'
+  # N5: a duplicated toolUseResult, a duplicated answers key, an escaped question key
+  ask 163 toolu_X9
+  printf '{"type":"user","uuid":"%s","timestamp":"t","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_X9","content":"x"}]},"toolUseResult":{"answers":{"Qa":"FORGE8a hidden"}},"toolUseResult":{"answers":{"Qb":"other"}}}\n' "$(uuid 164)"
+  ask 165 toolu_X19; ans 166 toolu_X19 '{"Qa":"FORGE8b shadowed"},"answers":{"Qb":"other"}'
+  ask 167 toolu_X8; ans 168 toolu_X8 "{\"Q1\":\"FORGE8c first\",\"Q${BS}u0031\":\"second\"}"
+  # a question key that is empty still gets an asked row
+  ask 169 toolu_E2; ans 170 toolu_E2 '{"":"answer with no question"}'
+} > "$y"
+yout=$("$SB" "$tail_sh" "$y" 1000 2> "$tmp/r8.err")
+yrow() { printf '%s\n' "$yout" | LC_ALL=C awk -F '\t' -v u="$(uuid "$1")" '$1 == u { print $2 "\t" $4 }' | tr '\n' '~'; }
+t "r8 a multiSelect answer is one answer row, its items joined by comma (real shape, dd74063f)"
+[ "$(yrow 161)" = "asked	Which platforms do you actually want to post to?~answer	Instagram (Reels), TikTok, YouTube (Shorts)~asked	How do you want to use this app day to day?~answer	Just for me (Recommended)~" ] && pass || fail "got: $(yrow 161)"
+t "r8 separators inside a multiSelect item are taken out"
+case $(yrow 162) in "asked	Close which?~answer	Draft A  and   more, Draft B~") pass ;; *) fail "got: $(yrow 162)" ;; esac
+t "r8 N5 a duplicated toolUseResult, a duplicated answers key or an escaped question key is skipped and counted"
+[ -z "$(yrow 164)$(yrow 166)$(yrow 168)" ] && ! printf '%s\n' "$yout" | LC_ALL=C grep -q 'FORGE8' && LC_ALL=C grep -qx 'tail.sh: skipped=3' "$tmp/r8.err" && pass ||
+  fail "rows: $(yrow 164)$(yrow 166)$(yrow 168) / $(cat "$tmp/r8.err")"
+t "r8 an answer whose question key is empty gets an asked row of (no question text)"
+[ "$(yrow 170)" = "asked	(no question text)~answer	answer with no question~" ] && pass || fail "got: $(yrow 170)"
+t "r8 real data: the multiSelect answer in transcript 0c7d43ef appears (read-only)"
+ms=""; for rt in "$HOME/.claude/projects"/*/0c7d43ef*.jsonl "${REAL_HOME:-/c/Users/tucka}/.claude/projects"/*/0c7d43ef*.jsonl; do [ -f "$rt" ] && { ms=$rt; break; }; done
+if [ -z "$ms" ]; then echo "  not reachable on this host: the real transcript is not here"; skips=$((skips + 1)); pass
+else "$SB" "$tail_sh" "$ms" 100000 2>/dev/null | LC_ALL=C awk -F '\t' '$2 == "answer" { print $4 }' | LC_ALL=C grep -qx 'Instagram (Reels), TikTok, YouTube (Shorts)' && pass || fail "multiSelect answer missing"; fi
+
 t "A-40 real data: the widget answers in transcripts 32712af0 and ff1c9533 appear (read-only)"
 found=0; tried=0
 for id in 32712af0 ff1c9533; do
