@@ -153,6 +153,23 @@ check_tree() { # $1 directory, $2 1 if this is a nested repository
     return
   fi
 
+  # A-46 N1: a remote whose URL is a local path at or under this work tree
+  # lives inside what archiving deletes: it cannot vouch for anything.
+  g "$top" config --includes --get-regexp '^remote\..*\.url$' 2>/dev/null | while read -r _ u; do
+    case $u in
+      file://*) u=${u#file://}; case $u in /[A-Za-z]:/*) u=${u#/} ;; esac ;;
+      *://*) continue ;;
+      [A-Za-z]:[\\/]*|/*|.*|~*) ;;
+      *:*) continue ;;
+    esac
+    case $u in /*|[A-Za-z]:[\\/]*) ;; *) u="$top/$u" ;; esac
+    c=$(canon "$u"); [ -n "$c" ] || continue
+    case $c/ in "$treal"/*) echo "$u"; break ;; esac
+  done > "$f.localremote"
+  if [ -s "$f.localremote" ]; then
+    flag 15 "a remote is a local path inside the work tree ($(head -n 1 "$f.localremote")); cannot verify $top"; return
+  fi
+
   # Refs: every local ref, the per-worktree refs, and every stash entry (the
   # stash reflog, not only its tip) must be reachable from the remotes.
   g "$top" for-each-ref --format='%(objectname)' refs/worktree refs/bisect > "$f.extra" 2>/dev/null
@@ -187,6 +204,15 @@ check_tree() { # $1 directory, $2 1 if this is a nested repository
     flag 15 "cannot read every path below $top: $(head -n 1 "$f.err1" "$f.err2" "$f.err3" "$f.err4" 2>/dev/null | LC_ALL=C grep -v '^==>' | LC_ALL=C grep . | head -n 1)"
     return
   fi
+  # A-46 B1: a name git would read differently from the bytes on disk. On
+  # --stdin-paths git unquotes a line that starts with a quote and drops a
+  # trailing CR, so "README.md" (with quotes) or README.md<CR> would hash
+  # as the pushed README.md. Any control byte, a backslash, or a path part
+  # that starts with a quote: cannot verify.
+  odd=$(cat "$f.files" "$f.links" "$f.dirs" "$f.git" | LC_ALL=C awk -v BINMODE=3 '/[\001-\037\177]/ || index($0, "\\") || /\/"/ { print; exit }')
+  if [ -n "$odd" ]; then
+    flag 15 "a path name git would read differently from disk ($(printf '%s' "$odd" | LC_ALL=C tr -c '[:print:]' '?')); cannot verify $top"; return
+  fi
   # Classify (relative paths). Out: $f.keep (files to verify), $f.klinks
   # (symlinks to verify), $f.nested (outermost nested repositories),
   # $f.skipped (rebuildable directories left out).
@@ -210,6 +236,12 @@ check_tree() { # $1 directory, $2 1 if this is a nested repository
       for (n in NR_) { if (!under(parent(n), NR_)) { OUT[n] = 1; print n > (f ".nested") } }
       # a nested repository anywhere inside a directory taints all its ancestors
       for (n in NR_) { q = parent(n); while (q != "") { HASGIT[q] = 1; q = parent(q) } }
+      # A bare repository (HEAD beside config) inside a build directory:
+      # that directory is not rebuildable either (A-46 N1).
+      for (r in F) if (r ~ /(^|\/)HEAD$/) {
+        b = parent(r)
+        if (((b == "" ? "" : b "/") "config") in F) { q = b; while (q != "") { HASGIT[q] = 1; q = parent(q) } }
+      }
       for (d in D) {
         if (d in HASGIT || d in NR_) continue
         last = d; sub(/.*\//, "", last); par = parent(d)

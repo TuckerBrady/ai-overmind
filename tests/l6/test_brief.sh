@@ -64,6 +64,9 @@ $1
 |---|---|---|
 $3
 
+## Unknown tags
+none
+
 ## Close
 EOF
 }
@@ -148,6 +151,8 @@ ANCHOR: x (aaaaaaaa)
 ## Also open (0)
 | Item | Rank | Text |
 |---|---|---|
+## Unknown tags
+none
 ## Close
 EOF
 r=$(check "$tmp/e.md"); case $r in "0|"*) pass ;; *) fail "$r" ;; esac
@@ -175,6 +180,10 @@ t "SKILL (A-41): unknown-tag rows go to ## Unknown tags and are asked as questio
 has "## Unknown tags" && has "never a DECISION source" && pass || fail "unknown-tag rule missing"
 t "SKILL (A-39): the guard fails closed and says so"
 has "fails closed" && has "core.worktree" && has "never touches the network" && pass || fail "fail-closed description missing"
+t "SKILL (A-46 N6): more than 3 siblings split across questions or use a typed list"
+has "with more than 3 siblings, split them across two multiSelect questions" && pass || fail "N6 rule missing"
+t "SKILL (A-46 B2): decision words come from answer rows, copied into ## Answers"
+has "Never take decision words from an \`asked\` row" && has "## Answers" && pass || fail "answer-field rule missing"
 t "SKILL: brief.sh runs, and the close waits on it"
 has "bash brief.sh" && pass || fail "brief.sh not run"
 

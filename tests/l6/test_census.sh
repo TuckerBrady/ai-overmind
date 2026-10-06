@@ -4,7 +4,7 @@
 # ID and changed in the last 7 days. Another seat's claim is never listed.
 set -u
 here=$(cd "$(dirname "$0")" && pwd); repo=${here%/tests/l6}
-ok=0; no=0; name=""
+ok=0; no=0; skips=0; name=""
 t() { name=$1; }
 pass() { ok=$((ok+1)); }
 fail() { no=$((no+1)); echo "  FAIL: $name: $1"; }
@@ -65,7 +65,7 @@ if ln -s "$cl" "$root2/_claims" 2>/dev/null && [ -L "$root2/_claims" ]; then
   o3=$("$SB" "$census" "$root2" AXM-046 "$tmp/none" T-Bot)
   [ -z "$o3" ] && pass || fail "listed through a symlink: $o3"
 else
-  echo "  not reachable on this FS: symlinked _claims"; pass
+  echo "  not reachable on this FS: symlinked _claims"; skips=$((skips + 1)); pass
 fi
 
 t "a control byte in a transcript's cwd is stripped"
@@ -93,4 +93,5 @@ t "A-17: m-017, -17 and M- are rejected"
 "$SB" "$census" "$root" M- "$proj" T-Bot > /dev/null 2>&1; c=$?
 [ "$a$b$c" = 222 ] && pass || fail "got $a $b $c"
 
+echo "  SKIP: ${skips:-0} case(s) not reachable on this host; CI covers the other platforms"
 echo "$([ $no -eq 0 ] && echo PASS || echo FAIL) ${0##*/} ($((ok+no)) cases)"; [ $no -eq 0 ]

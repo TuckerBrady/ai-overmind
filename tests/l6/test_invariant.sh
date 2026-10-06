@@ -53,6 +53,9 @@ ANCHOR: AXM-046 (consolidated 20261004-2210) (f8d87694)
 ## Conflicts
 - 1589a98d-D3 vs anchor-D1: checkpoint cadence. Tucker decides.
 
+## Unknown tags
+none
+
 ## Close
 | Session | Class | Result |
 |---|---|---|
@@ -121,7 +124,18 @@ case $r in "1|"*"malformed Merged item"*) pass ;; *) fail "$r" ;; esac
 
 t "A-40 a DECISION sourced from a widget answer (answer:<uuid>) passes"
 good | sed "s/^| 1589a98d-D2 | DECISION | user:/| 1589a98d-D2 | DECISION | answer:/" > "$tmp/a40.md"
+printf '\n## Answers\n| Source | Answer |\n|---|---|\n| %s | Tray starts with two pieces |\n' "$(uuid 3)" >> "$tmp/a40.md"
 r=$(check "$tmp/a40.md"); case $r in "0|"*) pass ;; *) fail "$r" ;; esac
+t "A-46 B2: an answer: DECISION whose text is not the listed answer fails (the r6 forged fold)"
+good | sed "s/^| 1589a98d-D2 | DECISION | user:/| 1589a98d-D2 | DECISION | answer:/" > "$tmp/b2.md"
+printf '\n## Answers\n| Source | Answer |\n|---|---|\n| %s | Option 1 |\n' "$(uuid 3)" >> "$tmp/b2.md"
+r=$(check "$tmp/b2.md"); case $r in "1|"*"1589a98d-D2 cites answer:$(uuid 3) but its text is not an answer listed"*) pass ;; *) fail "$r" ;; esac
+t "A-46 B2: an answer: DECISION with no ## Answers at all fails"
+good | sed "s/^| 1589a98d-D2 | DECISION | user:/| 1589a98d-D2 | DECISION | answer:/" > "$tmp/b2b.md"
+r=$(check "$tmp/b2b.md"); case $r in "1|"*"not an answer listed"*) pass ;; *) fail "$r" ;; esac
+t "A-46 N3: ## Unknown tags is required"
+good | LC_ALL=C grep -v '^## Unknown tags' > "$tmp/n3.md"
+r=$(check "$tmp/n3.md"); case $r in "1|"*"no ## Unknown tags section"*) pass ;; *) fail "$r" ;; esac
 t "A-40 assistant: is still refused, and so is any other role"
 good | sed "s/^| 1589a98d-D2 | DECISION | user:/| 1589a98d-D2 | DECISION | system:/" > "$tmp/a40b.md"
 r=$(check "$tmp/a40b.md"); case $r in "1|"*"1589a98d-D2 is not sourced from a human turn"*) pass ;; *) fail "$r" ;; esac
@@ -197,6 +211,7 @@ gen() { # writes $tmp/g.md, $tmp/g.items (D/Q items), $tmp/g.decs
     echo "## Merged record"; echo "| Item | Kind | Status | Text |"; echo "|---|---|---|---|"
     cat "$tmp/g.mer"
     echo "## Conflicts"; cat "$tmp/g.conf"
+    echo "## Unknown tags"; echo "none"
     echo "## Close"
   } > "$tmp/g.md"
 }

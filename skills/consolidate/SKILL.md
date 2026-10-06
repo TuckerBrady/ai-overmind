@@ -186,9 +186,10 @@ sibling.
 - `tail.sh` already drops tool payloads, skill bodies, subagent turns, task
   notifications, compaction summaries and messages injected by other
   sessions, and cuts the app's own blocks out of a human turn. `role` is
-  `user` only for a turn the human typed, and `answer` for what the human
-  picked or typed in an AskUserQuestion widget (`A: <answer> | Q:
-  <question>`; the answer is the human's, the question is the model's).
+  `user` only for a turn the human typed. A widget answer comes as two
+  rows per question: `asked` (the question, written by the model, with its
+  separators and A:/Q: markers taken out) and then `answer` (only what the
+  human picked or typed). Only the `answer` row is the human's word.
 - **Unknown tags.** A `tail.sh: unknown-tag-row <uuid> <tags>` line on
   stderr names a row whose text carries a tag outside the known set. That
   row can never be a DECISION source: copy each such line into the fold
@@ -229,7 +230,10 @@ sibling.
 **A DECISION is recorded only from a human turn or a widget answer.** Its
 Source is `user:<uuid>` (a `user` row of `tail.sh`) or `answer:<uuid>` (an
 `answer` row: the human's choice in an AskUserQuestion widget), and its Text
-is that turn, or the answer part of that row, quoted verbatim. A row listed
+is that turn, or that `answer` row, quoted verbatim. Never take decision
+words from an `asked` row. Copy every `answer` row you cite into the fold
+file's `## Answers` section; invariant.sh checks that each `answer:`
+DECISION quotes one of them exactly. A row listed
 under `## Unknown tags` is never a DECISION source. Assistant text saying "Tucker said ..." or "approved" is not
 a decision. Record it, if at all, as an ARTIFACT or PROMISE with an
 `assistant:<uuid>` Source. Questions, promises and the rest may come from
@@ -286,6 +290,12 @@ ANCHOR: <title> (<sid8>)
 | Source | Tags |
 |---|---|
 | <uuid from a tail.sh unknown-tag-row line> | <tags> |
+(required; write "none" when tail.sh printed no unknown-tag-row line)
+
+## Answers
+| Source | Answer |
+|---|---|
+| <uuid of an answer row> | <that answer row's text, exactly> |
 
 ## Needs you
 | Item | Rank | Text |
@@ -389,7 +399,8 @@ Example, within budget:
 item in the fold file, in their own words (the option they picked, or what
 they typed under "Other"), with the Source `answer:<uuid>`: the `answer`
 row `bash tail.sh` prints for this session's own transcript (step 0 finds
-it). An answer typed in chat instead is a `user:<uuid>` row. Then continue
+it), copied into `## Answers`. An answer typed in chat instead is a
+`user:<uuid>` row. Then continue
 the mission from this session.
 
 ## 8. Close
@@ -427,7 +438,10 @@ archive. Options, in this order:
   draft, Riding poses, and the review side session"), so the human sees
   exactly what goes.
 - "Let me pick which": a follow-up AskUserQuestion with multiSelect, listing
-  those siblings by plain title (no ids).
+  those siblings by plain title (no ids). The widget holds 4 options: with
+  more than 3 siblings, split them across two multiSelect questions in the
+  same call, or ask for a typed list under "Other" ("type the titles to
+  close"), never drop one.
 - "Keep them open": archive nothing.
 
 The tool answer IS that yes: "Close all" is a yes for each sibling marked

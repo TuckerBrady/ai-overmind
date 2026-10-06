@@ -109,6 +109,8 @@ function rval(path, depth,   t, key, i) {
       # toolUseResult.answers: question text -> the answer the human chose
       # or typed in the AskUserQuestion widget. Only string answers count.
       if (path == "toolUseResult.answers" && TT[TI] == ":" && TT[TI + 1] == "s") {
+        if (key in AQSEEN) { BAD = 1; return }
+        AQSEEN[key] = 1
         TI++; NANS++; AQ[NANS] = key; AA[NANS] = substr(S, TS[TI], TL[TI]); TI++
         if (TT[TI] == ",") { TI++; continue }
         if (TT[TI] == "}") { TI++; return }
@@ -288,7 +290,7 @@ BEGIN {
   if (length(S) > 65536) gsub(/"data": ?"[A-Za-z0-9+\/=]+"/, "\"data\":\"\"", S)
   if (length(S) > 1048576) { SKIP++; next }
   BAD = 0; HASORIGIN = 0; OKEYS = 0; ORIGX = 0; NANS = 0
-  split("", AQ); split("", AA); split("", ROWUNK)
+  split("", AQ); split("", AA); split("", AQSEEN); split("", ROWUNK)
   split("", TT); split("", TS); split("", TL); split("", TV)
   tokenize(); TI = 1
   split("", V); split("", T)
@@ -312,15 +314,23 @@ BEGIN {
   if (ty == "user" && !HASORIGIN && ("message.content[0].type" in V) && !("message.content[1].type" in V) &&
       V["message.content[0].type"] == "tool_result" && (V["message.content[0].tool_use_id"] in ASK) &&
       V["message.content[0].is_error"] != "true") {
-    if (NANS == 0) next
-    text = ""
+    # One result per call: a second result for the same id is a replay.
+    delete ASK[V["message.content[0].tool_use_id"]]
+    # An answer record with no answers in it is a shape not understood.
+    if (NANS == 0) { SKIP++; next }
     for (k = 1; k <= NANS; k++) {
-      CUT = 0; a = userblock(AA[k]); if (a ~ /^[ ]*$/) continue
-      if (tolower(a) ~ CLOSERE) { SKIP++; next }
-      text = text (text == "" ? "" : " ; ") "A: " a " | Q: " AQ[k]
+      CUT = 0; a = userblock(AA[k])
+      if (a ~ /^[ ]*$/) { SKIP++; continue }
+      if (tolower(a) ~ CLOSERE) { SKIP++; continue }
+      # Two rows per question (A-46): "asked" carries the question (text
+      # the model wrote), every separator and marker taken out; "answer"
+      # carries only what the human picked or typed.
+      q = AQ[k]
+      gsub(/[|;]/, " ", q)
+      gsub(/(^|[^A-Za-z])[AaQq][ ]*:/, " ", q)
+      emit("asked", q)
+      emit("answer", a)
     }
-    if (text == "") next
-    emit("answer", text)
     next
   }
   human = 0
@@ -339,6 +349,8 @@ BEGIN {
           if (bt == "text" && V["message.content[" i "].text"] != "") hastext = 1
           else if (bt != "text" && bt != "image") notext = 1
         }
+        it = (T["message.content"] == "s") ? V["message.content"] : V["message.content[0].text"]
+        if (it ~ /^\[Request interrupted by user( for tool use)?\]$/) hastext = 0
         if (hastext && !notext) NOORIGIN++
       }
       next

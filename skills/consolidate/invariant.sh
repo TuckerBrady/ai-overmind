@@ -10,9 +10,13 @@
 #      decision the assistant reported ("Tucker said ...") is not one.
 #   1b. no DECISION comes from a row that carried an unknown tag (A-41): its
 #      quoted text holds no <tag> other than the slash-command tags, and its
-#      Source is not listed under the optional ## Unknown tags section
-#      (rows "| <uuid> | <tags> |", copied from tail.sh's unknown-tag-row
-#      lines).
+#      Source is not listed under ## Unknown tags (rows "| <uuid> | <tags> |",
+#      copied from tail.sh's unknown-tag-row lines; the section is required,
+#      "none" when empty).
+#   1c. a DECISION sourced answer:<uuid> quotes exactly an answer listed for
+#      that uuid under ## Answers (rows "| <uuid> | <answer> |", copied from
+#      tail.sh's answer rows): its words come from the answer field only,
+#      never from the model-written question (A-46).
 #   2. every Inventory item of kind DECISION appears in the Merged record.
 #   3. every Inventory item of kind QUESTION appears in the Merged record.
 #   4. for DECISION and QUESTION, the Inventory row count equals the Merged
@@ -63,6 +67,11 @@ NR == 1 && /^# CONSOLIDATE / { HEAD = 1 }
   sec = trim(substr($0, 4)); SEEN[sec] = 1; hdr = 0; next
 }
 sec == "Conflicts" { CONF = CONF " " $0 " "; next }
+sec == "Answers" && /^[ \t]*\|/ {
+  if ($0 ~ /^[ \t]*\|[ \t:|-]+\|[ \t]*$/) next
+  cells($0, 2, c); if (isuuid(c[1])) ANS[c[1] SUBSEP c[2]] = 1
+  next
+}
 sec == "Unknown tags" && /^[ \t]*\|/ {
   if ($0 ~ /^[ \t]*\|[ \t:|-]+\|[ \t]*$/) next
   cells($0, 2, c); if (isuuid(c[1])) UNK[c[1]] = c[2]
@@ -82,7 +91,10 @@ sec == "Unknown tags" && /^[ \t]*\|/ {
       sid = src; sub(/^(user|answer):/, "", sid)
       if (src !~ /^(user|answer):/ || !isuuid(sid))
         bad("DECISION " item " is not sourced from a human turn (Source " src "; want user:<uuid> or answer:<uuid>)")
-      else DSRC[item] = sid
+      else {
+        DSRC[item] = sid
+        if (src ~ /^answer:/) { DANS[item] = sid; DTXT[item] = c[5] }
+      }
       t = c[5]
       while (match(t, /<[A-Za-z][A-Za-z0-9_-]*/)) {
         nm = tolower(substr(t, RSTART + 1, RLENGTH - 1)); t = substr(t, RSTART + RLENGTH)
@@ -102,8 +114,8 @@ sec == "Unknown tags" && /^[ \t]*\|/ {
 END {
   if (!HEAD) bad("malformed: line 1 is not \"# CONSOLIDATE <ID> <YYYYMMDD-HHMM>\"")
   if (!ANCHOR) bad("malformed: no ANCHOR: line")
-  split("Siblings|Inventory in|Merged record|Conflicts|Close", need, "|")
-  for (i = 1; i <= 5; i++) if (!(need[i] in SEEN)) bad("malformed: no ## " need[i] " section")
+  split("Siblings|Inventory in|Merged record|Conflicts|Unknown tags|Close", need, "|")
+  for (i = 1; i <= 6; i++) if (!(need[i] in SEEN)) bad("malformed: no ## " need[i] " section")
   for (i = 1; i <= NIO; i++) {
     it = IORDER[i]
     if (!(it in MKIND)) {
@@ -133,6 +145,8 @@ END {
     }
     bad("bad status for " it ": \"" st "\" (want CURRENT, SUPERSEDED-BY <Item> or CONFLICT <Item>)")
   }
+  for (it in DANS) if (!((DANS[it] SUBSEP DTXT[it]) in ANS))
+    bad("DECISION " it " cites answer:" DANS[it] " but its text is not an answer listed for that uuid under ## Answers")
   for (it in DSRC) if (DSRC[it] in UNK)
     bad("DECISION " it " cites " DSRC[it] ", a row listed under ## Unknown tags (" UNK[DSRC[it]] "); ask it as a question instead")
   if (FAILED) exit 1

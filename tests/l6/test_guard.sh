@@ -4,7 +4,7 @@
 # gh for the PR and auth cases), plus "lowest failing code wins" (GAP-45).
 set -u
 here=$(cd "$(dirname "$0")" && pwd); repo=${here%/tests/l6}
-ok=0; no=0; name=""
+ok=0; no=0; skips=0; name=""
 t() { name=$1; }
 pass() { ok=$((ok+1)); }
 fail() { no=$((no+1)); echo "  FAIL: $name: $1"; }
@@ -42,6 +42,7 @@ mkfold() { # $1 = Result cell for the sibling row; $2 = the decision's Source
     echo "| 1589a98d-Q1 | QUESTION | CURRENT | Which face for Ilvara? |"
     echo "## Conflicts"
     echo "none"
+    echo "## Unknown tags"; echo "none"
     echo "## Close"
   } > "$fold"
 }
@@ -521,7 +522,7 @@ rc=$(G --worktree "$tmp/pc")
 t "A-39 control: the partial clone's uploadpack payload does run for a plain lazy fetch"
 ( cd "$tmp/pc" && git cat-file -p "$(git -C "$tmp/pc" rev-parse HEAD:f1.txt)" > /dev/null 2>&1 )
 if LC_ALL=C grep -q '^up$' "$pwn" 2>/dev/null; then pass; LC_ALL=C grep -v '^up$' "$pwn" > "$tmp/pw2"; mv "$tmp/pw2" "$pwn"
-else echo "  not reachable here: this git does not lazy-fetch through uploadpack"; pass; fi
+else echo "  not reachable here: this git does not lazy-fetch through uploadpack"; skips=$((skips + 1)); pass; fi
 t "A-39 alternates -> 15"
 mkrepo "$tmp/alt"; a=$(git -C "$tmp/alt" rev-parse --git-path objects/info); mkdir -p "$tmp/alt/$a" 2>/dev/null
 echo "$(git -C "$tmp/decoy" rev-parse --absolute-git-dir)/objects" > "$tmp/alt/.git/objects/info/alternates"
@@ -569,8 +570,50 @@ if ln -s a.txt "$tmp/sl/lnk" 2>/dev/null && [ -L "$tmp/sl/lnk" ]; then
   git -C "$tmp/sl" add lnk; git -C "$tmp/sl" commit -qm l; git -C "$tmp/sl" push -q 2>/dev/null
   expect_rc 0 --worktree "$tmp/sl"
 else
-  echo "  not reachable on this FS: symlinks"; pass
+  echo "  not reachable on this FS: symlinks"; skips=$((skips + 1)); pass
 fi
+
+# --- A-46 (r6 attacks) -----------------------------------------------------------------
+# B1: a name --stdin-paths would read as another file. Each is created with a
+# probe first; a filesystem that refuses the name prints "not reachable" and
+# the case is counted as skipped.
+b1() { # label, file name (bytes), in a nested repo? (1/0)
+  local d="$tmp/b1$1" target
+  mkrepo "$d"; echo 'pushed readme' > "$d/README.md"; git -C "$d" add README.md; git -C "$d" commit -qm r; git -C "$d" push -q 2>/dev/null
+  target=$d
+  if [ "$3" = 1 ]; then
+    mkrepo "$d/inner"; echo 'pushed readme' > "$d/inner/README.md"; git -C "$d/inner" add README.md; git -C "$d/inner" commit -qm r; git -C "$d/inner" push -q 2>/dev/null
+    echo 'inner/' > "$d/.gitignore"; git -C "$d" add .gitignore; git -C "$d" commit -qm gi; git -C "$d" push -q 2>/dev/null
+    target="$d/inner"
+  fi
+  t "A-46 B1 an untracked file named $1 next to the pushed README.md -> 15"
+  if ( printf 'pushed readme\n' > "$target/$2" ) 2>/dev/null && [ -f "$target/$2" ]; then
+    expect_rc 15 --worktree "$d"
+  else
+    echo "  not reachable on this FS: a file named $1"; skips=$((skips + 1)); pass
+  fi
+}
+skips=${skips:-0}
+b1 quoted '"README.md"' 0
+b1 trailing-CR "README.md$(printf '\r')" 0
+b1 backslash 'READ\ME.md' 0
+b1 control "README$(printf '\001').md" 0
+b1 quoted-nested '"README.md"' 1
+t "A-46 N1 a remote that is a local path inside the work tree -> 15"
+git init -q "$tmp/n1"; git init -q --bare "$tmp/n1/.backup.git"; git -C "$tmp/n1" remote add origin "$tmp/n1/.backup.git"
+echo a > "$tmp/n1/a.txt"; echo '.backup.git/' > "$tmp/n1/.gitignore"; git -C "$tmp/n1" add -A; git -C "$tmp/n1" commit -qm i; git -C "$tmp/n1" push -q -u origin main 2>/dev/null
+rc=$(G --worktree "$tmp/n1")
+[ "$rc" = 15 ] && LC_ALL=C grep -q 'a remote is a local path inside the work tree' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
+t "A-46 N1 the same, written as a relative path and as file://"
+git -C "$tmp/n1" remote set-url origin .backup.git; r1=$(G --worktree "$tmp/n1")
+git -C "$tmp/n1" remote set-url origin "file://$tmp/n1/.backup.git"; r2=$(G --worktree "$tmp/n1")
+[ "$r1$r2" = 1515 ] && pass || fail "got $r1 $r2"
+t "A-46 N1 a manifest-backed node_modules that holds a bare repository is not skipped -> 11"
+mkrepo "$tmp/n1b"; echo 'node_modules/' > "$tmp/n1b/.gitignore"; echo '{}' > "$tmp/n1b/package.json"
+git -C "$tmp/n1b" add -A; git -C "$tmp/n1b" commit -qm m; git -C "$tmp/n1b" push -q 2>/dev/null
+git init -q --bare "$tmp/n1b/node_modules/stash.git"
+rc=$(G --worktree "$tmp/n1b")
+[ "$rc" = 11 ] && ! LC_ALL=C grep -q 'skipped (rebuildable) node_modules' "$tmp/out" && pass || fail "rc=$rc $(cat "$tmp/out")"
 
 t "A-34 no payload ever ran during any guard call in this file"
 [ ! -s "$pwn" ] && [ ! -e "$tmp/pwned" ] && [ ! -e "$tmp/pwned-local" ] || [ "$(cat "$pwn" 2>/dev/null)" = "" ]
@@ -584,4 +627,5 @@ r3=$(run --running 0 --fold "$fold")
 r4=$(run --session "$SID" --running 0 --fold "$fold" --bogus)
 [ "$r1$r2$r3$r4" = 2222 ] && pass || fail "got $r1 $r2 $r3 $r4"
 
+echo "  SKIP: ${skips:-0} case(s) not reachable on this host; CI covers the other platforms"
 echo "$([ $no -eq 0 ] && echo PASS || echo FAIL) ${0##*/} ($((ok+no)) cases)"; [ $no -eq 0 ]
