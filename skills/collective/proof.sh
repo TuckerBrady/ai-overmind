@@ -17,7 +17,8 @@
 # with both labels in normalized form (lowercase letters and digits), signed
 # under the namespace ai-overmind-collective. Naming the cid and the verifier
 # means a signature replayed to another verifier or Collective fails. At most
-# one round is in flight per Collective (FW-26).
+# one round is in flight per Collective (FW-26); a stale verify claim (its PID
+# dead, or over 10 minutes old) is cleared by the next issue (A-32).
 # Exit: 0 pass, 1 fail or refused, 2 usage, 3 missing state, 4 missing tool.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
@@ -38,7 +39,20 @@ case $cmd in
     me=$(label_norm "$2"); peer=$(label_norm "$3")
     [ -f "$d/pins/$peer.pub" ] || die 3 "REFUSED: $3 has no pinned key; pin it after an out-of-band fingerprint check"
     mkdir -p "$d/pending" || die 3 "cannot create $d/pending"
-    for p in "$d"/pending/* "$d"/pending/.claim.*; do
+    # A .claim.<peer>.<pid> is a verify in progress. One left by a killed
+    # verify would block every later round (A-32), so it counts only while its
+    # PID is alive and it is under 10 minutes old (verify stamps it when it
+    # claims); any other claim is stale and is cleared.
+    for p in "$d"/pending/.claim.*; do
+      [ -e "$p" ] || continue
+      pid=${p##*.}
+      case $pid in ''|*[!0-9]*) pid="" ;; esac
+      if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && [ -z "$(find "$p" -mmin +10 2>/dev/null)" ]; then
+        die 1 "REFUSED: a round is already in flight in this Collective (one at a time)"
+      fi
+      rm -f "$p" && event "$d" "cleared a stale Proof A claim (${p##*/})"
+    done
+    for p in "$d"/pending/*; do
       [ -e "$p" ] && die 1 "REFUSED: a round is already in flight in this Collective (one at a time)"
     done
     n=$(rand_hex 16)
@@ -73,6 +87,7 @@ case $cmd in
     [ -f "$sig" ] || die 2 "no such signature file: $sig"
     pf="$d/pending/$peer"; claim="$d/pending/.claim.$peer.$$"
     mv "$pf" "$claim" 2>/dev/null || die 1 "FAIL: no stored nonce for $2 (issue one first; each nonce works once)"
+    touch "$claim" 2>/dev/null   # the claim's age starts now (A-32), not at issue
     me=$(kv_get "$claim" verifier); n=$(kv_get "$claim" nonce); sp=$(kv_get "$claim" peer)
     restore() { mv "$claim" "$pf" 2>/dev/null; }
     if [ "$sp" != "$peer" ] || ! is_hex "$n" 32; then restore; die 1 "FAIL: stored nonce is malformed"; fi

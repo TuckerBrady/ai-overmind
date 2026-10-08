@@ -144,7 +144,9 @@ rk=""
 rootkey() {
   [ -n "$rk" ] && return
   local p=$root o=$PWD
-  if cd -P -- "$root" 2>/dev/null; then p=$PWD; cd -- "$o" 2>/dev/null; fi
+  # CDPATH cleared and output dropped (A-30): a CDPATH hit would print the
+  # folder, and TARS's stdout is the context.
+  if CDPATH= cd -P -- "$root" >/dev/null 2>&1; then p=$PWD; cd -- "$o" >/dev/null 2>&1; fi
   rk=$(printf '%s' "$p" | cksum); rk=${rk// /-}
 }
 
@@ -306,21 +308,42 @@ fi
 # ---------------------------------------------------------------- which seat
 # Pinned on turn 1 (or the first turn that finds no pin): the role, the team
 # root and the seat folder. A later cd elsewhere doesn't change who this is.
+#
+# Team root (OPS-030 release lane, A-37 P2): the NEAREST of the cwd and its
+# two parents that holds a live MISSION_BOARD.md. A board whose first line says
+# RETIRED BRIDGE COPY doesn't count: the live team keeps one in every seat
+# folder as a pointer, and counting it made each seat folder its own team root.
+# Nearest, so a board planted above the team root can't take it over (only the
+# twin guard takes the outermost board, for coverage). The seat folder is the root's child on
+# the way to the cwd. A pin whose root holds a retired copy is re-derived.
+liveboard() {
+  local l=""
+  [ -f "$1/MISSION_BOARD.md" ] || return 1
+  IFS= read -r -n 200 l < "$1/MISSION_BOARD.md"
+  case $l in *'RETIRED BRIDGE COPY'*) return 1 ;; esac
+  return 0
+}
 role="" root="" seatdir=""
 if [ -z "$first" ] && [ -f "$st/seat" ]; then
   { IFS= read -r role; IFS= read -r root; IFS= read -r seatdir; } < "$st/seat"
+  [ -n "$root" ] && ! liveboard "$root" && role=""
 fi
 case $role in overmind|specialist) ;; *) role="" ;; esac
 if [ -z "$role" ]; then
   root=""
-  parent=${cwd%/*}
-  if [ -f "$cwd/MISSION_BOARD.md" ]; then root=$cwd
-  elif [ -f "$parent/MISSION_BOARD.md" ]; then root=$parent
+  d=$cwd n=0
+  while (( n <= 2 )) && [ -n "$d" ]; do
+    liveboard "$d" && { root=$d; break; }
+    case $d in */*) d=${d%/*} ;; *) break ;; esac
+    n=$(( n + 1 ))
+  done
+  seatdir=$cwd
+  if [ -n "$root" ] && [ "$root" != "$cwd" ]; then
+    rel=${cwd#"$root"/}; seatdir="$root/${rel%%/*}"
   fi
   role=specialist
-  case ${cwd##*/} in *[Oo][Vv][Ee][Rr][Mm][Ii][Nn][Dd]*) role=overmind ;; esac
+  case ${seatdir##*/} in *[Oo][Vv][Ee][Rr][Mm][Ii][Nn][Dd]*) role=overmind ;; esac
   [ -n "$root" ] && [ "$root" = "$cwd" ] && role=overmind
-  seatdir=$cwd
   if [ "$role" = overmind ] && [ "$root" = "$cwd" ]; then
     shopt -s nocaseglob nullglob
     for d in "$root"/*overmind*/; do seatdir=${d%/}; break; done
@@ -605,17 +628,22 @@ fi
 # through a temp file and mv; a mkdir lock keeps two checks of one session
 # from overlapping (amendment A-13).
 tmo() {
-  if command -v timeout >/dev/null 2>&1; then timeout 8 "$@"
-  elif command -v gtimeout >/dev/null 2>&1; then gtimeout 8 "$@"
+  if command -v timeout >/dev/null 2>&1; then timeout -k 2 8 "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then gtimeout -k 2 8 "$@"
   else
     # Builtin watchdog: neither timeout nor gtimeout exists (stock macOS).
-    # The command is stopped after 8 seconds and reported as a timeout.
+    # The command gets TERM after 8 seconds and, if it is still alive 2
+    # seconds later, KILL (A-30); either way it is reported as a timeout.
     local p w rc
     "$@" &
     p=$!
     ( s=0
       while kill -0 "$p" 2>/dev/null; do
-        if (( s >= 8 )); then kill "$p" 2>/dev/null; exit 0; fi
+        if (( s >= 8 )); then
+          kill "$p" 2>/dev/null; sleep 2
+          kill -0 "$p" 2>/dev/null && kill -9 "$p" 2>/dev/null
+          exit 0
+        fi
         s=$(( s + 1 )); sleep 1
       done ) </dev/null >/dev/null 2>&1 &
     w=$!

@@ -2,7 +2,7 @@
 # One per line: name<TAB>ERE<TAB>allow-ERE (optional; a line matching it is exempt).
 # Lines starting with # and blank lines are skipped.
 case-modification	\$\{[A-Za-z_][A-Za-z0-9_]*(,,|\^\^|,|\^)\}
-mapfile/readarray/coproc	(^|[^A-Za-z0-9_])(mapfile|readarray|coproc)([^A-Za-z0-9_]|$)
+mapfile/readarray/coproc	(^|[^A-Za-z0-9_])(mapfile|readarray|coproc)([^A-Za-z0-9_]|$)	\|coproc\|
 associative-array	(declare|local|typeset) -[a-zA-Z]*A
 nameref	(declare|local|typeset) -[a-zA-Z]*n
 printf-time-format	printf[^|]*%\([^)]*\)T
@@ -14,3 +14,4 @@ transform-operator	\$\{[A-Za-z_]+@[QEPAa]\}
 negative-index	\[-[0-9]+\]
 wait-n	wait -n
 shopt-bash4	shopt -s[^#]*(globstar|lastpipe)
+array-pattern-expansion	\$\{[A-Za-z_][A-Za-z0-9_]*\[[@*]\](/|#|%)	IFS=\$' \\t\\n'

@@ -18,7 +18,7 @@ while IFS= read -r c || [ -n "$c" ]; do
   case $out in *"x.sh:2: "*) pass ;; *) fail "not flagged: $out" ;; esac
 done < "$here/fixtures/bash32_bad.txt"
 t "every listed construct was tried"
-expect "only $i" test "$i" -ge 17
+expect "only $i" test "$i" -ge 20
 
 mk ok
 while IFS= read -r c || [ -n "$c" ]; do printf '%s\n' "${c%"$cr"}"; done < "$here/fixtures/bash32_good.txt" > "$tmp/ok/x.sh"
