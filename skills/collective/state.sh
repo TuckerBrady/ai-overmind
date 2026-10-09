@@ -6,12 +6,17 @@
 # shared ledgers are compared against them; a difference is reported and never
 # adopted. Nothing here writes a binder.
 #
+#   state.sh pin-github <cid> <label> <pubkey-file> <github-user>
+#       The primary path. Run on this human's yes. Pins only when the key is
+#       among <github-user>'s SSH signing keys on GitHub (fetched with gh api,
+#       else curl); any fetch or parse failure pins nothing.
 #   state.sh pin <cid> <label> <pubkey-file> <fingerprint-confirmed-out-of-band>
-#       Run only after the two humans compared the fingerprint outside the
-#       venue AND this human said yes. The typed fingerprint must match the key.
+#       The fallback, for a peer without a usable GitHub account. Run only
+#       after the two humans compared the fingerprint outside the venue AND
+#       this human said yes. The pasted fingerprint must match the key.
 #   state.sh pin-self <cid> <label>     pin this Overmind's own key under its label
 #   state.sh unpin <cid> <label>        drop a pin (the human's call, e.g. a lost key)
-#   state.sh pins <cid>                 list label, fingerprint
+#   state.sh pins <cid>                 list label, fingerprint, source (github:<user> | oob | self)
 #   state.sh ack <cid> <commit-sha>     record the commit this sweep read up to
 #   state.sh ack-get <cid>              print it
 #   state.sh seed-ack <cid> <clone> <my-label> <ledger-path>
@@ -29,7 +34,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 umask 077
 
-usage() { die 2 "usage: state.sh pin|pin-self|unpin|pins|ack|ack-get|seed-ack|event|check-seats|check-ledger <cid> ..."; }
+usage() { die 2 "usage: state.sh pin|pin-github|pin-self|unpin|pins|ack|ack-get|seed-ack|event|check-seats|check-ledger <cid> ..."; }
 
 cmd=${1:-}
 [ $# -ge 2 ] || usage
@@ -39,9 +44,10 @@ d=$(state_dir "$cid") || exit 2
 
 trim() { local x=$1; x=${x#"${x%%[! ]*}"}; x=${x%"${x##*[! ]}"}; printf '%s' "$x"; }
 
-# do_pin LABEL PUBFILE: shared by pin and pin-self.
+# do_pin LABEL PUBFILE SOURCE: shared by pin, pin-github and pin-self. SOURCE
+# is recorded in pins/<n>.source: github:<user>, oob or self.
 do_pin() {
-  local raw=$1 pub=$2 n fp other
+  local raw=$1 pub=$2 src=$3 n fp other
   n=$(label_norm "$raw"); fp=$(fingerprint "$pub")
   mkdir -p "$d/pins" || die 3 "cannot create $d/pins"
   if [ -f "$d/pins/$n.label" ]; then
@@ -58,8 +64,12 @@ do_pin() {
   done
   key_body "$pub" | write_atomic "$d/pins/$n.pub" || die 3 "cannot write the pin"
   printf '%s\n' "$raw" | write_atomic "$d/pins/$n.label"
+  printf '%s\n' "$src" | write_atomic "$d/pins/$n.source"
   allowed_signers "$cid"
-  event "$d" "pinned $raw ($n) $fp"
+  case $src in
+    github:*) event "$d" "pinned $raw via $src $fp" ;;
+    *) event "$d" "pinned $raw ($n) $fp" ;;
+  esac
   echo "pinned: $raw $fp"
 }
 
@@ -70,7 +80,32 @@ case $cmd in
     pubkey_ok "$2" || die 2 "not a single ssh-ed25519 public key: $2"
     fp=$(fingerprint "$2")
     [ "$3" = "$fp" ] || die 1 "REFUSED: the key's fingerprint is $fp, not the one confirmed out of band ($3). Not pinned."
-    do_pin "$1" "$2"
+    do_pin "$1" "$2" oob
+    ;;
+
+  pin-github)
+    [ $# -eq 3 ] || usage
+    label_ok "$1" || die 2 "labels must be plain ASCII letters, digits, space and . _ ( ) , -"
+    gh_user_ok "$3" || die 2 "not a GitHub user name: $3 (letters, digits and -, at most 39, no leading or trailing -)"
+    pubkey_ok "$2" || die 2 "not a single ssh-ed25519 public key: $2"
+    want=$(key_body "$2")
+    gt=$(mktemp -d "${TMPDIR:-/tmp}/ovmgh.XXXXXX") || die 3 "cannot make a temp dir"
+    if ! gh_fetch_signing_keys "$3" "$gt/keys"; then
+      rm -rf "$gt"; die 1 "REFUSED: could not fetch $3's GitHub signing keys. Not pinned."
+    fi
+    if ! gh_key_bodies "$gt/keys" > "$gt/bodies"; then
+      rm -rf "$gt"; die 1 "REFUSED: GitHub's answer for $3 is not a key list. Not pinned."
+    fi
+    if [ ! -s "$gt/bodies" ]; then
+      rm -rf "$gt"; die 1 "REFUSED: $3 has no ssh-ed25519 signing keys on GitHub. Not pinned."
+    fi
+    found=0
+    while IFS= read -r kb; do
+      [ "$kb" = "$want" ] && { found=1; break; }
+    done < "$gt/bodies"
+    rm -rf "$gt"
+    [ "$found" -eq 1 ] || die 1 "REFUSED: key not among $3's GitHub signing keys. Not pinned."
+    do_pin "$1" "$2" "github:$3"
     ;;
 
   pin-self)
@@ -78,14 +113,14 @@ case $cmd in
     label_ok "$1" || die 2 "bad label"
     k=$(key_file)
     [ -f "$k.pub" ] || die 3 "no key: run identity.sh mint"
-    do_pin "$1" "$k.pub"
+    do_pin "$1" "$k.pub" self
     ;;
 
   unpin)
     [ $# -eq 1 ] || usage
     n=$(label_norm "$1")
     [ -f "$d/pins/$n.pub" ] || die 3 "no pin for $1"
-    rm -f "$d/pins/$n.pub" "$d/pins/$n.label" "$d/pending/$n"
+    rm -f "$d/pins/$n.pub" "$d/pins/$n.label" "$d/pins/$n.source" "$d/pending/$n"
     allowed_signers "$cid"
     event "$d" "unpinned $1 ($n)"
     echo "unpinned: $1"
@@ -96,7 +131,9 @@ case $cmd in
       [ -f "$p" ] || continue
       n=${p##*/}; n=${n%.pub}
       IFS= read -r raw < "$d/pins/$n.label" 2>/dev/null || raw=$n
-      printf '%s\t%s\n' "$raw" "$(fingerprint "$p")"
+      src=""
+      [ -f "$d/pins/$n.source" ] && IFS= read -r src < "$d/pins/$n.source"
+      printf '%s\t%s\t%s\n' "$raw" "$(fingerprint "$p")" "${src:-oob}"
     done
     ;;
 
@@ -166,7 +203,7 @@ EOF
           echo "DIFFERS $raw: SEATS.md shows $fp; the pin is $(fingerprint "$d/pins/$n.pub"). Not adopted."; diff=1
         fi
       else
-        echo "UNPINNED $raw: in SEATS.md, not pinned here. Pin only after an out-of-band fingerprint check and the human's yes."
+        echo "UNPINNED $raw: in SEATS.md, not pinned here. Pin only on the human's yes: state.sh pin-github, or pin after an out-of-band fingerprint check."
       fi
     done < "$1"
     for p in "$d"/pins/*.pub; do

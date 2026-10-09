@@ -5,8 +5,9 @@
 #
 # Identity is one ed25519 key per Overmind, used through `ssh-keygen -Y
 # sign|verify` (OpenSSH 8.1 or later). Peers' public keys are pinned in this
-# Overmind's private state only after an out-of-band fingerprint check and the
-# human's yes (CONTRACT A-23).
+# Overmind's private state only on the human's yes, after the key is found
+# among the peer's GitHub signing keys or its fingerprint is checked out of
+# band (CONTRACT A-23, OPS-032).
 #
 # Portability (CONTRACT 0.4, GAP-12): POSIX utilities plus ssh-keygen and git.
 # Random via od -An -tx1 -N<n> /dev/urandom. No stat, no date -d, no sed -i,
@@ -223,4 +224,81 @@ post_stamp() {
   s="${b:0:8}${b:9:4}"
   stamp_ok "$s" || return 1
   printf '%s' "$s"
+}
+
+# --- GitHub signing keys (OPS-032) -------------------------------------------
+# A peer's key reaches the verifier through the peer human's GitHub account:
+# a venue collaborator can push to the binder but cannot add a key to someone
+# else's account. The host is fixed to github.com; nothing redirects the fetch.
+
+GH_SCOPE_FIX='gh auth refresh -h github.com -s admin:ssh_signing_key'
+GH_MAX_BYTES=262144
+GH_MAX_KEYS=100
+
+# gh_user_ok USER: a GitHub login (1-39 letters, digits, '-'; no leading or
+# trailing '-').
+gh_user_ok() {
+  [ -n "$1" ] && [ ${#1} -le 39 ] || return 1
+  case $1 in *[!A-Za-z0-9-]*|-*|*-) return 1 ;; esac
+  return 0
+}
+
+# bounded SECS OUT ERR CMD...: run CMD with stdout to OUT and stderr to ERR,
+# killed after SECS seconds. Returns CMD's exit status.
+bounded() {
+  local s=$1 o=$2 e=$3 pid w rc
+  shift 3
+  "$@" > "$o" 2> "$e" < /dev/null &
+  pid=$!
+  ( sleep "$s"; kill "$pid" 2>/dev/null ) > /dev/null 2>&1 &
+  w=$!
+  wait "$pid"; rc=$?
+  kill "$w" 2>/dev/null
+  wait "$w" 2>/dev/null
+  return "$rc"
+}
+
+# gh_key_bodies FILE: from a GitHub REST key-list body (a JSON array of
+# objects with a "key" field), print the ssh-ed25519 key bodies, at most
+# GH_MAX_KEYS of them, one per line. Fails on a body over GH_MAX_BYTES or one
+# that is not a JSON array. An empty array prints nothing and succeeds.
+gh_key_bodies() {
+  local f=$1 n body
+  [ -f "$f" ] || return 1
+  n=$(wc -c < "$f" | tr -d ' ')
+  [ "$n" -le "$GH_MAX_BYTES" ] || return 1
+  body=$(tr -d '\r\n\t' < "$f")
+  body=${body#"${body%%[! ]*}"}; body=${body%"${body##*[! ]}"}
+  case $body in '['*']') ;; *) return 1 ;; esac
+  printf '%s\n' "$body" | LC_ALL=C grep -oE '"key"[ ]*:[ ]*"[^"\]*"' |
+    head -n "$GH_MAX_KEYS" |
+    sed 's/^"key"[ ]*:[ ]*"//; s/"$//' |
+    LC_ALL=C grep -E '^ssh-ed25519 [A-Za-z0-9+/]+=*( |$)' | cut -d' ' -f1,2
+  return 0
+}
+
+# gh_fetch_signing_keys USER OUT: the public REST list of USER's SSH signing
+# keys into OUT. `gh api` first, then `curl -fsS`; each bounded in time and
+# size. Fails closed: any fetch error fails, with the reason on stderr.
+gh_fetch_signing_keys() {
+  local u=$1 out=$2 e path n
+  gh_user_ok "$u" || return 2
+  path="users/$u/ssh_signing_keys?per_page=$GH_MAX_KEYS"
+  e="$out.err"
+  if command -v gh >/dev/null 2>&1 &&
+     bounded 30 "$out" "$e" gh api --hostname github.com -H 'Accept: application/vnd.github+json' "$path"; then
+    :
+  elif command -v curl >/dev/null 2>&1 &&
+     bounded 30 "$out" "$e" curl -fsS --proto '=https' --max-time 25 --max-filesize "$GH_MAX_BYTES" \
+       -H 'Accept: application/vnd.github+json' "https://api.github.com/$path"; then
+    :
+  else
+    printf 'could not fetch the GitHub signing keys of %s (gh and curl both failed or are missing)\n' "$u" >&2
+    rm -f "$e"
+    return 1
+  fi
+  rm -f "$e"
+  n=$(wc -c < "$out" | tr -d ' ')
+  [ "$n" -le "$GH_MAX_BYTES" ] || { echo "the GitHub response is over $GH_MAX_BYTES bytes" >&2; return 1; }
+  return 0
 }

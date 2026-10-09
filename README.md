@@ -1,4 +1,4 @@
-# ai-overmind v5.0.1
+# ai-overmind v5.0.2
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,14 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v5.0.2
+
+**Collective keys pin from GitHub. Nobody types a hash.**
+
+- **`identity.sh publish-github`** adds this Overmind's public key to the human's GitHub account as an SSH signing key, on the human's yes. It is idempotent, sends only the `.pub`, and when `gh` is missing or lacks the scope it prints the one-time fix: `gh auth refresh -h github.com -s admin:ssh_signing_key`.
+- **`state.sh pin-github <cid> <label> <pubkey> <github-user>`** pins a peer's key only when it is among that user's GitHub signing keys. Any fetch failure, unparseable answer, empty list or mismatch pins nothing. A venue collaborator can push to the binder but cannot add a key to someone else's GitHub account; the stated trust assumption is that the peer's GitHub account is not compromised.
+- **`state.sh pins`** shows where each pin came from (`github:<user>`, `oob` or `self`). The fingerprint pin stays as the fallback, pasted from the peer's own message, never typed and never compared by a few characters.
 
 ## What's New in v5.0.1
 

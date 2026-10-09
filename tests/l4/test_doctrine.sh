@@ -50,6 +50,20 @@ lf "$rf" | grep -q '`~/.claude/overmind/collective/id_ed25519`' && lf "$as" | gr
 t "pinning needs an out-of-band fingerprint check AND the human's yes"
 lf "$rf" | grep -q 'compared the fingerprint OUT OF BAND' && lf "$rf" | grep -q "this Overmind's human said yes" &&
   lf "$sk" | grep -q 'OUT OF BAND' && pass || fail "missing"
+t "OPS-032: GitHub signing keys are the primary pin path, with the trust assumption and its limits stated"
+lf "$rf" | grep -q 'Primary: the peer.s GitHub signing keys' && lf "$rf" | grep -q 'state.sh pin-github <cid> <label> <pubkey> <github-user>' &&
+  lf "$rf" | grep -q 'identity.sh publish-github' && lf "$rf" | grep -q "the peer's GitHub account is not compromised" &&
+  lf "$rf" | grep -q 'It does not stop a compromised GitHub account, or a peer who publishes the wrong key' &&
+  lf "$rf" | grep -q 'Fallback: a pasted fingerprint' && pass || fail "missing"
+t "OPS-032: assimilate offers publish-github after mint and the hello memo names the GitHub user"
+lf "$as" | grep -q 'on a yes, run `identity.sh publish-github`' && lf "$as" | grep -q 'the GitHub user whose signing keys carry that key' && pass || fail "missing"
+t "OPS-032: the collective VERIFY key step runs pin-github first, the pasted fingerprint as fallback"
+k=$(lf "$sk" | grep '\*Key (first seating).\*')
+case $k in *'state.sh pin-github'*'Fallback, without a usable GitHub account'*'state.sh pin <collective-id>'*) pass ;; *) fail "order or text" ;; esac
+t "OPS-032: no instruction has a human type a fingerprint, and no short-prefix comparison"
+bad=$(cat "$sk" "$as" "$rf" | tr -d '\r' | grep -niE 'typed fingerprint|type (the|a|its) fingerprint|read the fingerprint|reads it aloud|read aloud')
+[ -z "$bad" ] && lf "$rf" | grep -q 'Never compare only a few characters of a fingerprint' && pass || fail "$bad"
+
 t "assimilate checks ssh-keygen -Y and configures signing for the binder clone only"
 lf "$as" | grep -q 'identity.sh check' && lf "$as" | grep -q 'configure-binder' && lf "$as" | grep -q 'local config only, never global' && pass || fail "missing"
 t "no hash-chain verification remains (Genesis chain retired, no accept-legacy)"
