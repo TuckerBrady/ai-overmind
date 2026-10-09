@@ -37,7 +37,7 @@ case $cmd in
     cid=$1; d=$(state_dir "$cid") || exit 2
     label_ok "$2" && label_ok "$3" || die 2 "labels must be plain ASCII letters, digits, space and . _ ( ) , -"
     me=$(label_norm "$2"); peer=$(label_norm "$3")
-    [ -f "$d/pins/$peer.pub" ] || die 3 "REFUSED: $3 has no pinned key; pin it after an out-of-band fingerprint check"
+    [ -f "$d/pins/$peer.pub" ] || die 3 "REFUSED: $3 has no pinned key; pin it first (state.sh pin-github, or pin with a pasted out-of-band fingerprint)"
     mkdir -p "$d/pending" || die 3 "cannot create $d/pending"
     # A .claim.<peer>.<pid> is a verify in progress. One left by a killed
     # verify would block every later round (A-32), so it counts only while its
