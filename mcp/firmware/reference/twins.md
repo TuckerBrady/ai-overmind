@@ -10,9 +10,14 @@ A twin is a subagent (the `splinter-twin` agent shipped with this plugin) that h
 
 **How to spawn one:** invoke the agent by its full plugin-scoped name, `ai-overmind:splinter-twin` (the Agent tool's `subagent_type`), never a generic agent with a twin prompt: only that name carries the twin's tool allowlist and trips the twin guard. Give it a prompt that names the specialist, gives their seat name and the absolute path to their folder, and states the task. The seat name lets the twin boot through the team engine; the folder path is its fallback. Example prompt: *"You are a twin of Sam, Data Analyst. Seat: Sam. Their folder: [team-root]/Sam - Data Analyst/. Task: sanity-check the utilization math in [file] and flag anything off."*
 
-**Twin vs. dispatch — the test:**
-- Fits inside this session, needs only what's in the specialist's files, no follow-up state → **twin**
-- Produces real deliverables, needs their browser/tools/session memory, runs long, or the human will ask about it later → **dispatch**
+**Who does the work.** The human talks to the Overmind and points it at a job. The Overmind takes the whole job, every step plus the obvious cleanup it turns up, and decides the route itself. It never asks the human which seat should do it, and the human never routes work to a specialist.
+
+**Do it, twin, or dispatch — the test:**
+- The Overmind can do it in this session, browser and tool work included → **do it**
+- A bounded piece needs a specialist's voice, standards or files, fits inside this session, no follow-up state → **twin**
+- Runs long in parallel, needs that specialist's own session memory, or the human will want to pick it up in that specialist's session later → **dispatch**
+
+Needing a browser or tools is not by itself a reason to dispatch: the Overmind's own session has them.
 
 Twins never write to the specialist's HANDOFF.md, INBOX.md, mission-complete files (legacy mission-complete.md included), the Gopher Registry, or the Mission Board (see Splinter Twins and Gopher in gopher.md). That is enforced, not only asked: `agents/splinter-twin.md` carries a `tools:` allowlist, and the plugin's twin guard (`hooks/twin-guard.sh`) watches every twin tool call.
 
