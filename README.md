@@ -1,4 +1,4 @@
-# ai-overmind v5.0.1
+# ai-overmind v5.1.0
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,13 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v5.1.0
+
+**You talk to the Overmind; it takes the whole job.** Doctrine only, no behavior code changed.
+
+- **One front door.** Point the Overmind at a job and it carries it all the way, every step plus the obvious cleanup, deciding itself whether to do it, use a twin, or dispatch. You never route work to a specialist. Specialist sessions are the exception, for quick back-and-forth or a dispatched `/go`.
+- **Tools are not a dispatch reason.** The twin-vs-dispatch test no longer sends work out just because it needs a browser or tools; the Overmind's own session has them.
 
 ## What's New in v5.0.1
 
@@ -72,7 +79,7 @@ Everything this plugin does runs on your machine, inside the Claude Code permiss
 1. **Install** the plugin in Claude Code (above).
 2. **Create one folder** for your team — e.g. `My AI Team`. This is the team root.
 3. **Open Claude Code in that folder** and type `/engage`. The Overmind learns your role, proposes your team, and builds a folder for every member — itself included — each with its own `BOOT.md` and a `CLAUDE.md` wrapper that loads it.
-4. **Run each member in its own folder.** From here on, open Claude Code in the Overmind's folder to talk to your Overmind, and in a team member's folder to run that member. Dispatched work activates when you type `/go` in that member's session.
+4. **Talk to your Overmind.** From here on, open Claude Code in the Overmind's folder and point it at work. It takes the whole job and decides for itself whether to do it, bring in a specialist as an in-session twin, or dispatch it. A team member's own folder is the exception: open it for quick back-and-forth with that member, or to type `/go` on work the Overmind dispatched there.
 5. **Verify it.** Type `/diagnostic` in your Overmind's session. It checks the install, the folders, the roster, the boot layers, and TARS, then prints a pass/fail table with a fix for anything red.
 
 Setup runs once. After that, every session boots straight into work.
