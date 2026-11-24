@@ -14,8 +14,8 @@ Eleven capabilities work out of the box: **team building**, **handoffs**, **disp
 
 - **No more false alarms from the guard's own log.** Every twin's hook writes to `_twin-guard.log`, so it is now checked append-only: new lines never alert, and any rewrite, truncation or deletion still does.
 - **Checks finish inside the hook's time.** The walk skips Python package trees (`site-packages`, `__pycache__`, `.venv`, `venv`). One project's venvs held 133k files and made every check outrun the 10 s timeout, which caused the "snapshot missing" and "previous check did not finish" alerts.
-- **A check that was cut off is finished, not just flagged.** Its record is kept, and the same twin's next call compares it. That call is denied only when a protected file really changed or the record is gone. One twin's slow check never touches another twin.
-- **Scratch writes through a variable pass.** `SP=/scratch; mkdir -p "$SP"` and `cd /scratch && cp f .` are checked by where they land. Team-state targets are still denied through variables, redirects, `cd`, relative paths, and now symlinks and junctions too.
+- **One twin's slow check never touches another twin.** A check cut off by the hook's timeout is still reported on that twin's next call, as before. A check that never ran at all is finished from its record, and the next call is denied only when a protected file really changed.
+- **Scratch writes through a variable pass.** `SP=/scratch; mkdir -p "$SP"` and `cd /scratch && cp f .` are checked by where they land. Team-state targets are still denied through variables, redirects, `cd`, `pushd`, relative paths, and now symlinks and junctions too. Where the text can't say where a `cd` lands (`pushd -n`, `pushd +1`, `CDPATH`, a glob), the guard assumes the worst.
 
 ## What's New in v5.1.0
 
