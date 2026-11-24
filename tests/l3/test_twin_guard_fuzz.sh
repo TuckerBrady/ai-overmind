@@ -223,11 +223,17 @@ mkdir -p "$tmp/team/$seatn/archive/2026/09/old"; printf 'old\n' > "$tmp/team/$se
 out=$(run4 "$tmp/team/$seatn" 'find archive -type f -exec cp "$SRC" {} \;' tu46)
 case $out in *"$seatn/archive/2026/09/old/HANDOFF.md"*) pass ;; *) fail "got: ${out:0:200}" ;; esac
 
-t "round 4 #7: _twin-guard.log is in the snapshot set"
+# 5.1.1 (Tucker's go, 2026-11-23): every parallel twin's hook appends to the
+# root's log, so an append there is no longer a change; a rewrite still is.
+t "round 4 #7 (5.1.1): _twin-guard.log is watched append-only: a rewrite alerts, an append does not"
 fresh
 printf 'earlier alert\n' > "$tmp/team/_twin-guard.log"
-out=$(run4 "$tmp/team/$seatn" "perl -MFcntl -e 'opendir D, \"..\"; for (readdir D) { if (/log\$/) { sysopen F, \"../\$_\", O_WRONLY|O_APPEND; print F \"x\"; close F } }'" tu47)
-case $out in *'protected file changed during twin command: _twin-guard.log'*) pass ;; *) fail "got: ${out:0:200}" ;; esac
+out=$(run4 "$tmp/team/$seatn" "perl -MFcntl -e 'opendir D, \"..\"; for (readdir D) { if (/log\$/) { sysopen F, \"../\$_\", O_WRONLY|O_TRUNC; print F \"x\"; close F } }'" tu47)
+out2=$(run4 "$tmp/team/$seatn" "perl -MFcntl -e 'opendir D, \"..\"; for (readdir D) { if (/log\$/) { sysopen F, \"../\$_\", O_WRONLY|O_APPEND; print F \"x\"; close F } }'" tu47b)
+case $out in
+  *'protected file changed during twin command: _twin-guard.log'*) [ -z "$out2" ] && pass || fail "append alerted: ${out2:0:200}" ;;
+  *) fail "rewrite silent: ${out:0:200}" ;;
+esac
 
 t "round 4 #3: with no team root the pre-check still denies, and Post stays quiet"
 rm -rf "$tmp/lone"; mkdir -p "$tmp/lone"; printf 'x\n' > "$tmp/lone/INBOX.md"
