@@ -604,8 +604,11 @@ compare() {
   local pfx=$1 lr=$2 sf sr rel seenc=$nl
   shift 2
   MSGS=()
+  # The recheck's findings are logged before the log itself is checked: that
+  # check costs two more processes, and a Post near its timeout must not lose
+  # a finding to it.
   for sf in "$@"; do
-    recheck "$sf" "$sf.r"; logcheck "$sf"
+    recheck "$sf" "$sf.r"
     while IFS= read -r rel; do
       case $rel in 'C '?*) ;; *) continue ;; esac
       rel=${rel#C }
@@ -615,8 +618,13 @@ compare() {
       logline "$lr" "$pfx$rel"
     done <<EOF
 $SNAPOUT
-$LOGC
 EOF
+    logcheck "$sf"
+    if [ -n "$LOGC" ]; then
+      case $seenc in *"$nl$LOGC$nl"*) ;; *)
+        seenc="$seenc${LOGC#C }$nl"; MSGS+=("$pfx${LOGC#C }"); logline "$lr" "$pfx${LOGC#C }" ;;
+      esac
+    fi
   done
   NLOG=${#MSGS[@]}
   for sf in "$@"; do
