@@ -19,15 +19,28 @@
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
 
+# fresh AGENT -> AG: AGENT, or for "Vx" a twin id never used before. Pre-check
+# cases run Pre alone; an allowed one leaves a "pre" marker that goes stale
+# after 11 minutes and would deny that twin's later calls for that reason
+# instead of the rule under test. A file counts, since callers are subshells.
+fresh() {
+  local n=0
+  AG=$1
+  [ "$1" = Vx ] || return 0
+  [ -s "$tmp/agent.n" ] && read -r n < "$tmp/agent.n"
+  n=$((n + 1)); printf '%s\n' "$n" > "$tmp/agent.n"; AG="V$n"
+}
 # hk AGENT EVENT CWD COMMAND TUID [GUARD]: one twin Bash hook event.
 hk() {
+  fresh "$1"
   printf '{"session_id":"s1","cwd":"%s","hook_event_name":"%s","agent_id":"%s","agent_type":"%s","tool_name":"Bash","tool_input":{"command":"%s"},"tool_use_id":"%s"}' \
-    "$(js "$3")" "$2" "$1" "$TWIN" "$(js "$4")" "$5" | TMPDIR="$tmp/snaps" "$B" "${6:-$GUARD}" 2>/dev/null
+    "$(js "$3")" "$2" "$AG" "$TWIN" "$(js "$4")" "$5" | TMPDIR="$tmp/snaps" "$B" "${6:-$GUARD}" 2>/dev/null
 }
 # hw AGENT TOOL PATH: a twin Write or Edit PreToolUse on PATH.
 hw() {
+  fresh "$1"
   printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PreToolUse","agent_id":"%s","agent_type":"%s","tool_name":"%s","tool_input":{"file_path":"%s","content":"x","old_string":"a","new_string":"b"},"tool_use_id":"w1"}' \
-    "$(js "$seat")" "$1" "$TWIN" "$2" "$(js "$3")" | TMPDIR="$tmp/snaps" "$B" "$GUARD" 2>/dev/null
+    "$(js "$seat")" "$AG" "$TWIN" "$2" "$(js "$3")" | TMPDIR="$tmp/snaps" "$B" "$GUARD" 2>/dev/null
 }
 isdeny() { case $1 in *'"permissionDecision":"deny"'*) return 0 ;; esac; return 1; }
 G="$tmp/snaps/ovm-twin-guard"
@@ -250,9 +263,9 @@ while IFS= read -r c; do
   [ -n "$c" ] || continue
   c=${c//@S@/$scratch}; c=${c//@W@/$sw}; c=${c//@Q@/$tmp/qa.md}
   n=$((n + 1))
-  r=$(hk V PreToolUse "$seat" "$c" v1)
+  r=$(hk Vx PreToolUse "$seat" "$c" v1)
   isdeny "$r" && { bad=1; echo "    denied: $c"; }
-  if [ -n "$old" ]; then r=$(hk V PreToolUse "$seat" "$c" v1 "$old"); isdeny "$r" && olddeny=$((olddeny + 1)); fi
+  if [ -n "$old" ]; then r=$(hk Vx PreToolUse "$seat" "$c" v1 "$old"); isdeny "$r" && olddeny=$((olddeny + 1)); fi
 done <<'CORPUS'
 SP="@S@"; mkdir -p "$SP"
 SP="@S@"; mkdir -p "$SP" && sed -i s/a/b/ "$SP/f.txt"
@@ -283,7 +296,7 @@ for f in "INBOX.md" "../Other/INBOX.md" "HANDOFF.md" "HANDOFF-OPS-9.md" "mission
   for form in 'touch "$F"' 'echo x > "$F"' 'echo x >> "$F"' 'cp /tmp/a "$F"' 'sed -i s/a/b/ "$F"' 'rm -f "$F"' 'echo x | tee -a "$F"' 'dd if=/dev/null of="$F"' 'mv /tmp/a "${F}"' 'ln -sf /tmp/a "$F"'; do
     asg=${asgs[n % 6]}; asg=${asg//@F@/$f}   # every assignment shape, in turn
     c="$asg$form"; n=$((n + 1))
-    r=$(hk V PreToolUse "$seat" "$c" v3)
+    r=$(hk Vx PreToolUse "$seat" "$c" v3)
     isdeny "$r" || { bad=$((bad + 1)); echo "    allowed: $c"; }
   done
 done
@@ -294,7 +307,7 @@ t "VAR: evasions that hide what a variable holds are denied"
 bad=0
 while IFS= read -r c; do
   [ -n "$c" ] || continue
-  r=$(hk V PreToolUse "$seat" "$c" v4)
+  r=$(hk Vx PreToolUse "$seat" "$c" v4)
   isdeny "$r" || { bad=1; echo "    allowed: $c"; }
 done <<'CORPUS'
 S=../Other/INBOX.m; echo x > "$S"d
@@ -325,7 +338,7 @@ S='$X'; touch $S
 CORPUS
 # A nameref, spelled at run time so the bash 3.2 lint never reads it as one.
 dcl=declare
-r=$(hk V PreToolUse "$seat" "$dcl -n S=T; T=../Other/INBOX.m; touch \"\${S}d\"" v4)
+r=$(hk Vx PreToolUse "$seat" "$dcl -n S=T; T=../Other/INBOX.m; touch \"\${S}d\"" v4)
 isdeny "$r" || { bad=1; echo "    allowed: a nameref"; }
 [ $bad -eq 0 ] && pass || fail "see above"
 
@@ -334,7 +347,7 @@ bad=0
 while IFS= read -r c; do
   [ -n "$c" ] || continue
   c=${c//@T@/$team}; c=${c//@S@/$scratch}
-  r=$(hk V PreToolUse "$scratch" "$c" v5)
+  r=$(hk Vx PreToolUse "$scratch" "$c" v5)
   isdeny "$r" || { bad=1; echo "    allowed: $c"; }
 done <<'CORPUS'
 cd "@T@/Other" && cp -r /tmp/x/. .
@@ -351,7 +364,7 @@ cd ../Other && touch BOOT.md
 CORPUS
 # The hook's cwd is a seat folder: a cd that may not happen leaves it in play.
 for c in "cd /no/such/dir; cp -r src/. ." "cd \"\$UNSET_DIR\" && cp -r src/. ." "cd $scratch || true; cp -r src/. ." "(cd $scratch) && cp -r src/. ."; do
-  r=$(hk V PreToolUse "$seat" "$c" v6)
+  r=$(hk Vx PreToolUse "$seat" "$c" v6)
   isdeny "$r" || { bad=1; echo "    allowed from the seat: $c"; }
 done
 [ $bad -eq 0 ] && pass || fail "see above"
@@ -368,13 +381,13 @@ mk() { # mk TARGET LINK: a symlink, or a junction for a folder on Windows; 1 if 
 }
 if mk "$team/Other/INBOX.md" "$lk/notes.md"; then
   bad=0
-  isdeny "$(hw V Write "$lk/notes.md")" || { bad=1; echo "    Write through a file link allowed"; }
-  isdeny "$(hw V Edit "$lk/notes.md")" || { bad=1; echo "    Edit through a file link allowed"; }
+  isdeny "$(hw Vx Write "$lk/notes.md")" || { bad=1; echo "    Write through a file link allowed"; }
+  isdeny "$(hw Vx Edit "$lk/notes.md")" || { bad=1; echo "    Edit through a file link allowed"; }
   for c in "echo x > notes.md" "echo x >> ./notes.md" "cp /tmp/a notes.md" "touch notes.md" "L=notes.md; echo x > \"\$L\""; do
-    isdeny "$(hk V PreToolUse "$lk" "$c" v7)" || { bad=1; echo "    allowed: $c"; }
+    isdeny "$(hk Vx PreToolUse "$lk" "$c" v7)" || { bad=1; echo "    allowed: $c"; }
   done
-  isdeny "$(hk V PreToolUse "$seat" "cd $lk && echo x > notes.md" v7)" || { bad=1; echo "    allowed after cd"; }
-  [ -z "$(hw V Write "$scratch/plain.md")" ] || { bad=1; echo "    plain Write denied"; }
+  isdeny "$(hk Vx PreToolUse "$seat" "cd $lk && echo x > notes.md" v7)" || { bad=1; echo "    allowed after cd"; }
+  [ -z "$(hw Vx Write "$scratch/plain.md")" ] || { bad=1; echo "    plain Write denied"; }
   [ $bad -eq 0 ] && pass || fail "see above"
 else
   echo "  SKIP: this system can't make a symlink here"; pass
@@ -382,7 +395,7 @@ fi
 if mk "$team/Other" "$lk/od"; then
   bad=0
   for c in "cp -r /tmp/x/. od/" "cp -r /tmp/x/. od" "rsync -r /tmp/x/ ./od"; do
-    isdeny "$(hk V PreToolUse "$lk" "$c" v8)" || { bad=1; echo "    allowed: $c"; }
+    isdeny "$(hk Vx PreToolUse "$lk" "$c" v8)" || { bad=1; echo "    allowed: $c"; }
   done
   [ $bad -eq 0 ] && pass || fail "see above"
 else
@@ -392,7 +405,7 @@ fi
 t "VAR: relative paths into team folders are denied as before"
 bad=0
 for c in "cp -r /tmp/x/. ../Other" "cp -r /tmp/x/. ../Other/" "rsync -a /tmp/x/ ../Other/" "mv ../Other /tmp/gone" "rm -rf ../Other" "cp /tmp/a ."; do
-  isdeny "$(hk V PreToolUse "$seat" "$c" v9)" || { bad=1; echo "    allowed: $c"; }
+  isdeny "$(hk Vx PreToolUse "$seat" "$c" v9)" || { bad=1; echo "    allowed: $c"; }
 done
 [ $bad -eq 0 ] && pass || fail "see above"
 
@@ -406,7 +419,7 @@ while IFS='|' read -r id cw c; do
   [ -n "$id" ] || continue
   case $cw in seat) cw=$seat ;; *) cw=$scratch ;; esac
   c=${c//@T@/$team}; c=${c//@S@/$scratch}
-  isdeny "$(hk V PreToolUse "$cw" "$c" q1)" || { bad=1; echo "    allowed [$id]: $c"; }
+  isdeny "$(hk Vx PreToolUse "$cw" "$c" q1)" || { bad=1; echo "    allowed [$id]: $c"; }
 done <<'CORPUS'
 V3|seat|D=../Oth*; cp -r @S@/src/. $D
 V3b|scratch|D=@T@/Oth*; cp -r @S@/src/. $D
@@ -427,7 +440,7 @@ t "QA: the false-deny fixes still hold beside them"
 clean="$tmp/clean"; mkdir -p "$clean/src"; printf 's\n' > "$clean/src/s.txt"
 bad=0
 for c in "cd $clean && cp $tmp/qa.md ." "SP=\"$clean\"; mkdir -p \"\$SP\"" "pushd $clean && cp -r src/. . && popd"; do
-  isdeny "$(hk V PreToolUse "$seat" "$c" q2)" && { bad=1; echo "    denied: $c"; }
+  isdeny "$(hk Vx PreToolUse "$seat" "$c" q2)" && { bad=1; echo "    denied: $c"; }
 done
 [ $bad -eq 0 ] && pass || fail "see above"
 
