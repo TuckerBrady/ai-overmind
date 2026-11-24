@@ -422,8 +422,11 @@ CORPUS
 [ $bad -eq 0 ] && pass || fail "see above"
 
 t "QA: the false-deny fixes still hold beside them"
+# A fresh folder: the link cases above left a junction into a seat inside
+# scratch, and a copy into a folder that reaches team state is denied.
+clean="$tmp/clean"; mkdir -p "$clean/src"; printf 's\n' > "$clean/src/s.txt"
 bad=0
-for c in "cd $scratch && cp $tmp/qa.md ." "SP=\"$scratch\"; mkdir -p \"\$SP\"" "pushd $scratch && cp -r src/. . && popd"; do
+for c in "cd $clean && cp $tmp/qa.md ." "SP=\"$clean\"; mkdir -p \"\$SP\"" "pushd $clean && cp -r src/. . && popd"; do
   isdeny "$(hk V PreToolUse "$seat" "$c" q2)" && { bad=1; echo "    denied: $c"; }
 done
 [ $bad -eq 0 ] && pass || fail "see above"
