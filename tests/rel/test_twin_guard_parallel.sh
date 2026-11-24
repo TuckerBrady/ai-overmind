@@ -112,37 +112,63 @@ t "PAR: records are keyed by agent and tool_use"
 ls "$G" | grep -q '^X\.x1\.snap$' && ls "$G" | grep -q '^X\.x1\.ok$' && pass || fail "$(ls "$G" | head)"
 
 # ---------------------------------------------------------------- STALE
-t "STALE: a clean cut-off check of the same twin is settled quietly, with a NOTE in the log"
-out=$(hk X PreToolUse "$seat" true x2); hk X PostToolUse "$seat" true x2 > /dev/null
-if isdeny "$out" || [ -n "$out" ]; then fail "denied or spoke: ${out:0:200}"
-elif [ -s "$G/X.x1.busy" ]; then fail "marker not cleared"
-elif ! grep -q 'NOTE: previous check did not finish (X.x1.busy: post, [0-9]*s ago); re-checked from its record, no protected file changed' "$log"; then fail "no NOTE: $(tail -2 "$log")"
+t "STALE: a cut-off Post (post marker over 15 s) is reported at once by the same twin's next call, as in 5.1.0"
+out=$(hk X PreToolUse "$seat" true x2)
+if ! isdeny "$out"; then fail "not denied: ${out:0:200}"
+else case $out in *'previous check did not finish (X.x1.busy: post, '*'protected files may have changed unseen'*)
+  if [ -s "$G/X.x1.busy" ]; then fail "marker not cleared"
+  elif ! grep -q 'ALERT: previous check did not finish (X.x1.busy: post, [0-9]*s ago); protected files may have changed unseen' "$log"; then fail "not logged"
+  else pass; fi ;;
+  *) fail "got: ${out:0:240}" ;; esac
+fi
+out=$(hk X PreToolUse "$seat" true x2b); hk X PostToolUse "$seat" true x2b > /dev/null
+[ -z "$out" ] && pass || fail "reported twice: ${out:0:160}"
+
+t "STALE: a Post that never ran (pre marker over 11 minutes), nothing changed: settle started is logged first, then a NOTE, and the call goes ahead"
+# The guard settles only while its Pre is under SETTLE_BY seconds old; a
+# loaded test machine can pass 2 s before the check starts, so the settling
+# cases use a guard with the bound lifted (the skip case pins it to 0).
+settler="$tmp/guard-settle.sh"; sed 's/^SETTLE_BY=2$/SETTLE_BY=600/' "$GUARD" > "$settler"
+grep -q '^SETTLE_BY=600$' "$settler" || fail "could not patch SETTLE_BY"
+hk X PreToolUse "$seat" true x8 > /dev/null
+printf 'pre %s\n' $(( $(date +%s) - 700 )) > "$G/X.x8.busy"
+out=$(hk X PreToolUse "$seat" true x9 "$settler"); hk X PostToolUse "$seat" true x9 > /dev/null
+l1=$(grep -n 'NOTE: settle started for X.x8.busy (pre, [0-9]*s ago)' "$log" | head -1); l1=${l1%%:*}
+l2=$(grep -n 'NOTE: previous check did not finish (X.x8.busy: pre, [0-9]*s ago); re-checked from its record, no protected file changed' "$log" | head -1); l2=${l2%%:*}
+if [ -n "$out" ]; then fail "denied or spoke: ${out:0:200}"
+elif [ -s "$G/X.x8.busy" ]; then fail "marker not cleared"
+elif [ -z "$l1" ] || [ -z "$l2" ] || [ "$l1" -ge "$l2" ]; then fail "log order: start=$l1 note=$l2"
 else pass; fi
 
-t "STALE: a cut-off check whose window changed a protected file denies the next call and names the file"
+t "STALE: a Post that never ran, and a protected file changed since: the next call is denied and names the file"
 hk X PreToolUse "$seat" true x3 > /dev/null
 printf 'twin\n' >> "$team/Other/INBOX.md"
-printf 'post %s\n' $(( $(date +%s) - 30 )) > "$G/X.x3.busy"
-out=$(hk X PreToolUse "$seat" true x4)
+printf 'pre %s\n' $(( $(date +%s) - 700 )) > "$G/X.x3.busy"
+out=$(hk X PreToolUse "$seat" true x4 "$settler")
 if ! isdeny "$out"; then fail "not denied: ${out:0:200}"
 else case $out in *'previous check did not finish'*'protected file changed since that command started: Other/INBOX.md'*)
-  grep -q 'previous check did not finish (X.x3.busy: post, [0-9]*s ago); protected file changed since that command started: Other/INBOX.md' "$log" && pass || fail "not logged" ;;
+  grep -q 'previous check did not finish (X.x3.busy: pre, [0-9]*s ago); protected file changed since that command started: Other/INBOX.md' "$log" && pass || fail "not logged" ;;
   *) fail "got: ${out:0:240}" ;; esac
 fi
 out=$(hk X PreToolUse "$seat" true x5); hk X PostToolUse "$seat" true x5 > /dev/null
 [ -z "$out" ] && pass || fail "reported twice: ${out:0:160}"
 
-t "STALE: a stale marker whose record is gone is still reported"
+t "STALE: a Post that never ran, with its record gone, is still reported"
 hk X PreToolUse "$seat" true x6 > /dev/null
-: > "$G/X.x6.snap"; printf 'post %s\n' $(( $(date +%s) - 30 )) > "$G/X.x6.busy"
-out=$(hk X PreToolUse "$seat" true x7); hk X PostToolUse "$seat" true x7 > /dev/null
+: > "$G/X.x6.snap"; printf 'pre %s\n' $(( $(date +%s) - 700 )) > "$G/X.x6.busy"
+out=$(hk X PreToolUse "$seat" true x7 "$settler"); hk X PostToolUse "$seat" true x7 > /dev/null
 case $out in *'previous check did not finish'*'record is gone'*) isdeny "$out" && pass || fail "not denied" ;; *) fail "got: ${out:0:200}" ;; esac
 
-t "STALE: a Post that never ran (pre marker over 11 minutes) is settled from its record"
-hk X PreToolUse "$seat" true x8 > /dev/null
-printf 'pre %s\n' $(( $(date +%s) - 700 )) > "$G/X.x8.busy"
-out=$(hk X PreToolUse "$seat" true x9); hk X PostToolUse "$seat" true x9 > /dev/null
-[ -z "$out" ] && [ ! -s "$G/X.x8.busy" ] && pass || fail "got: ${out:0:200}"
+t "STALE: a Pre already 2 s into its check skips the settle and denies at once (a slow settle can't run out the hook's time)"
+slowpre="$tmp/guard-slowpre.sh"; sed 's/^SETTLE_BY=2$/SETTLE_BY=0/' "$GUARD" > "$slowpre"
+grep -q '^SETTLE_BY=0$' "$slowpre" || fail "could not patch SETTLE_BY"
+hk X PreToolUse "$seat" true xs1 > /dev/null
+printf 'pre %s\n' $(( $(date +%s) - 700 )) > "$G/X.xs1.busy"
+out=$(hk X PreToolUse "$seat" true xs2 "$slowpre")
+case $out in *'previous check did not finish (X.xs1.busy: pre, '*'protected files may have changed unseen'*)
+  ! grep -q 'settle started for X.xs1.busy' "$log" && pass || fail "settled anyway" ;;
+  *) fail "got: ${out:0:200}" ;; esac
+hk X PostToolUse "$seat" true xs2 > /dev/null
 
 t "STALE: a fresh pre marker (a parallel call of the same twin still running) is left alone"
 hk X PreToolUse "$seat" true xa > /dev/null
@@ -150,15 +176,19 @@ out=$(hk X PreToolUse "$seat" true xb); hk X PostToolUse "$seat" true xb > /dev/
 out2=$(hk X PostToolUse "$seat" true xa)
 [ -z "$out$out2" ] && pass || fail "got: ${out:0:160} ${out2:0:160}"
 
-t "STALE: a Post cut off by a hanging walk leaves its record whole for the next Pre"
+t "STALE: a Post cut off by a hanging walk leaves its marker, and the next call reports it"
 mkdir -p "$tmp/slowbin"; printf '#!/bin/sh\nsleep 30\n' > "$tmp/slowbin/find"; chmod +x "$tmp/slowbin/find"
 hk X PreToolUse "$seat" true xc > /dev/null
 printf '{"session_id":"s1","cwd":"%s","hook_event_name":"PostToolUse","agent_id":"X","agent_type":"%s","tool_name":"Bash","tool_input":{"command":"true"},"tool_use_id":"xc"}' \
   "$(js "$seat")" "$TWIN" > "$tmp/xc.json"
 { PATH="$tmp/slowbin:$PATH" TMPDIR="$tmp/snaps" "$B" "$GUARD" < "$tmp/xc.json" > /dev/null 2>&1 & } 2>/dev/null; p=$!
 sleep 4; kill -9 "$p" 2>/dev/null; wait "$p" 2>/dev/null
-[ -s "$G/X.xc.snap" ] && [ -s "$G/X.xc.ok" ] && grep -q '^post ' "$G/X.xc.busy" && pass || fail "record or marker gone"
-: > "$G/X.xc.busy"
+if ! grep -q '^post ' "$G/X.xc.busy"; then fail "marker gone"
+else
+  printf 'post %s\n' $(( $(date +%s) - 20 )) > "$G/X.xc.busy"
+  out=$(hk X PreToolUse "$seat" true xd)
+  case $out in *'previous check did not finish (X.xc.busy: post'*) pass ;; *) fail "got: ${out:0:200}" ;; esac
+fi
 
 # ---------------------------------------------------------------- COST
 t "COST: Python package trees are pruned from the walk: 30k venv files add next to nothing to a check"
@@ -363,6 +393,38 @@ t "VAR: relative paths into team folders are denied as before"
 bad=0
 for c in "cp -r /tmp/x/. ../Other" "cp -r /tmp/x/. ../Other/" "rsync -a /tmp/x/ ../Other/" "mv ../Other /tmp/gone" "rm -rf ../Other" "cp /tmp/a ."; do
   isdeny "$(hk V PreToolUse "$seat" "$c" v9)" || { bad=1; echo "    allowed: $c"; }
+done
+[ $bad -eq 0 ] && pass || fail "see above"
+
+# ---------------------------------------------------------------- QA
+# The eight shapes Vaughn's QA of d6dcb9b found allowed that v4 and 5.1.0
+# deny (QA ids in brackets), plus a cd to a glob found while fixing them. Each
+# would write into a seat folder holding team state.
+t "QA: the shapes 5.1.1 first let through are denied before they run"
+bad=0
+while IFS='|' read -r id cw c; do
+  [ -n "$id" ] || continue
+  case $cw in seat) cw=$seat ;; *) cw=$scratch ;; esac
+  c=${c//@T@/$team}; c=${c//@S@/$scratch}
+  isdeny "$(hk V PreToolUse "$cw" "$c" q1)" || { bad=1; echo "    allowed [$id]: $c"; }
+done <<'CORPUS'
+V3|seat|D=../Oth*; cp -r @S@/src/. $D
+V3b|scratch|D=@T@/Oth*; cp -r @S@/src/. $D
+C2|seat|pushd -n /tmp && cp -r @S@/src/. .
+C3|seat|pushd ../Other && pushd @S@ && pushd && cp -r @S@/src/. .
+C4|seat|pushd ../Other && pushd @S@ && pushd +1 && cp -r @S@/src/. .
+C5|seat|CDPATH=.. && cd Other && cp -r @S@/src/. .
+C6|seat|shopt -s cdable_vars && O=../Other && cd O && cp -r @S@/src/. .
+C11|seat|cd 2>/dev/null ../Other && cp -r @S@/src/. .
+G1|scratch|cd @T@/Oth* && cp -r @S@/src/. .
+G2|scratch|D=@T@/Oth?r; echo x > "$D/notes.txt"; cp -r @S@/src/. "$D"
+CORPUS
+[ $bad -eq 0 ] && pass || fail "see above"
+
+t "QA: the false-deny fixes still hold beside them"
+bad=0
+for c in "cd $scratch && cp $tmp/qa.md ." "SP=\"$scratch\"; mkdir -p \"\$SP\"" "pushd $scratch && cp -r src/. . && popd"; do
+  isdeny "$(hk V PreToolUse "$seat" "$c" q2)" && { bad=1; echo "    denied: $c"; }
 done
 [ $bad -eq 0 ] && pass || fail "see above"
 

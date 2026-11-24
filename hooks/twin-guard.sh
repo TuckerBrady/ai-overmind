@@ -35,8 +35,9 @@
 #      that never finished (A-38 P1).
 #   5.1.1 (parallel twins; Tucker's go, 2026-11-23): the root's own
 #      _twin-guard.log is append-only to the detector, not an entry (other
-#      twins' hooks write it); a cut-off check keeps its record, and the same
-#      twin's next Pre settles it, reporting only a real difference; Python
+#      twins' hooks write it); a Post that never ran is settled from its
+#      record by the same twin's next Pre (a cut-off Post is still reported
+#      at once, as in 5.1.0); Python
 #      package trees are pruned from the walk; a $VARIABLE write target the
 #      command gives literal values is checked through them, cd is followed
 #      in a plain && chain, and links to protected files are denied.
@@ -530,6 +531,9 @@ sanit "${aid:-noagent}"; callid=$S; sanit "${tuid:-notool}"; callid="$callid.$S"
 sanit "$agent"; s_agent=$S; sanit "$aid"; s_aid=$S; sanit "$tuid"; s_tuid=$S
 snapfile="$gdir/$callid.snap"; markfile="$gdir/$callid.ok"
 BUDGET=5
+# A Pre this many seconds in skips settling a stale "pre" marker and denies
+# at once: the settle walks, and the hook has 10 s (QA, 5.1.1).
+SETTLE_BY=2
 now=${EPOCHSECONDS:-$(date +%s)}
 
 alert() { # ROOTS EVENT LINES... -> log each line under each root listed (one
@@ -644,9 +648,9 @@ EOF
 
 # settle BUSY STATE AGE -> SETTLE: alert lines (one per line), empty when the
 # check BUSY stands for can be closed quietly. BUSY is a busy marker of this
-# agent's that is stale: its Post was cut off ("post", over 15 s old) or never
-# ran ("pre", over 11 minutes). Its Pre records are still whole (Post empties
-# them only when done), so the comparison its Post would have made is made now,
+# agent's that is stale because its Post never ran ("pre", over 11 minutes; a
+# stale "post" marker is reported at once instead). Its Pre records are still
+# whole, so the comparison its Post would have made is made now,
 # against the files as they are: a protected file that differs is reported
 # (A-38 P1 kept), and a clean result closes the check with a NOTE in the log
 # instead of a denied call (5.1.1). A record that is gone is still reported.
@@ -698,9 +702,8 @@ if [ "$event" != PreToolUse ]; then
     alert "$TROOTS" "$event" "TWIN-GUARD ALERT: hook input over the 512 KiB cap; protected files were not checked"
     : > "$busy" 2>/dev/null; exit 0
   fi
-  # The records stay whole until this check is done (5.1.1): a Post cut off by
-  # the hook timeout leaves its busy marker and its records, and this agent's
-  # next Pre finishes the comparison from them (settle).
+  # The records stay whole until this check is done, and the busy marker is
+  # emptied first, so a cut-off clean-up never reads as an unfinished check.
   mark="" nroots=""
   if [ -s "$markfile" ]; then { IFS= read -r mark; IFS= read -r nroots; } < "$markfile"; fi
   nroots=${nroots#roots }
@@ -995,7 +998,7 @@ subst() {
 # values (at most 64 candidates, 4 rounds deep); RC=(RAW) when none is.
 resolve() {
   local raw=$1 round=0 c n v more bad=$nl new
-  RC=("$raw")
+  RC=("$raw") RGLOB=0
   case $cmd in *IFS*) return 0 ;; esac
   shopt -u nocasematch
   while [ $round -lt 4 ]; do
@@ -1007,7 +1010,10 @@ resolve() {
       if ! varvals "$n"; then bad="$bad$n$nl"; continue; fi
       new=()
       for c in "${RC[@]}"; do
-        for v in "${VV[@]}"; do subst "$c" "$n" "$v"; new+=("$SB"); done
+        for v in "${VV[@]}"; do
+          case $v in *[*?[]*) RGLOB=1 ;; esac
+          subst "$c" "$n" "$v"; new+=("$SB")
+        done
       done
       [ ${#new[@]} -le 64 ] || { shopt -s nocasematch; return 0; }
       RC=("${new[@]}"); more=1
@@ -1029,6 +1035,9 @@ target() {
   case $raw in
     *'$'*)
       resolve "$raw"
+      # A value holding * ? or [ expands to names nobody can read from the
+      # text (D=../Oth*; cp -r x/. $D): denied, as before 5.1.1 (QA).
+      [ "$RGLOB" = 1 ] && deny "glob in a variable used as a write target"
       for c in "${RC[@]}"; do
         target1 "$c" "$rec" "$raw"
         case $c in *'$'*) part=1 ;; esac
@@ -1128,12 +1137,13 @@ cdto() {
   local c p keep=0
   CDS="" CDUNK=0
   case $1 in *'`'*|-) CDS=$ccwds; CDUNK=1; return 0 ;; esac
-  case $1 in *'$'*) resolve "$1" ;; *) RC=("$1") ;; esac
+  case $1 in *'$'*) resolve "$1" ;; *) RC=("$1") RGLOB=0 ;; esac
+  [ "$RGLOB" = 1 ] && { CDS=$ccwds; CDUNK=1; return 0; }
   for c in "${RC[@]}"; do
     unq "$c"
     case $UQ in
       '') keep=1; continue ;;
-      *'$'*) keep=1; CDUNK=1; continue ;;
+      *'$'*|*[*?[]*) keep=1; CDUNK=1; continue ;;
       '~'?*) [ "${UQ:0:2}" = '~/' ] || { keep=1; CDUNK=1; continue; } ;;
     esac
     inwd "$UQ"
@@ -1224,23 +1234,53 @@ segverb() {
   args=("${words[@]:i+1}"); rargs=("${rwords[@]:i+1}")
   return 0
 }
-# cdseg EFF: the cd, pushd or popd segverb just read. EFF=1 moves the folders
-# (a sure && link); 0 adds to them. A cd whose folder the text doesn't give
-# sets cwdunknown: from then on a recursive write to a relative path is
-# denied (it was unchecked before 5.1.1).
+# cdseg EFF: the cd, pushd or popd segverb just read. A cd whose folder the
+# text doesn't give sets cwdunknown: from then on a recursive write to a
+# relative path is denied (it was unchecked before 5.1.1). EFF=1 (a sure &&
+# link) REPLACES the folders only for a cd or pushd with exactly one plain
+# folder operand, no redirect word, no -n or +N/-N, no CDPATH in the
+# environment or the command, and no cdable_vars in the command. Every other
+# cd ADDS its folders, so the folders checked before stay checked (QA,
+# 5.1.1: pushd -n, bare pushd, pushd +1, CDPATH, cdable_vars and a redirect
+# word before the folder each slipped past a replace).
 cdseg() {
-  local cdarg="~"
-  [ "$verb" = popd ] && cdarg=-
+  local ops=() k a skip=0 odd=0 c all="" unk=0
   for ((k = 0; k < ${#args[@]}; k++)); do
-    case ${args[k]} in --) continue ;; -[LPe@]|-[LPe@][LPe@]) continue ;; esac
-    cdarg=${rargs[k]}; break
+    a=${args[k]}
+    [ $skip -eq 1 ] && { skip=0; continue; }
+    case $a in
+      *'<'|*'>') odd=1; skip=1; continue ;;   # a redirect operator; its target is next
+      *'<'*|*'>'*) odd=1; continue ;;         # a redirect word, never the folder
+      --) continue ;;
+      -[LPe@]|-[LPe@][LPe@]|-[LPe@][LPe@][LPe@]) continue ;;
+      -n|[+-][0-9]*) odd=1; unk=1; continue ;;
+      -) ops+=("$a"); continue ;;
+      -*) odd=1; continue ;;
+    esac
+    ops+=("${rargs[k]}")
   done
-  cdto "$cdarg"
-  [ "$CDUNK" = 1 ] && cwdunknown=1
-  if [ -n "$CDS" ]; then
-    if [ "$1" = 1 ]; then ccwds=$CDS; else ccwds="$ccwds$nl$CDS"; fi
-    allcwds="$allcwds$nl$CDS"
+  case $verb in
+    popd) unk=1 ;;
+    pushd) [ ${#ops[@]} -gt 0 ] || unk=1 ;;
+    cd) [ ${#ops[@]} -gt 0 ] || { ops=("~"); odd=1; } ;;
+  esac
+  [ ${#ops[@]} -eq 1 ] || odd=1
+  if [ -n "${CDPATH:-}" ] || [[ $cmd == *CDPATH* ]]; then
+    odd=1
+    # A bare relative name is looked up in CDPATH first.
+    for c in ${ops[@]+"${ops[@]}"}; do unq "$c"; case $UQ in /*|[A-Za-z]:*|.|./*|..|../*|'~'*) ;; *) unk=1 ;; esac; done
   fi
+  [[ $cmd == *cdable_vars* ]] && { odd=1; unk=1; }
+  [ $unk -eq 1 ] && cwdunknown=1
+  for c in ${ops[@]+"${ops[@]}"}; do
+    cdto "$c"
+    [ "$CDUNK" = 1 ] && cwdunknown=1
+    [ -n "$CDS" ] && all="$all$CDS$nl"
+  done
+  all=${all%"$nl"}
+  [ -n "$all" ] || return 0
+  if [ "$1" = 1 ] && [ $odd -eq 0 ] && [ $unk -eq 0 ]; then ccwds=$all; else ccwds="$ccwds$nl$all"; fi
+  allcwds="$allcwds$nl$all"
 }
 allcwds=$ccwds
 # Not one sure chain: a loop or a function can run a cd before text that sits
@@ -1338,10 +1378,10 @@ teamroot; root=$TROOT
 # "pre" marker over 11 minutes old means the Post never ran (a Bash call ends
 # within 10). Markers are per agent and per call (<agent_id>.<tool_use_id>),
 # and only this agent's own are read: another twin's slow check never touches
-# this one. A stale one is settled by this agent's next Pre: the comparison is
-# made from its record, and only a protected file that really differs (or a
-# record that is gone) is reported, by denying this call so the report can't
-# be missed (5.1.1; until then every stale marker was reported and denied).
+# this one. A stale "post" marker is reported by denying this call, as in
+# 5.1.0. A stale "pre" marker is settled from its record while this Pre is
+# young (5.1.1): only a protected file that really differs, or a record that
+# is gone, is reported that way; otherwise a NOTE goes in the log.
 unfinished=()
 for b in "$gdir/${callid%%.*}".*.busy; do
   [ -s "$b" ] || continue
@@ -1349,9 +1389,23 @@ for b in "$gdir/${callid%%.*}".*.busy; do
   st="" t=""; read -r st t < "$b" 2>/dev/null
   case $t in ''|*[!0-9]*) t=0 ;; esac
   age=$(( now - t ))
-  if { [ "$st" = post ] && [ $age -gt 15 ]; } || { [ "$st" = pre ] && [ $age -gt 660 ]; }; then
-    settle "$b" "$st" "$age"
-    [ -n "$SETTLE" ] && unfinished+=("$SETTLE")
+  stale="TWIN-GUARD ALERT: previous check did not finish (${b##*/}: $st, ${age}s ago); protected files may have changed unseen"
+  if [ "$st" = post ] && [ $age -gt 15 ]; then
+    # A Post cut off by the timeout: reported at once, as in 5.1.0 (QA, 5.1.1).
+    # Settling it would cost this Pre two walks, and a Pre cut off in turn
+    # lets the call through unchecked and unlogged.
+    logline "$TROOTS" "$stale"; unfinished+=("$stale"); : > "$b"
+  elif [ "$st" = pre ] && [ $age -gt 660 ]; then
+    # A Post that never ran. Settled from its record only while this Pre is
+    # young; the start is logged before any walk, so a settle cut off by the
+    # timeout still leaves a trace.
+    if [ $SECONDS -ge $SETTLE_BY ]; then
+      logline "$TROOTS" "$stale"; unfinished+=("$stale"); : > "$b"
+    else
+      logline "$TROOTS" "TWIN-GUARD NOTE: settle started for ${b##*/} ($st, ${age}s ago)"
+      settle "$b" "$st" "$age"
+      [ -n "$SETTLE" ] && unfinished+=("$SETTLE")
+    fi
   fi
 done
 if [ ${#unfinished[@]} -gt 0 ]; then
