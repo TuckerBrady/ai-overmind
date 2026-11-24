@@ -161,10 +161,16 @@ sleep 4; kill -9 "$p" 2>/dev/null; wait "$p" 2>/dev/null
 : > "$G/X.xc.busy"
 
 # ---------------------------------------------------------------- COST
-t "COST: Python package trees are pruned from the walk, and the walk stays well inside the budget"
+t "COST: Python package trees are pruned from the walk: 30k venv files add next to nothing to a check"
 py=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 && "$c" -c 'import os' >/dev/null 2>&1 && { py=$c; break; }; done
 if [ -z "$py" ]; then echo "  SKIP: no python to build 30k files quickly"; pass
 else
+  # The same team without the venvs is the baseline: on a loaded machine
+  # process start-up, not the walk, sets the floor, so time is compared.
+  bteam="$tmp/bteam"; mkab "$bteam"
+  s0=$SECONDS
+  hk C PreToolUse "$bteam/Seat" true c0 > /dev/null; hk C PostToolUse "$bteam/Seat" true c0 > /dev/null
+  base=$(( SECONDS - s0 ))
   cteam="$tmp/cteam"; mkab "$cteam"
   ( cd "$cteam" && "$py" - <<'PY'
 import os
@@ -176,15 +182,21 @@ for v in ('proj/a/Lib/site-packages', 'proj/b/lib/python3.12/site-packages', 'pr
 open(os.path.join('proj/a/Lib/site-packages', 'HANDOFF.md'), 'w').write('pkg doc')
 PY
   )
-  s0=$(date +%s)
+  s0=$SECONDS
   hk C PreToolUse "$cteam/Seat" true c1 > /dev/null
-  el=$(( $(date +%s) - s0 ))
   cp "$G/C.c1.snap" "$tmp/c1.snap" 2>/dev/null
-  s0=$(date +%s); out=$(hk C PostToolUse "$cteam/Seat" true c1); elp=$(( $(date +%s) - s0 ))
-  echo "  Pre ${el}s, Post ${elp}s over a team holding 30k venv files"
+  out=$(hk C PostToolUse "$cteam/Seat" true c1)
+  big=$(( SECONDS - s0 ))
+  # For scale only: the 5.1.0 guard walks all of it.
+  oldg="$tmp/guard-a7f9693-cost.sh"; oldt=""
+  if git -C "$repo" show a7f9693:hooks/twin-guard.sh > "$oldg" 2>/dev/null; then
+    s0=$SECONDS; hk C PreToolUse "$cteam/Seat" true c2 "$oldg" > /dev/null; hk C PostToolUse "$cteam/Seat" true c2 "$oldg" > /dev/null
+    oldt=" (the 5.1.0 guard: $(( SECONDS - s0 ))s)"
+  fi
+  echo "  Pre+Post: ${base}s without the venvs, ${big}s with 30k venv files$oldt"
   if grep -q 'site-packages' "$tmp/c1.snap" 2>/dev/null; then fail "site-packages walked"
   elif ! grep -q 'Other/INBOX.md' "$tmp/c1.snap" 2>/dev/null; then fail "seat files not recorded"
-  elif [ "$el" -gt 4 ] || [ "$elp" -gt 4 ]; then fail "Pre ${el}s Post ${elp}s"
+  elif [ "$big" -gt $(( base * 2 + 3 )) ]; then fail "${big}s against a ${base}s baseline"
   else [ -z "$out" ] && pass || fail "post: ${out:0:160}"; fi
 fi
 
@@ -302,6 +314,8 @@ cd /no/such/dir; cp -r src/. "@T@/Other"
 cd "@T@/Other"; cp -r src/. .
 cd "@S@" && cp -r src/. . || cp -r src/. "@T@/Other"
 D="@T@/Other"; cd "$D" && cp -r /tmp/x/. .
+D="@T@/Other" && cd "$D" && cp -r /tmp/x/. .
+cd "${D:-@T@/Other}" && cp -r /tmp/x/. .
 cd "@T@/Other" | cat && cp -r src/. .
 cd ../Other && touch BOOT.md
 CORPUS

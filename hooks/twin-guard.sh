@@ -787,8 +787,9 @@ dolhit() {
 }
 # ccwds: every folder a relative path in the command may be relative to, one
 # per line. The hook's cwd to start; the segment loop below follows cd
-# (5.1.1). With none, a relative path is taken as it stands.
-ccwds=$cwd
+# (5.1.1). With none, a relative path is taken as it stands. cwdunknown is set
+# once a cd goes somewhere the text doesn't say.
+ccwds=$cwd cwdunknown=0
 # inwd PATH -> WD: PATH as it reads from each folder in ccwds (one per line);
 # PATH itself when it is absolute or ccwds is empty. ~ and ~/ are $HOME.
 inwd() {
@@ -1056,6 +1057,9 @@ target1() {
     esac
   fi
   linkhit "$t" && deny "write through a link to team state"
+  if [ "$rec" = 1 ] && [ "$cwdunknown" = 1 ]; then
+    case ${t//\\//} in /*|[A-Za-z]:*|'~'|'~/'*) ;; *) deny "recursive write to a relative path after a cd the guard cannot read" ;; esac
+  fi
   [ "$rec" = 1 ] && dirhit "$t" && deny "write to a folder holding team state"
   return 0
 }
@@ -1107,22 +1111,29 @@ split_words() {
   return 0
 }
 
-# cdto RAW -> CDS: the folders a cd to RAW lands in, read from every folder in
-# ccwds, one per line; empty when the text doesn't say (cd -, a $ that doesn't
-# read through, ~user).
+# cdto RAW -> CDS: every folder a cd to RAW may land in, read from every
+# folder in ccwds, one per line. A spelling the text doesn't settle (cd -, a $
+# that doesn't read through, ~user) or an empty one (cd "" stays put) adds the
+# current folders instead, so what the old rule checked is always still
+# checked, and every spelling that does read through is checked as well.
 cdto() {
-  local c p
-  CDS=""
-  case $1 in *'`'*|-) return 0 ;; esac
+  local c p keep=0
+  CDS="" CDUNK=0
+  case $1 in *'`'*|-) CDS=$ccwds; CDUNK=1; return 0 ;; esac
   case $1 in *'$'*) resolve "$1" ;; *) RC=("$1") ;; esac
   for c in "${RC[@]}"; do
     unq "$c"
-    case $UQ in ''|*'$'*|'~'?*) [ "${UQ:0:2}" = '~/' ] || { CDS=""; return 0; } ;; esac
+    case $UQ in
+      '') keep=1; continue ;;
+      *'$'*) keep=1; CDUNK=1; continue ;;
+      '~'?*) [ "${UQ:0:2}" = '~/' ] || { keep=1; CDUNK=1; continue; } ;;
+    esac
     inwd "$UQ"
     while IFS= read -r p; do [ -n "$p" ] && CDS="$CDS${p%/}$nl"; done <<EOF
 $WD
 EOF
   done
+  [ $keep -eq 1 ] && [ -n "$ccwds" ] && CDS="$CDS$ccwds$nl"
   CDS=${CDS%"$nl"}
 }
 
@@ -1171,8 +1182,9 @@ done
 # one chain joined only by && (no ; || & ( ) { } backtick or line break
 # anywhere) runs each part only when the part before it succeeded, so a cd that
 # is a whole part moves the folder for every part after it. Any other cd adds
-# its folder to the ones checked, and the hook's cwd stays among them. A cd
-# whose folder the text doesn't give changes nothing (as before 5.1.1).
+# its folder to the ones checked, and the hook's cwd stays among them. After a
+# cd whose folder the text doesn't give, a recursive write to a relative path
+# is denied.
 SOH=$'\001' ETX=$'\003'
 linear=1
 case $cmd in *[\;\(\)\`]*|*'||'*|*$'\n'*|*$'\r'*|*'{ '*|*'{'$'\t'*) linear=0 ;; esac
@@ -1190,31 +1202,55 @@ if [ $linear -eq 1 ]; then
 else
   segs=${cmd//[;&|()]/$'\n'}
 fi
-allcwds=$ccwds
-while IFS= read -r seg; do
-  eff=0; case $seg in "$SOH"*) eff=1; seg=${seg#"$SOH"} ;; esac
-  split_words "$seg"
-  [ ${#words[@]} -gt 0 ] || continue
+# segverb SEG -> words, rwords, verb, args, rargs for one simple command; 1
+# when it has no command word.
+segverb() {
+  split_words "$1"
+  [ ${#words[@]} -gt 0 ] || return 1
   i=0
   while [ $i -lt ${#words[@]} ]; do
     case ${words[i]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|'{'|'!') i=$((i+1)) ;; *) break ;; esac
   done
-  [ $i -lt ${#words[@]} ] || continue
+  [ $i -lt ${#words[@]} ] || return 1
   verb=${words[i]##*[/\\]}; verb=${verb%.[Ee][Xx][Ee]}
   args=("${words[@]:i+1}"); rargs=("${rwords[@]:i+1}")
-  case $verb in
-    cd|pushd)
-      cdarg=""
-      for ((k = 0; k < ${#args[@]}; k++)); do
-        case ${args[k]} in --) continue ;; -[LPe@]|-[LPe@][LPe@]) continue ;; esac
-        cdarg=${rargs[k]}; break
-      done
-      CDS=""; [ -n "$cdarg" ] && cdto "$cdarg"
-      if [ -n "$CDS" ]; then
-        if [ $eff -eq 1 ]; then ccwds=$CDS; else ccwds="$ccwds$nl$CDS"; fi
-        allcwds="$allcwds$nl$CDS"
-      fi ;;
-  esac
+  return 0
+}
+# cdseg EFF: the cd, pushd or popd segverb just read. EFF=1 moves the folders
+# (a sure && link); 0 adds to them. A cd whose folder the text doesn't give
+# sets cwdunknown: from then on a recursive write to a relative path is
+# denied (it was unchecked before 5.1.1).
+cdseg() {
+  local cdarg="~"
+  [ "$verb" = popd ] && cdarg=-
+  for ((k = 0; k < ${#args[@]}; k++)); do
+    case ${args[k]} in --) continue ;; -[LPe@]|-[LPe@][LPe@]) continue ;; esac
+    cdarg=${rargs[k]}; break
+  done
+  cdto "$cdarg"
+  [ "$CDUNK" = 1 ] && cwdunknown=1
+  if [ -n "$CDS" ]; then
+    if [ "$1" = 1 ]; then ccwds=$CDS; else ccwds="$ccwds$nl$CDS"; fi
+    allcwds="$allcwds$nl$CDS"
+  fi
+}
+allcwds=$ccwds
+# Not one sure chain: a loop or a function can run a cd before text that sits
+# above it, so every cd anywhere counts from the start.
+if [ $linear -eq 0 ]; then
+  case $cmd in *cd*|*pushd*|*popd*)
+    while IFS= read -r seg; do
+      segverb "$seg" || continue
+      case $verb in cd|pushd|popd) cdseg 0 ;; esac
+    done <<EOF
+$segs
+EOF
+  ;; esac
+fi
+while IFS= read -r seg; do
+  eff=0; case $seg in "$SOH"*) eff=1; seg=${seg#"$SOH"} ;; esac
+  segverb "$seg" || continue
+  case $verb in cd|pushd|popd) [ $linear -eq 1 ] && cdseg "$eff" ;; esac
   sn=${seg//\'/}; sn=${sn//\"/}; sn=${sn//\\/}
   smention=0; [[ $sn =~ $re_name ]] && smention=1
   case $verb in eval|source|.) deny "$verb" ;; esac
