@@ -49,3 +49,12 @@ echo ${x/ #/y}; . ./x.sh
 echo ${x:- #}; . ./x.sh
 x=a\ #b; . ./x.sh
 [[ a == a\ #b ]]; . ./x.sh
+D=../Oth*; cp -r /tmp/x/. $D
+D=../../t/Oth*; cp -r /tmp/x/. $D
+pushd -n /tmp && cp -r /tmp/x/. .
+pushd ../Other && pushd /tmp && pushd && cp -r /tmp/x/. .
+pushd ../Other && pushd /tmp && pushd +1 && cp -r /tmp/x/. .
+CDPATH=.. && cd Other && cp -r /tmp/x/. .
+shopt -s cdable_vars && O=../Other && cd O && cp -r /tmp/x/. .
+cd 2>/dev/null ../Other && cp -r /tmp/x/. .
+cd ../Oth* && cp -r /tmp/x/. .

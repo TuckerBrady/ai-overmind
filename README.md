@@ -1,4 +1,4 @@
-# ai-overmind v5.1.0
+# ai-overmind v5.1.1
 
 **Build and run a personal AI team. One command and your Overmind wakes up.**
 
@@ -7,6 +7,15 @@ The Overmind is a Claude-powered team builder and persistent AI manager. Install
 Eleven capabilities work out of the box: **team building**, **handoffs**, **dispatch**, **splinter twins**, the **mission board**, **inboxes**, **TARS** — the turn hook that tells you, before every message, when work lands, an inbox fills, a Collective post arrives, or a checkpoint is due — **the Collective** — coordination between multiple Overminds in one org, over a shared folder, no server required — **`/status`**, one command for live mission state in any session, **`/initiative`**, a dial for how much the team does before asking you, and **`/diagnostic`**, which verifies the whole installation and tells you how to fix whatever it finds.
 
 ---
+
+## What's New in v5.1.1
+
+**The twin guard stops crying wolf when several twins run at once.** Protection for real changes is unchanged or stronger.
+
+- **No more false alarms from the guard's own log.** Every twin's hook writes to `_twin-guard.log`, so it is now checked append-only: new lines never alert, and any rewrite, truncation or deletion still does.
+- **Checks finish inside the hook's time.** The walk skips Python package trees (`site-packages`, `__pycache__`, `.venv`, `venv`). One project's venvs held 133k files and made every check outrun the 10 s timeout, which caused the "snapshot missing" and "previous check did not finish" alerts.
+- **One twin's slow check never touches another twin.** A check cut off by the hook's timeout is still reported on that twin's next call, as before. A check that never ran at all is finished from its record, and the next call is denied only when a protected file really changed.
+- **Scratch writes through a variable pass.** `SP=/scratch; mkdir -p "$SP"` and `cd /scratch && cp f .` are checked by where they land. Team-state targets are still denied through variables, redirects, `cd`, `pushd`, relative paths, and now symlinks and junctions too. Where the text can't say where a `cd` lands (`pushd -n`, `pushd +1`, `CDPATH`, a glob), the guard assumes the worst.
 
 ## What's New in v5.1.0
 

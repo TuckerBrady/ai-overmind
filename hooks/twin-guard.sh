@@ -33,6 +33,14 @@
 #      re-hashes the files Pre recorded and logs any change before it walks
 #      for new ones; a per-call busy marker lets the next Pre report a check
 #      that never finished (A-38 P1).
+#   5.1.1 (parallel twins; Tucker's go, 2026-11-23): the root's own
+#      _twin-guard.log is append-only to the detector, not an entry (other
+#      twins' hooks write it); a Post that never ran is settled from its
+#      record by the same twin's next Pre (a cut-off Post is still reported
+#      at once, as in 5.1.0); Python
+#      package trees are pruned from the walk; a $VARIABLE write target the
+#      command gives literal values is checked through them, cd is followed
+#      in a plain && chain, and links to protected files are denied.
 #
 # Platform facts, from the Claude Code hooks reference,
 # https://code.claude.com/docs/en/hooks :
@@ -64,8 +72,9 @@
 # removed, so IN''BOX.md and INB\OX.md are INBOX.md.
 #   - eval and source are denied outright, and so is . when it starts a
 #     simple command outside quotes (a quoted " . " is perl's concatenation).
-#   - A redirect target containing $ or ` is denied; so is one that names, or
-#     as a glob can match, a protected file.
+#   - A redirect target containing ` is denied, and one containing $ unless
+#     every variable in it reads through to literal values (5.1.1, below);
+#     so is one that names, or as a glob can match, a protected file.
 #   - cp, mv, ln, install, rsync and scp: every non-option argument is checked,
 #     sources included (a hard link is a second name for the file). Their
 #     destination may not be a protected folder or a seat folder holding
@@ -92,8 +101,9 @@
 # running in the background past the PostToolUse check; files outside the
 # root, under the pruned folders, or anywhere when no root is in reach or the
 # snapshot outruns the timeout; a same-user program that finds and rewrites
-# the call's record; a Write through a symlink; another session writing in the
-# same window (the detector alerts, it can't tell who).
+# the call's record; a Write through a hard link; lines appended to the root's
+# log at run time; another session writing in the same window (the detector
+# alerts, it can't tell who).
 #
 # A session that is not a twin pays one builtin read, one length test and one
 # substring test (input over the cap also pays one grep over the whole of it).
@@ -335,27 +345,33 @@ else HASH="cksum"; fi
 
 # listing ROOT FILE -> FILE gets one line per candidate under ROOT, from one
 # walk: "F <path>" a protected file, "G <path>" a .git (file or folder),
-# "D <path>" a claim or ID folder. Pruned by name: .git, node_modules, drafts
-# and _claims (TARS's).
+# "D <path>" a claim or ID folder. Pruned by name: .git, node_modules, drafts,
+# _claims (TARS's), and Python's package trees (site-packages, __pycache__,
+# .venv, venv; 5.1.1): one project's four venvs held 133k of the live team's
+# 140k files and made every walk outrun the hook's 10 s timeout.
 listing() {
   case ${OSTYPE:-} in
     darwin*|*bsd*)
-      find "$1" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
+      find "$1" \( -name node_modules -o -name drafts -o -name _claims -o -name site-packages \
+           -o -name __pycache__ -o -name .venv -o -name venv \) -prune -o \
         -name .git -prune -exec printf 'G %s\n' {} + -o \
-        -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
+        \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
            -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
            -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
-           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'F %s\n' {} + -o \
-        -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -exec printf 'D %s\n' {} + > "$2" 2>/dev/null ;;
+           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -type f -exec printf 'F %s\n' {} + -o \
+        \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -type d -exec printf 'D %s\n' {} + > "$2" 2>/dev/null ;;
     *)
-      # GNU find prints the lines itself: no printf process per batch.
-      find "$1" \( -name node_modules -o -name drafts -o -name _claims \) -prune -o \
+      # GNU find prints the lines itself: no printf process per batch. Names
+      # are tested before types, so a file that matches no name is never
+      # stat'ed for its type.
+      find "$1" \( -name node_modules -o -name drafts -o -name _claims -o -name site-packages \
+           -o -name __pycache__ -o -name .venv -o -name venv \) -prune -o \
         -name .git -printf 'G %p\n' -prune -o \
-        -type f \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
+        \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md \
            -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md \
            -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _twin-guard.log \
-           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -printf 'F %p\n' -o \
-        -type d \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -printf 'D %p\n' > "$2" 2>/dev/null ;;
+           -o -path '*/.go-claim/*' -o -path '*/_ids/*' \) -type f -printf 'F %p\n' -o \
+        \( -path '*/.go-claim/*' -o -path '*/_ids/*' \) -type d -printf 'D %p\n' > "$2" 2>/dev/null ;;
   esac
 }
 
@@ -369,13 +385,17 @@ listing() {
 #   Every protected file is hashed on every Pre and every Post (A-37 B1). No
 #   file metadata is trusted as proof that a file is unchanged: on NTFS a user
 #   program can set the mtime and the ctime back after an edit.
-#   mode=pre writes the snapshot to OUT ("root" line, then entries). mode=post
-#   prints "C <relpath>" for every entry added, removed or changed since REF.
+#   mode=pre writes the snapshot to OUT ("root" line, then entries, then the
+#   "log" line LOGL when set). mode=post prints "C <relpath>" for every entry
+#   added, removed or changed since REF.
+#   The root's own log, ROOT/_twin-guard.log by exact path, is not an entry:
+#   every twin's hook appends to it, so it is checked as append-only instead
+#   (logcheck; 5.1.1). A _twin-guard.log anywhere else is an ordinary entry.
 SNAP='
   function dirn(p) { sub(/\/[^\/]*$/, "", p); return p }
   function base(p) { sub(/^.*\//, "", p); return tolower(p) }
   FILENAME == ref {
-    if ($1 == "root") next
+    if ($1 == "root" || $1 == "log") next
     k = $0; sub(/^[^ ]+ /, "", k)
     if ($1 == "dir") rdir[k] = 1; else rh[k] = $1
     next
@@ -412,6 +432,7 @@ SNAP='
     for (i = 1; i <= n; i++) {
       p = ap[i]
       if (index(p, root "/") != 1) continue
+      if (p == root "/_twin-guard.log") continue
       d = dirn(p); skip = 0
       while (length(d) > length(root)) { if (d in pr) { skip = 1; break }; d = dirn(d) }
       if (skip) continue
@@ -426,6 +447,7 @@ SNAP='
       print "root " root > out
       for (i = 1; i <= m; i++) if (ek[i] != "dir") print ed[i] > out
       for (i = 1; i <= m; i++) if (ek[i] == "dir") print ed[i] > out
+      if (logl != "") print "log " logl > out
       exit
     }
     for (i = 1; i <= m; i++) {
@@ -441,16 +463,61 @@ SNAP='
 # protected file found (except those PREHASHED already holds, the hashes Post
 # took a moment earlier), and runs SNAP; sets SNAPOUT to the program's output.
 snapshot() {
-  local mode=$1 r=$2 ref=$3 out=${4:-} pre=${5:-} ck=0 lf="$gdir/$callid.l" hf="$gdir/$callid.h"
+  local mode=$1 r=$2 ref=$3 out=${4:-} pre=${5:-} ck=0 lf="$gdir/$callid.l" hf="$gdir/$callid.h" logl=""
   [ "$HASH" = cksum ] && ck=1
   [ -f "$ref" ] || ref=/dev/null
   [ -n "$pre" ] && [ -f "$pre" ] || pre=/dev/null
   listing "$r" "$lf"
   # shellcheck disable=SC2086
   awk -v pass=1 -v root="$r" -v ref=/dev/null -v pre="$pre" -v ck="$ck" "$SNAP" /dev/null "$pre" "$lf" | tr '\n' '\000' | xargs -0 -r $HASH > "$hf" 2>/dev/null
+  if [ "$mode" = pre ] && phash "$r/_twin-guard.log"; then logl=$PH; fi
   SNAPOUT=$(awk -v pass=2 -v mode="$mode" -v root="$r" -v ref="$ref" -v pre="$pre" -v hashes="$hf" -v ck="$ck" \
-    -v out="$out" "$SNAP" "$ref" "$pre" "$hf" "$lf")
+    -v out="$out" -v logl="$logl" "$SNAP" "$ref" "$pre" "$hf" "$lf")
   : > "$lf"; : > "$hf"
+}
+
+# phash FILE -> PH="<size> <hash of its first size bytes>"; 1 when FILE is not
+# a readable file. The size and the hash cover the same bytes even while other
+# hooks append to FILE.
+phash() {
+  local f=$1 sz h
+  PH=""
+  [ -f "$f" ] || return 1
+  sz=$(wc -c < "$f" 2>/dev/null) || return 1
+  sz=${sz//[!0-9]/}
+  [ -n "$sz" ] || return 1
+  # shellcheck disable=SC2086
+  h=$(head -c "$sz" "$f" 2>/dev/null | $HASH 2>/dev/null)
+  h=${h%% *}
+  [ -n "$h" ] || return 1
+  PH="$sz $h"
+}
+
+# logcheck SNAPFILE -> LOGC="C _twin-guard.log" when the root's log lost or
+# changed any byte it held at Pre: shorter now, gone, or a different hash over
+# the same first bytes. Growth is every twin hook's appends and never counts
+# (5.1.1). With no "log" line, Pre found no log, and any log now is new growth.
+logcheck() {
+  local sf=$1 r="" l="" k sz h
+  LOGC=""
+  { IFS= read -r r; while IFS= read -r k; do l=$k; done; } < "$sf"
+  r=${r#root }
+  case $l in 'log '*) ;; *) return 0 ;; esac
+  l=${l#log }; sz=${l%% *}; h=${l#* }
+  if phash_n "$r/_twin-guard.log" "$sz" && [ "$PH" = "$h" ]; then return 0; fi
+  LOGC="C _twin-guard.log"
+}
+# phash_n FILE SIZE -> PH=<hash of FILE's first SIZE bytes>; 1 when FILE is
+# missing. A FILE shorter than SIZE hashes fewer bytes, so it never matches.
+phash_n() {
+  local f=$1 n=$2 h
+  PH=""
+  [ -f "$f" ] || return 1
+  case $n in ''|*[!0-9]*) return 1 ;; esac
+  # shellcheck disable=SC2086
+  h=$(head -c "$n" "$f" 2>/dev/null | $HASH 2>/dev/null)
+  PH=${h%% *}
+  [ -n "$PH" ]
 }
 
 # sanit TEXT -> S: TEXT reduced to [A-Za-z0-9_-], at most 64 characters.
@@ -464,6 +531,9 @@ sanit "${aid:-noagent}"; callid=$S; sanit "${tuid:-notool}"; callid="$callid.$S"
 sanit "$agent"; s_agent=$S; sanit "$aid"; s_aid=$S; sanit "$tuid"; s_tuid=$S
 snapfile="$gdir/$callid.snap"; markfile="$gdir/$callid.ok"
 BUDGET=5
+# A Pre this many seconds in skips settling a stale "pre" marker and denies
+# at once: the settle walks, and the hook has 10 s (QA, 5.1.1).
+SETTLE_BY=2
 now=${EPOCHSECONDS:-$(date +%s)}
 
 alert() { # ROOTS EVENT LINES... -> log each line under each root listed (one
@@ -489,7 +559,7 @@ recheck() {
   [ "$HASH" = cksum ] && ck=1
   IFS= read -r r < "$sf"; r=${r#root }
   # shellcheck disable=SC2086
-  awk -v r="$r" 'FNR > 1 && $1 != "dir" { p = $0; sub(/^[^ ]+ /, "", p); print r "/" p }' "$sf" |
+  awk -v r="$r" 'FNR > 1 && $1 != "dir" && $1 != "log" { p = $0; sub(/^[^ ]+ /, "", p); print r "/" p }' "$sf" |
     tr '\n' '\000' | xargs -0 -r $HASH > "$hf" 2>/dev/null
   SNAPOUT=$(awk -v r="$r" -v ck="$ck" '
     function unesc(p,   o, i, c) {
@@ -501,7 +571,7 @@ recheck() {
       }
       return o
     }
-    FILENAME == ARGV[1] { if (FNR == 1 || $1 == "dir") next; k = $0; sub(/^[^ ]+ /, "", k); old[k] = $1; next }
+    FILENAME == ARGV[1] { if (FNR == 1 || $1 == "dir" || $1 == "log") next; k = $0; sub(/^[^ ]+ /, "", k); old[k] = $1; next }
     {
       e = 0; if (substr($0, 1, 1) == "\\") { e = 1; $0 = substr($0, 2) }
       if (ck) { h = $1 ":" $2; p = $0; sub(/^[^ ]+ [^ ]+ /, "", p) }
@@ -527,6 +597,101 @@ $1
 EOF
 }
 
+# compare PREFIX LOGROOTS SNAPFILE... -> MSGS gets "<PREFIX><relpath>" for
+# every protected file that differs from the Pre records. Step 1 re-hashes the
+# files each record lists, checks the root's log as append-only, and logs each
+# change under LOGROOTS at once, before step 2 walks for files added or
+# removed: a command that floods the tree with new files can make the walk
+# outrun the hook's timeout, and the log keeps what was found (A-38 P1). NLOG
+# is the number of MSGS already logged.
+compare() {
+  local pfx=$1 lr=$2 sf sr rel seenc=$nl
+  shift 2
+  MSGS=()
+  # The recheck's findings are logged before the log itself is checked: that
+  # check costs two more processes, and a Post near its timeout must not lose
+  # a finding to it.
+  for sf in "$@"; do
+    recheck "$sf" "$sf.r"
+    while IFS= read -r rel; do
+      case $rel in 'C '?*) ;; *) continue ;; esac
+      rel=${rel#C }
+      case $seenc in *"$nl$rel$nl"*) continue ;; esac
+      seenc="$seenc$rel$nl"
+      MSGS+=("$pfx$rel")
+      logline "$lr" "$pfx$rel"
+    done <<EOF
+$SNAPOUT
+EOF
+    logcheck "$sf"
+    if [ -n "$LOGC" ]; then
+      case $seenc in *"$nl$LOGC$nl"*) ;; *)
+        seenc="$seenc${LOGC#C }$nl"; MSGS+=("$pfx${LOGC#C }"); logline "$lr" "$pfx${LOGC#C }" ;;
+      esac
+    fi
+  done
+  NLOG=${#MSGS[@]}
+  for sf in "$@"; do
+    IFS= read -r sr < "$sf"; sr=${sr#root }
+    snapshot post "$sr" "$sf" "" "$sf.r"
+    while IFS= read -r rel; do
+      case $rel in 'C '?*) ;; *) continue ;; esac
+      rel=${rel#C }
+      case $seenc in *"$nl$rel$nl"*) continue ;; esac
+      seenc="$seenc$rel$nl"
+      MSGS+=("$pfx$rel")
+    done <<EOF
+$SNAPOUT
+EOF
+  done
+}
+
+# settle BUSY STATE AGE -> SETTLE: alert lines (one per line), empty when the
+# check BUSY stands for can be closed quietly. BUSY is a busy marker of this
+# agent's that is stale because its Post never ran ("pre", over 11 minutes; a
+# stale "post" marker is reported at once instead). Its Pre records are still
+# whole, so the comparison its Post would have made is made now,
+# against the files as they are: a protected file that differs is reported
+# (A-38 P1 kept), and a clean result closes the check with a NOTE in the log
+# instead of a denied call (5.1.1). A record that is gone is still reported.
+settle() {
+  local b=$1 st=$2 age=$3 bid mk="" nr="" i sf sr srs=() sroots="" gone="" m why
+  bid=${b##*/}; bid=${bid%.busy}
+  if [ -s "$gdir/$bid.ok" ]; then { IFS= read -r mk; IFS= read -r nr; } < "$gdir/$bid.ok"; fi
+  nr=${nr#roots }; case $nr in ''|*[!0-9]*) nr=1 ;; esac
+  why="previous check did not finish ($bid.busy: $st, ${age}s ago)"
+  SETTLE=""
+  case $mk in
+    noroot) ;;
+    "ok $bid")
+      i=1
+      while [ $i -le "$nr" ] && [ $i -le 16 ]; do
+        sf="$gdir/$bid.snap"; [ $i -gt 1 ] && sf="$sf.$i"
+        sr=""; [ -s "$sf" ] && IFS= read -r sr < "$sf"; sr=${sr#root }
+        if [ -n "$sr" ] && [ -d "$sr" ]; then srs+=("$sf"); sroots="$sroots$sr$nl"; else gone=1; fi
+        i=$((i + 1))
+      done ;;
+    *) gone=1 ;;
+  esac
+  # Its own Post may have finished while this one read: then all is done.
+  if [ -n "$gone" ] && [ ! -s "$b" ]; then return 0; fi
+  if [ -n "$gone" ]; then
+    SETTLE="TWIN-GUARD ALERT: $why; its record is gone, protected files may have changed unseen"
+    logline "$TROOTS$sroots" "$SETTLE"
+  elif [ ${#srs[@]} -gt 0 ]; then
+    compare "TWIN-GUARD ALERT: $why; protected file changed since that command started: " "$TROOTS$sroots" "${srs[@]}"
+    i=$NLOG
+    while [ $i -lt ${#MSGS[@]} ]; do logline "$TROOTS$sroots" "${MSGS[i]}"; i=$((i + 1)); done
+    for m in ${MSGS[@]+"${MSGS[@]}"}; do SETTLE="$SETTLE$m$nl"; done
+    SETTLE=${SETTLE%"$nl"}
+  fi
+  [ -n "$SETTLE" ] || logline "$TROOTS$sroots" "TWIN-GUARD NOTE: $why; re-checked from its record, no protected file changed"
+  : > "$b"
+  for sf in ${srs[@]+"${srs[@]}"}; do : > "$sf"; : > "$sf.r"; done
+  : > "$gdir/$bid.ok"
+  return 0
+}
+
 # ---------------------------------------------------------------- post: detect
 if [ "$event" != PreToolUse ]; then
   [ "$tool" = Bash ] || exit 0
@@ -537,13 +702,14 @@ if [ "$event" != PreToolUse ]; then
     alert "$TROOTS" "$event" "TWIN-GUARD ALERT: hook input over the 512 KiB cap; protected files were not checked"
     : > "$busy" 2>/dev/null; exit 0
   fi
+  # The records stay whole until this check is done, and the busy marker is
+  # emptied first, so a cut-off clean-up never reads as an unfinished check.
   mark="" nroots=""
   if [ -s "$markfile" ]; then { IFS= read -r mark; IFS= read -r nroots; } < "$markfile"; fi
-  : > "$markfile" 2>/dev/null
   nroots=${nroots#roots }
   case $nroots in ''|*[!0-9]*) nroots=1 ;; esac
   if [ "$mark" = noroot ]; then
-    : > "$snapfile"; : > "$busy"
+    : > "$busy"; : > "$snapfile"; : > "$markfile"
     # Pre found no team root. If one resolves now, the call ran unwatched, or
     # something rewrote the marker: say so (A-33 S-2).
     [ -n "$root" ] && alert "$TROOTS" "$event" "TWIN-GUARD ALERT: no team root at PreToolUse but one resolves now; protected files were not checked"
@@ -561,49 +727,20 @@ if [ "$event" != PreToolUse ]; then
     i=$((i + 1))
   done
   if [ -n "$missing" ]; then
-    for sf in ${sfs[@]+"${sfs[@]}"}; do : > "$sf"; done; : > "$snapfile"; : > "$busy"
+    : > "$busy"
+    for sf in ${sfs[@]+"${sfs[@]}"}; do : > "$sf"; done; : > "$snapfile"; : > "$markfile"
     alert "$TROOTS$sroots" "$event" "TWIN-GUARD ALERT: snapshot missing for this twin command; protected files were not checked"
     exit 0
   fi
-  # 1. Re-hash what Pre recorded, and log any change at once, before the
-  #    walk: a command that floods the tree with new files can make the walk
-  #    outrun the hook's timeout, and the log keeps what was found (A-38 P1).
-  msgs=() seenc=$nl
-  for sf in "${sfs[@]}"; do
-    recheck "$sf" "$sf.r"
-    while IFS= read -r rel; do
-      case $rel in 'C '?*) ;; *) continue ;; esac
-      rel=${rel#C }; seenc="$seenc$rel$nl"
-      msgs+=("TWIN-GUARD ALERT: protected file changed during twin command: $rel")
-      logline "$root$nl$sroots" "TWIN-GUARD ALERT: protected file changed during twin command: $rel"
-    done <<EOF
-$SNAPOUT
-EOF
-  done
-  # 2. The full walk, for files added or removed.
-  nlog=${#msgs[@]}
-  for sf in "${sfs[@]}"; do
-    IFS= read -r sr < "$sf"; sr=${sr#root }
-    snapshot post "$sr" "$sf" "" "$sf.r"
-    while IFS= read -r rel; do
-      case $rel in 'C '?*) ;; *) continue ;; esac
-      rel=${rel#C }
-      case $seenc in *"$nl$rel$nl"*) continue ;; esac
-      # This Post's own first-pass log line can create a root's log; the
-      # first pass already compared every log that Pre recorded (A-44).
-      [ "$rel" = _twin-guard.log ] && [ "$nlog" -gt 0 ] && continue
-      seenc="$seenc$rel$nl"
-      msgs+=("TWIN-GUARD ALERT: protected file changed during twin command: $rel")
-    done <<EOF
-$SNAPOUT
-EOF
-    : > "$sf"; : > "$sf.r"
-  done
+  compare "TWIN-GUARD ALERT: protected file changed during twin command: " "$root$nl$sroots" "${sfs[@]}"
+  # Done: the marker goes first, so a cut-off clean-up can't read as a check
+  # that never finished.
   : > "$busy"
-  [ ${#msgs[@]} -gt 0 ] || exit 0
-  i=$nlog
-  while [ $i -lt ${#msgs[@]} ]; do logline "$root$nl$sroots" "${msgs[i]}"; i=$((i + 1)); done
-  NOLOG=1 alert "" "$event" "${msgs[@]}"
+  for sf in "${sfs[@]}"; do : > "$sf"; : > "$sf.r"; done; : > "$markfile"
+  [ ${#MSGS[@]} -gt 0 ] || exit 0
+  i=$NLOG
+  while [ $i -lt ${#MSGS[@]} ]; do logline "$root$nl$sroots" "${MSGS[i]}"; i=$((i + 1)); done
+  NOLOG=1 alert "" "$event" "${MSGS[@]}"
   exit 0
 fi
 
@@ -659,19 +796,65 @@ dolhit() {
   done
   return 1
 }
-# dirhit PATH -> 0 when PATH is a folder that is protected or holds a
-# protected file within three levels.
+# ccwds: every folder a relative path in the command may be relative to, one
+# per line. The hook's cwd to start; the segment loop below follows cd
+# (5.1.1). With none, a relative path is taken as it stands. cwdunknown is set
+# once a cd goes somewhere the text doesn't say.
+ccwds=$cwd cwdunknown=0
+# inwd PATH -> WD: PATH as it reads from each folder in ccwds (one per line);
+# PATH itself when it is absolute or ccwds is empty. ~ and ~/ are $HOME.
+inwd() {
+  local d=${1//\\//} c
+  case $d in '~') d=${HOME:-~} ;; '~/'*) [ -n "${HOME:-}" ] && d=$HOME/${d#\~/} ;; esac
+  WD=""
+  case $d in /*|[A-Za-z]:*) WD=$d; return 0 ;; esac
+  [ -n "$ccwds" ] || { WD=$d; return 0; }
+  while IFS= read -r c; do
+    [ -n "$c" ] && WD="$WD$c/$d$nl"
+  done <<EOF
+$ccwds
+EOF
+  WD=${WD%"$nl"}
+}
+# dirhit PATH -> 0 when PATH, from any folder in ccwds, is a folder (or a link
+# or junction to one) that is protected or holds a protected file within three
+# levels. A link is followed (find -H, cd -P), so a link to a seat folder
+# counts as the seat folder (5.1.1).
 dirhit() {
-  local d=${1//\\//}
-  case $d in /*|[A-Za-z]:*) ;; *) [ -n "$cwd" ] && d="$cwd/$d" ;; esac
-  [ -d "$d" ] || return 1
-  pname "${d%/}" && return 0
-  [ -n "$(find "$d" -maxdepth 3 \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _claims -o -iname .go-claim -o -iname _ids \) -print 2>/dev/null | head -n 1)" ]
+  local p r
+  inwd "$1"
+  while IFS= read -r p; do
+    [ -n "$p" ] && [ -d "$p" ] || continue
+    # An 8.3 short name anywhere in the path can alias a protected folder.
+    case $p in *~[0-9]*) return 0 ;; esac
+    prot "${p%/}" && return 0
+    if [ -L "${p%/}" ]; then r=$(cd -P -- "$p" 2>/dev/null && pwd -P) && [ -n "$r" ] && prot "$r" && return 0; fi
+    [ -n "$(find -H "$p" -maxdepth 3 \( -iname INBOX.md -o -iname 'HANDOFF*.md' -o -iname BOOT.md -o -iname CLAUDE.md -o -iname 'WORKING_WITH_*.md' -o -iname 'mission-complete*.md' -o -iname GOPHER_REGISTRY.md -o -iname MISSION_BOARD.md -o -iname team.db -o -iname _claims -o -iname .go-claim -o -iname _ids \) -print 2>/dev/null | head -n 1)" ] && return 0
+  done <<EOF
+$WD
+EOF
+  return 1
+}
+# linkhit PATH -> 0 when PATH, from any folder in ccwds, is a symlink or
+# junction whose target is protected (5.1.1). The name alone looks harmless.
+linkhit() {
+  local p r
+  inwd "$1"
+  while IFS= read -r p; do
+    p=${p%/}
+    [ -n "$p" ] && [ -L "$p" ] || continue
+    r=$(readlink -f -- "$p" 2>/dev/null) || r=$(readlink -- "$p" 2>/dev/null) || r=""
+    [ -n "$r" ] && prot "$r" && return 0
+  done <<EOF
+$WD
+EOF
+  return 1
 }
 
 case $tool in
   Write|Edit|MultiEdit|NotebookEdit)
     [ -n "$fpath" ] && prot "$fpath" && deny "$tool on ${fpath##*[/\\]}"
+    [ -n "$fpath" ] && linkhit "$fpath" && deny "$tool through a link to team state"
     exit 0 ;;
   Bash) ;;
   *) exit 0 ;;
@@ -692,51 +875,284 @@ re_brief='handoff\.sh[[:space:]]+(place|migrate)'
 re_claim='claim\.sh[[:space:]]+([^-]|-[^-]|--[^c])'
 [[ $norm =~ $re_claim ]] && deny "claim.sh stamp"
 
-# One write target.
+# ---- variables in write targets (5.1.1)
+# A target written with $NAME or ${NAME} is read through NAME's values when the
+# command itself gives them all: NAME is not in the hook's environment, and
+# every place NAME appears in the command is $NAME, ${NAME}, or a literal
+# assignment that ends its command (NAME=value standing alone, or right after
+# export, local, declare, typeset, readonly, then, do or else). Every value it
+# is given, and the empty value it has before any of them runs, is checked as
+# the target, whatever order or branch the assignments sit in. A value that
+# uses another such variable is read through it the same way. Anything else
+# leaves $NAME unread, and the pre-5.1.1 checks apply to the text unchanged
+# (dolhit for arguments; a redirect is denied): for NAME in, read NAME,
+# ${NAME:-x}, NAME+=, a prefix assignment (NAME=x cmd "$NAME" expands the old
+# value), a value with $( ), backticks, quotes, ~ or an escape, an array, and
+# any command that mentions IFS (it would change how $NAME splits).
+# This replaces "any $ in a target is denied" for those commands, the false
+# deny twins hit writing to their own scratch folders through a variable.
+re_ref='\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*'
+re_ref_a='^(\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*)'
+re_ident='^[A-Za-z_][A-Za-z0-9_]*$'
+re_cd='^[[:space:]]*(cd|pushd)([[:space:]]|$)'
+envnames=""
+# varvals NAME -> VV[]: NAME's values (raw text) as above; 1 when unreadable.
+varvals() {
+  local n=$1 s=$cmd done_="" m g1 g3 pre post b c w v rest after val chk ok re
+  VV=()
+  [[ $n =~ $re_ident ]] || return 1
+  # Names bash or the session sets on its own (cd sets OLDPWD, every command
+  # sets _), whatever the command assigns.
+  case $n in
+    _|PWD|OLDPWD|HOME|PATH|IFS|CDPATH|RANDOM|SRANDOM|SECONDS|LINENO|EPOCH*|PPID|UID|EUID|GROUPS|HOST*|OSTYPE|MACHTYPE|SHLVL|REPLY|OPT*|PIPESTATUS|FUNCNAME|BASH*|COMP*|DIRSTACK|MAPFILE|TMOUT|HIST*|PS[0-9]|SHELLOPTS|BASHOPTS|COLUMNS|LINES|TMPDIR|TEMP|TMP|CLAUDE*) return 1 ;;
+  esac
+  [ -n "$envnames" ] || envnames=$nl$(compgen -e)$nl
+  case $envnames in *"$nl$n$nl"*) return 1 ;; esac
+  re="(^|[^A-Za-z0-9_])($n)([^A-Za-z0-9_]|\$)"
+  while [[ $s =~ $re ]]; do
+    m=${BASH_REMATCH[0]}; g1=${BASH_REMATCH[1]}; g3=${BASH_REMATCH[3]}
+    pre=$done_${s%%"$m"*}$g1
+    s=$g3${s#*"$m"}; post=$s
+    done_=$pre$n
+    case $pre in
+      *'\$'|*'\${') return 1 ;;
+      *'${') [ "${post:0:1}" = '}' ] || return 1; continue ;;
+      *'$') continue ;;
+    esac
+    [ "${post:0:1}" = '=' ] && [ "${post:1:1}" != '=' ] || return 1
+    b=$pre
+    while :; do case $b in *' '|*"$tab") b=${b%?} ;; *) break ;; esac; done
+    ok=0
+    case $b in
+      ''|*[\;\&\|\{]|*$'\n'|*$'\r') ok=1 ;;
+      *'(') c=${b%?}; case $c in *'$'|*'(') ;; *) ok=1 ;; esac ;;
+      *) w=${b##*[!A-Za-z]}
+         case $w in export|local|declare|typeset|readonly|then|do|else)
+           c=${b%"$w"}; case $c in ''|*[\;\&\|\(\{' '$'\t'$'\n']) ok=1 ;; esac ;;
+         esac ;;
+    esac
+    [ $ok -eq 1 ] || return 1
+    v=${post:1}
+    case ${v:0:1} in
+      '"') rest=${v:1}; case $rest in *'"'*) ;; *) return 1 ;; esac
+           val=${rest%%'"'*}; after=${rest#*'"'}
+           case $val in *'`'*|*"'"*|*'\$'*|*'\\'*|*'\') return 1 ;; esac ;;
+      "'") rest=${v:1}; case $rest in *"'"*) ;; *) return 1 ;; esac
+           val=${rest%%"'"*}; after=${rest#*"'"}
+           case $val in *'$'*|*'"'*) return 1 ;; esac ;;
+      *) val=${v%%[[:space:]\;\&\|\(\)\<\>]*}; after=${v:${#val}}
+         case $val in *[\"\'\`\\~]*) return 1 ;; esac ;;
+    esac
+    chk=$val
+    while [[ $chk =~ $re_ref ]]; do chk=${chk/"${BASH_REMATCH[0]}"/}; done
+    case $chk in *'$'*) return 1 ;; esac
+    while :; do case $after in ' '*|"$tab"*) after=${after#?} ;; *) break ;; esac; done
+    case $after in ''|[\;\&\|\)\#]*|$'\n'*|$'\r'*) ;; *) return 1 ;; esac
+    VV+=("$val")
+  done
+  # Never assigned here: its value comes from outside the text. Unread.
+  [ ${#VV[@]} -gt 0 ] || return 1
+  VV+=("")
+  return 0
+}
+# refnames RAW -> RN: the names RAW expands as $NAME or ${NAME}, outside
+# single quotes and not escaped, one per line.
+refnames() {
+  local s=$1 i=0 L=${#1} c q="" t
+  RN=""
+  while [ $i -lt $L ]; do
+    c=${s:i:1}
+    if [ "$q" = "'" ]; then [ "$c" = "'" ] && q=""; i=$((i + 1)); continue; fi
+    case $c in
+      "\\") i=$((i + 2)); continue ;;
+      "'") [ -z "$q" ] && q="'" ;;
+      '"') if [ "$q" = '"' ]; then q=""; else q='"'; fi ;;
+      '$') t=${s:i}
+           if [[ $t =~ $re_ref_a ]]; then t=${BASH_REMATCH[0]#\$}; t=${t#\{}; t=${t%\}}; RN="$RN$t$nl"; fi ;;
+    esac
+    i=$((i + 1))
+  done
+}
+# subst RAW NAME VALUE -> SB: RAW with each $NAME and ${NAME} outside single
+# quotes, not escaped, replaced by VALUE.
+subst() {
+  local s=$1 n=$2 v=$3 o="" i=0 L=${#1} c q="" k=${#2}
+  while [ $i -lt $L ]; do
+    c=${s:i:1}
+    if [ "$q" = "'" ]; then o="$o$c"; [ "$c" = "'" ] && q=""; i=$((i + 1)); continue; fi
+    case $c in
+      "\\") o="$o${s:i:2}"; i=$((i + 2)); continue ;;
+      "'") [ -z "$q" ] && q="'"; o="$o$c" ;;
+      '"') if [ "$q" = '"' ]; then q=""; else q='"'; fi; o="$o$c" ;;
+      '$')
+        if [ "${s:i+1:k+2}" = "{$n}" ]; then o="$o$v"; i=$((i + k + 3)); continue; fi
+        if [ "${s:i+1:k}" = "$n" ] && [[ ! ${s:i+1+k:1} =~ [A-Za-z0-9_] ]]; then o="$o$v"; i=$((i + 1 + k)); continue; fi
+        o="$o$c" ;;
+      *) o="$o$c" ;;
+    esac
+    i=$((i + 1))
+  done
+  SB=$o
+}
+# resolve RAW -> RC[]: RAW with every readable variable replaced by each of its
+# values (at most 64 candidates, 4 rounds deep); RC=(RAW) when none is.
+resolve() {
+  local raw=$1 round=0 c n v more bad=$nl new
+  RC=("$raw") RGLOB=0
+  case $cmd in *IFS*) return 0 ;; esac
+  shopt -u nocasematch
+  while [ $round -lt 4 ]; do
+    more=0
+    for c in "${RC[@]}"; do refnames "$c"; [ -n "$RN" ] && break; done
+    [ -n "$RN" ] || break
+    for n in $RN; do
+      case $bad in *"$nl$n$nl"*) continue ;; esac
+      if ! varvals "$n"; then bad="$bad$n$nl"; continue; fi
+      new=()
+      for c in "${RC[@]}"; do
+        for v in "${VV[@]}"; do
+          case $v in *[*?[]*) RGLOB=1 ;; esac
+          subst "$c" "$n" "$v"; new+=("$SB")
+        done
+      done
+      [ ${#new[@]} -le 64 ] || { shopt -s nocasematch; return 0; }
+      RC=("${new[@]}"); more=1
+    done
+    [ $more -eq 1 ] || break
+    round=$((round + 1))
+  done
+  shopt -s nocasematch
+  return 0
+}
+# unq TEXT -> UQ: TEXT with its ' and " removed (split names rejoin).
+unq() { UQ=${1//\'/}; UQ=${UQ//\"/}; }
+
+# target RAW [REC]: one write target, as written (quotes kept). A $-variable
+# the command gives literal values to is checked through each value (5.1.1).
 target() {
-  local t=$1 rec=${2:-0}
-  t=${t#\"}; t=${t%\"}; t=${t#\'}; t=${t%\'}
+  local raw=$1 rec=${2:-0} c part=0
+  case $raw in *'`'*) deny "substituted write target" ;; esac
+  case $raw in
+    *'$'*)
+      resolve "$raw"
+      # A value holding * ? or [ expands to names nobody can read from the
+      # text (D=../Oth*; cp -r x/. $D): denied, as before 5.1.1 (QA).
+      [ "$RGLOB" = 1 ] && deny "glob in a variable used as a write target"
+      for c in "${RC[@]}"; do
+        target1 "$c" "$rec" "$raw"
+        case $c in *'$'*) part=1 ;; esac
+      done
+      # Not every variable read through: the target as written gets the
+      # pre-5.1.1 checks too, so reading through never loosens them.
+      [ $part -eq 1 ] && target1 "$raw" "$rec" "" ;;
+    *) target1 "$raw" "$rec" "" ;;
+  esac
+  return 0
+}
+# target1 CANDIDATE REC ORIG: the checks for one spelling of a target. ORIG is
+# set when CANDIDATE came from a variable: an unquoted expansion splits on
+# whitespace, so each piece is checked too.
+target1() {
+  local t rec=$2 p parts=()
+  unq "$1"; t=$UQ
   [ -n "$t" ] || return 0
   case $t in /dev/null|/dev/stdout|/dev/stderr|'&'*) return 0 ;; esac
   case $t in *'`'*) deny "substituted write target" ;; esac
   prot "$t" && deny "write to ${t##*[/\\]}"
   dolhit "$t" && deny "expanded write target"
   case $t in *'*'*|*'?'*|*'['*) globhit "$t" && deny "glob write target" ;; esac
+  if [ -n "$3" ]; then
+    case $t in *[[:space:]]*)
+      read -r -a parts <<< "$t"
+      for p in ${parts[@]+"${parts[@]}"}; do
+        prot "$p" && deny "write to ${p##*[/\\]}"
+        dolhit "$p" && deny "expanded write target"
+        case $p in *'*'*|*'?'*|*'['*) globhit "$p" && deny "glob write target" ;; esac
+        linkhit "$p" && deny "write through a link to team state"
+        [ "$rec" = 1 ] && dirhit "$p" && deny "write to a folder holding team state"
+      done ;;
+    esac
+  fi
+  linkhit "$t" && deny "write through a link to team state"
+  if [ "$rec" = 1 ] && [ "$cwdunknown" = 1 ]; then
+    case ${t//\\//} in /*|[A-Za-z]:*|'~'|'~/'*) ;; *) deny "recursive write to a relative path after a cd the guard cannot read" ;; esac
+  fi
   [ "$rec" = 1 ] && dirhit "$t" && deny "write to a folder holding team state"
   return 0
 }
 
 # Redirections, anywhere in the command (heredocs and subshells included).
+# The target is the whole word, quoted parts and all ("$D"x is one word). A
+# target with a $ is denied unless every variable in it reads through to
+# literal values (5.1.1); then each value is checked. Links are checked again
+# after the segment loop, from every folder the command may cd to.
 writes_redirect=0
+rlinks=()
 rest=$cmd
-re_redir='(^|[^0-9&<>])[0-9]*(>>|>[|]|[&]>>|[&]>|>)[[:space:]]*("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:];&|<>()]+)'
+re_redir='(^|[^0-9&<>])[0-9]*(>>|>[|]|[&]>>|[&]>|>)[[:space:]]*(("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:];&|<>()"'"'"'])+)'
 while [[ $rest =~ $re_redir ]]; do
-  r=${BASH_REMATCH[3]}
-  case $r in *'$'*|*'`'*) deny "redirect to an expanded target" ;; esac
+  r=${BASH_REMATCH[3]}; whole=${BASH_REMATCH[0]}
+  case $r in *'`'*) deny "redirect to an expanded target" ;; esac
+  case $r in
+    *'$'*)
+      resolve "$r"
+      for c in "${RC[@]}"; do unq "$c"; case $UQ in *'$'*|*'`'*) deny "redirect to an expanded target" ;; esac; done
+      rlinks+=("${RC[@]}") ;;
+    *) rlinks+=("$r") ;;
+  esac
   case $r in /dev/null|/dev/stdout|/dev/stderr|'&'*) ;; *) writes_redirect=1 ;; esac
   target "$r"
-  rest=${rest#*"${BASH_REMATCH[0]}"}
+  rest=${rest#*"$whole"}
 done
 
 # split_words STRING -> words[]: whitespace-separated, honoring '...' and
-# "..." (a quoted path with spaces stays one word); backslashes kept.
+# "..." (a quoted path with spaces stays one word); backslashes kept. rwords[]
+# holds the same words as written, quotes kept, for reading variables.
 split_words() {
-  local s=$1 w="" q="" c i n have=0
-  words=(); n=${#s}
+  local s=$1 w="" rw="" q="" c i n have=0
+  words=(); rwords=(); n=${#s}
   for ((i = 0; i < n; i++)); do
     c=${s:i:1}
     if [ -n "$q" ]; then
       if [ "$c" = "$q" ]; then q=""; else w="$w$c"; fi
+      rw="$rw$c"
     else
       case $c in
-        "'"|'"') q=$c; have=1 ;;
-        ' '|$'\t') [ $have -eq 1 ] && { words+=("$w"); w=""; have=0; } ;;
-        *) w="$w$c"; have=1 ;;
+        "'"|'"') q=$c; have=1; rw="$rw$c" ;;
+        ' '|$'\t') [ $have -eq 1 ] && { words+=("$w"); rwords+=("$rw"); w=""; rw=""; have=0; } ;;
+        *) w="$w$c"; rw="$rw$c"; have=1 ;;
       esac
     fi
   done
-  [ $have -eq 1 ] && words+=("$w")
+  [ $have -eq 1 ] && { words+=("$w"); rwords+=("$rw"); }
   return 0
+}
+
+# cdto RAW -> CDS: every folder a cd to RAW may land in, read from every
+# folder in ccwds, one per line. A spelling the text doesn't settle (cd -, a $
+# that doesn't read through, ~user) or an empty one (cd "" stays put) adds the
+# current folders instead, so what the old rule checked is always still
+# checked, and every spelling that does read through is checked as well.
+cdto() {
+  local c p keep=0
+  CDS="" CDUNK=0
+  case $1 in *'`'*|-) CDS=$ccwds; CDUNK=1; return 0 ;; esac
+  case $1 in *'$'*) resolve "$1" ;; *) RC=("$1") RGLOB=0 ;; esac
+  [ "$RGLOB" = 1 ] && { CDS=$ccwds; CDUNK=1; return 0; }
+  for c in "${RC[@]}"; do
+    unq "$c"
+    case $UQ in
+      '') keep=1; continue ;;
+      *'$'*|*[*?[]*) keep=1; CDUNK=1; continue ;;
+      '~'?*) [ "${UQ:0:2}" = '~/' ] || { keep=1; CDUNK=1; continue; } ;;
+    esac
+    inwd "$UQ"
+    while IFS= read -r p; do [ -n "$p" ] && CDS="$CDS${p%/}$nl"; done <<EOF
+$WD
+EOF
+  done
+  [ $keep -eq 1 ] && [ -n "$ccwds" ] && CDS="$CDS$ccwds$nl"
+  CDS=${CDS%"$nl"}
 }
 
 readonly_ok() { # verb, args... -> 0 when the part only reads
@@ -780,17 +1196,109 @@ for v in "$cmd" "$dse" "$norm"; do
 done
 
 # Simple commands: split on ; & | ( ) and newlines, as fb649ac did.
-segs=${cmd//[;&|()]/$'\n'}
-while IFS= read -r seg; do
-  split_words "$seg"
-  [ ${#words[@]} -gt 0 ] || continue
+# cd (5.1.1): relative paths read from the folders in ccwds. A command that is
+# one chain joined only by && (no ; || & ( ) { } backtick or line break
+# anywhere) runs each part only when the part before it succeeded, so a cd that
+# is a whole part moves the folder for every part after it. Any other cd adds
+# its folder to the ones checked, and the hook's cwd stays among them. After a
+# cd whose folder the text doesn't give, a recursive write to a relative path
+# is denied.
+SOH=$'\001' ETX=$'\003'
+linear=1
+case $cmd in *[\;\(\)\`]*|*'||'*|*$'\n'*|*$'\r'*|*'{ '*|*'{'$'\t'*) linear=0 ;; esac
+lt=${cmd//&&/}; case $lt in *'&'*) linear=0 ;; esac
+if [ $linear -eq 1 ]; then
+  segs="" rest=${cmd//&&/$ETX}$ETX
+  while [ -n "$rest" ]; do
+    part=${rest%%"$ETX"*}; rest=${rest#*"$ETX"}
+    if [[ $part != *'|'* ]] && [[ $part =~ $re_cd ]]; then
+      segs="$segs$SOH$part$nl"
+    else
+      segs="$segs${part//|/$nl}$nl"
+    fi
+  done
+else
+  segs=${cmd//[;&|()]/$'\n'}
+fi
+# segverb SEG -> words, rwords, verb, args, rargs for one simple command; 1
+# when it has no command word.
+segverb() {
+  split_words "$1"
+  [ ${#words[@]} -gt 0 ] || return 1
   i=0
   while [ $i -lt ${#words[@]} ]; do
     case ${words[i]} in *=*|sudo|command|env|exec|nohup|time|builtin|do|then|else|'{'|'!') i=$((i+1)) ;; *) break ;; esac
   done
-  [ $i -lt ${#words[@]} ] || continue
+  [ $i -lt ${#words[@]} ] || return 1
   verb=${words[i]##*[/\\]}; verb=${verb%.[Ee][Xx][Ee]}
-  args=("${words[@]:i+1}")
+  args=("${words[@]:i+1}"); rargs=("${rwords[@]:i+1}")
+  return 0
+}
+# cdseg EFF: the cd, pushd or popd segverb just read. A cd whose folder the
+# text doesn't give sets cwdunknown: from then on a recursive write to a
+# relative path is denied (it was unchecked before 5.1.1). EFF=1 (a sure &&
+# link) REPLACES the folders only for a cd or pushd with exactly one plain
+# folder operand, no redirect word, no -n or +N/-N, no CDPATH in the
+# environment or the command, and no cdable_vars in the command. Every other
+# cd ADDS its folders, so the folders checked before stay checked (QA,
+# 5.1.1: pushd -n, bare pushd, pushd +1, CDPATH, cdable_vars and a redirect
+# word before the folder each slipped past a replace).
+cdseg() {
+  local ops=() k a skip=0 odd=0 c all="" unk=0
+  for ((k = 0; k < ${#args[@]}; k++)); do
+    a=${args[k]}
+    [ $skip -eq 1 ] && { skip=0; continue; }
+    case $a in
+      *'<'|*'>') odd=1; skip=1; continue ;;   # a redirect operator; its target is next
+      *'<'*|*'>'*) odd=1; continue ;;         # a redirect word, never the folder
+      --) continue ;;
+      -[LPe@]|-[LPe@][LPe@]|-[LPe@][LPe@][LPe@]) continue ;;
+      -n|[+-][0-9]*) odd=1; unk=1; continue ;;
+      -) ops+=("$a"); continue ;;
+      -*) odd=1; continue ;;
+    esac
+    ops+=("${rargs[k]}")
+  done
+  case $verb in
+    popd) unk=1 ;;
+    pushd) [ ${#ops[@]} -gt 0 ] || unk=1 ;;
+    cd) [ ${#ops[@]} -gt 0 ] || { ops=("~"); odd=1; } ;;
+  esac
+  [ ${#ops[@]} -eq 1 ] || odd=1
+  if [ -n "${CDPATH:-}" ] || [[ $cmd == *CDPATH* ]]; then
+    odd=1
+    # A bare relative name is looked up in CDPATH first.
+    for c in ${ops[@]+"${ops[@]}"}; do unq "$c"; case $UQ in /*|[A-Za-z]:*|.|./*|..|../*|'~'*) ;; *) unk=1 ;; esac; done
+  fi
+  [[ $cmd == *cdable_vars* ]] && { odd=1; unk=1; }
+  [ $unk -eq 1 ] && cwdunknown=1
+  for c in ${ops[@]+"${ops[@]}"}; do
+    cdto "$c"
+    [ "$CDUNK" = 1 ] && cwdunknown=1
+    [ -n "$CDS" ] && all="$all$CDS$nl"
+  done
+  all=${all%"$nl"}
+  [ -n "$all" ] || return 0
+  if [ "$1" = 1 ] && [ $odd -eq 0 ] && [ $unk -eq 0 ]; then ccwds=$all; else ccwds="$ccwds$nl$all"; fi
+  allcwds="$allcwds$nl$all"
+}
+allcwds=$ccwds
+# Not one sure chain: a loop or a function can run a cd before text that sits
+# above it, so every cd anywhere counts from the start.
+if [ $linear -eq 0 ]; then
+  case $cmd in *cd*|*pushd*|*popd*)
+    while IFS= read -r seg; do
+      segverb "$seg" || continue
+      case $verb in cd|pushd|popd) cdseg 0 ;; esac
+    done <<EOF
+$segs
+EOF
+  ;; esac
+fi
+while IFS= read -r seg; do
+  eff=0; case $seg in "$SOH"*) eff=1; seg=${seg#"$SOH"} ;; esac
+  segverb "$seg" || continue
+  case $verb in cd|pushd|popd) [ $linear -eq 1 ] && cdseg "$eff" ;; esac
   sn=${seg//\'/}; sn=${sn//\"/}; sn=${sn//\\/}
   smention=0; [[ $sn =~ $re_name ]] && smention=1
   case $verb in eval|source|.) deny "$verb" ;; esac
@@ -802,24 +1310,26 @@ while IFS= read -r seg; do
   esac
   rec=0
   for a in ${args[@]+"${args[@]}"}; do case $a in -*[rR]*|--recursive) rec=1 ;; esac; done
+  # Targets are passed as written (rargs, quotes kept), so a variable in one
+  # can be read through (5.1.1); target unquotes each spelling it checks.
   case $verb in
     cp|mv|ln|install|rsync|scp)
-      last=""
-      for a in ${args[@]+"${args[@]}"}; do
-        case $a in -*) continue ;; esac
-        last=$a
-        if [ "$verb" = mv ]; then target "$a" 1; else target "$a"; fi
+      last="" haslast=0
+      for ((k = 0; k < ${#args[@]}; k++)); do
+        case ${args[k]} in -*) continue ;; esac
+        last=${rargs[k]}; haslast=1
+        if [ "$verb" = mv ]; then target "$last" 1; else target "$last"; fi
       done
-      [ -n "$last" ] && target "$last" 1 ;;
+      [ $haslast -eq 1 ] && target "$last" 1 ;;
     tee|rm|rmdir|touch|truncate|unlink|shred|chmod|chown|mkdir)
-      for a in ${args[@]+"${args[@]}"}; do case $a in -*) ;; *) target "$a" "$rec" ;; esac; done ;;
+      for ((k = 0; k < ${#args[@]}; k++)); do case ${args[k]} in -*) ;; *) target "${rargs[k]}" "$rec" ;; esac; done ;;
     dd)
-      for a in ${args[@]+"${args[@]}"}; do case $a in of=*) target "${a#of=}" ;; esac; done
+      for ((k = 0; k < ${#args[@]}; k++)); do case ${args[k]} in of=*) a=${rargs[k]}; target "${a/of=/}" ;; esac; done
       [ $mentions -eq 1 ] && deny "dd naming a protected file" ;;
     sed|gsed|perl*)
       inplace=0
       for a in ${args[@]+"${args[@]}"}; do case $a in -i*|--in-place*|-[a-hj-zA-Z]*i*) inplace=1 ;; esac; done
-      if [ $inplace -eq 1 ]; then for a in ${args[@]+"${args[@]}"}; do case $a in -*) ;; *) target "$a" ;; esac; done; fi ;;
+      if [ $inplace -eq 1 ]; then for ((k = 0; k < ${#args[@]}; k++)); do case ${args[k]} in -*) ;; *) target "${rargs[k]}" ;; esac; done; fi ;;
     find)
       case " ${args[*]} " in
         *' -delete '*|*' -exec'*|*' -ok'*)
@@ -844,6 +1354,11 @@ $segs
 EOF
 set +f
 [ $mentions -eq 1 ] && [ $writes_redirect -eq 1 ] && deny "a redirect in a command naming a protected file"
+# Redirect targets that are links, from every folder the command may cd to.
+ccwds=$allcwds
+for r in ${rlinks[@]+"${rlinks[@]}"}; do
+  unq "$r"; [ -n "$UQ" ] && linkhit "$UQ" && deny "redirect through a link to team state"
+done
 
 # ---------------------------------------------------------------- pre: snapshot
 # Allowed. Record the protected files so the PostToolUse check can compare. The
@@ -861,22 +1376,40 @@ teamroot; root=$TROOT
 # from its Pre and "post T" from its Post, and Post empties it when done. A
 # "post" marker over 15 s old means a Post was cut off (the hook has 10 s); a
 # "pre" marker over 11 minutes old means the Post never ran (a Bash call ends
-# within 10). Either is reported once, by this twin's next Pre, which is denied
-# so the report can't be missed.
+# within 10). Markers are per agent and per call (<agent_id>.<tool_use_id>),
+# and only this agent's own are read: another twin's slow check never touches
+# this one. A stale "post" marker is reported by denying this call, as in
+# 5.1.0. A stale "pre" marker is settled from its record while this Pre is
+# young (5.1.1): only a protected file that really differs, or a record that
+# is gone, is reported that way; otherwise a NOTE goes in the log.
 unfinished=()
-for b in "$gdir/$s_aid".*.busy; do
+for b in "$gdir/${callid%%.*}".*.busy; do
   [ -s "$b" ] || continue
+  [ "$b" = "$gdir/$callid.busy" ] && continue
   st="" t=""; read -r st t < "$b" 2>/dev/null
   case $t in ''|*[!0-9]*) t=0 ;; esac
   age=$(( now - t ))
-  if { [ "$st" = post ] && [ $age -gt 15 ]; } || { [ "$st" = pre ] && [ $age -gt 660 ]; }; then
-    unfinished+=("TWIN-GUARD ALERT: previous check did not finish (${b##*/}: $st, ${age}s ago); protected files may have changed unseen")
-    : > "$b"
+  stale="TWIN-GUARD ALERT: previous check did not finish (${b##*/}: $st, ${age}s ago); protected files may have changed unseen"
+  if [ "$st" = post ] && [ $age -gt 15 ]; then
+    # A Post cut off by the timeout: reported at once, as in 5.1.0 (QA, 5.1.1).
+    # Settling it would cost this Pre two walks, and a Pre cut off in turn
+    # lets the call through unchecked and unlogged.
+    logline "$TROOTS" "$stale"; unfinished+=("$stale"); : > "$b"
+  elif [ "$st" = pre ] && [ $age -gt 660 ]; then
+    # A Post that never ran. Settled from its record only while this Pre is
+    # young; the start is logged before any walk, so a settle cut off by the
+    # timeout still leaves a trace.
+    if [ $SECONDS -ge $SETTLE_BY ]; then
+      logline "$TROOTS" "$stale"; unfinished+=("$stale"); : > "$b"
+    else
+      logline "$TROOTS" "TWIN-GUARD NOTE: settle started for ${b##*/} ($st, ${age}s ago)"
+      settle "$b" "$st" "$age"
+      [ -n "$SETTLE" ] && unfinished+=("$SETTLE")
+    fi
   fi
 done
 if [ ${#unfinished[@]} -gt 0 ]; then
-  for m in "${unfinished[@]}"; do logline "$TROOTS" "$m"; done
-  why="${unfinished[0]} - report this alert to your spawner; the result is quarantined until the diff is reviewed"
+  why="${unfinished[0]%%"$nl"*} - report this alert to your spawner; the result is quarantined until the diff is reviewed"
   why=${why//[^A-Za-z0-9 ._:\/(),;-]/}
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "${why:0:400}"
   exit 0
